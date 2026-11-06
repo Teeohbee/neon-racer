@@ -47,6 +47,7 @@ import type { CarView, SketchView } from "./render/types";
 import { createMinimap, drawTrackShape } from "./minimap";
 import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
+import { countdownLabel, createCountdown } from "./ui/countdown";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -122,9 +123,10 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const center = h("div", { class: "online-center" });
   const bottom = h("div", { class: "online-bottom" });
   const toastBox = h("div", { class: "online-toasts" });
-  const live = { timer: h("span"), goal: h("span"), countdown: h("div", { class: "countdown" }), sudden: h("div", { class: "sudden" }), cooldowns: new Map<HazardKind, HTMLElement>() };
+  const live = { timer: h("span"), goal: h("span"), sudden: h("div", { class: "sudden" }), cooldowns: new Map<HazardKind, HTMLElement>() };
   const thumbs = new Map(PRESET_TRACKS.map((t) => [t.name, trackThumb(buildTrack(t.points, t.features))]));
   root.append(top, center, bottom, toastBox);
+  const countdown = createCountdown(root);
   const uiClick = (e: MouseEvent) => {
     if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
   };
@@ -218,6 +220,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       resetFromSnap = true;
     }
     if (info.phase === "race") audio.sfx.go();
+    if (info.phase !== "countdown") countdown.show(info.phase === "race" ? "GO" : null);
     if (info.phase !== "race") audio.danger(0);
   }
 
@@ -477,7 +480,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     live.timer.textContent = `${Math.ceil(remaining)}s`;
     if (info.phase === "countdown") {
       const n = Math.ceil(remaining);
-      live.countdown.textContent = n > 0 ? String(n) : "GO";
+      countdown.show(countdownLabel(remaining));
       if (n !== lastCountdown && n > 0) audio.sfx.countdownTick();
       lastCountdown = n;
     }
@@ -619,7 +622,6 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         ];
       }
       case "countdown":
-        return [live.countdown];
       case "race":
         return [live.sudden];
       case "roundEnd":

@@ -77,7 +77,6 @@
 .online .track-card:disabled { cursor: default; }
 .online .seg button.on:disabled { opacity: 1; }
 .panel .problems { color: #ff3b5c; margin: 8px 0 0; padding-left: 18px; }
-.countdown { font-size: 120px; color: #ffb000; text-shadow: 0 0 30px #ffb000; margin-top: 18vh; }
 .sudden { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b; font-size: 18px; letter-spacing: 2px; }
 .online-bottom { position: absolute; bottom: 18px; left: 0; right: 0; display: flex; justify-content: center; }
 .hazards { display: flex; gap: 10px; align-items: center; }
