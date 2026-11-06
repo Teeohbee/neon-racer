@@ -1,9 +1,10 @@
+import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
 import { isOutsideView, stepCamera, suddenDeathScale, type Camera } from "./camera";
 import { emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
 import type { ClientMsg, GameEvent, Mode, Phase, ServerMsg } from "./protocol";
-import { advanceProgress, buildTrack, gridSlots, nearestOnTrack, type Point, type ProgressState, type Track } from "./track";
+import { advanceProgress, buildTrack, gridSlots, nearestOnTrack, pointAt, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { randomTrackPoints, validateDrawing } from "./validate";
 import { stepWorldCar } from "./world";
@@ -20,6 +21,7 @@ export const KILL_CREDIT_WINDOW = 3;
 const MAX_PROGRESS_STEP = 200;
 const MAX_INPUT_QUEUE = 8;
 const MAX_SKETCH_POINTS = 4000;
+const BOT_NAMES = ["Bolt", "Glitch", "Nova", "Pixel", "Sprocket", "Turbo"];
 
 export interface RoomIO {
   send(playerId: string, msg: ServerMsg): void;
@@ -40,6 +42,8 @@ interface Player {
   ack: number;
   lastHit: { owner: string; at: number } | null;
   cooldowns: Record<HazardKind, number>;
+  bot: BotSkill | null;
+  nextBotHazardAt: number;
 }
 
 const freshCooldowns = (): Record<HazardKind, number> => ({ block: 0, slow: 0, freeze: 0 });
@@ -64,6 +68,7 @@ export class Room {
   private eliminationOrder: string[] = [];
   private starters = 0;
   private presetBag: number[] = [];
+  private botSeq = 0;
   private lastPreset = -1;
   private readonly rng: () => number;
   private readonly sketching: boolean;
@@ -78,10 +83,10 @@ export class Room {
   }
 
   get size(): number {
-    return this.players.size;
+    return [...this.players.values()].filter((p) => !p.bot).length;
   }
 
-  join(id: string, name: string): boolean {
+  join(id: string, name: string, bot: BotSkill | null = null): boolean {
     if (this.players.size >= MAX_PLAYERS) return false;
     const used = new Set([...this.players.values()].map((p) => p.color));
     const color = [...Array(MAX_PLAYERS).keys()].find((c) => !used.has(c)) ?? 0;
@@ -89,7 +94,7 @@ export class Room {
       id,
       name: name.trim().slice(0, 16) || "Racer",
       color,
-      ready: false,
+      ready: bot !== null,
       score: 0,
       car: null,
       alive: false,
@@ -99,8 +104,10 @@ export class Room {
       ack: 0,
       lastHit: null,
       cooldowns: freshCooldowns(),
+      bot,
+      nextBotHazardAt: 0,
     });
-    this.hostId ??= id;
+    if (!bot) this.hostId ??= id;
     this.io.send(id, { t: "welcome", you: id, code: this.code });
     if (this.phase === "sketch" && this.drawerId) this.io.send(id, { t: "sketch", drawerId: this.drawerId, points: this.drawing, reset: true });
     if (this.raw && this.phase !== "sketch") this.io.send(id, { t: "track", raw: this.raw, name: this.trackName });
@@ -110,7 +117,7 @@ export class Room {
 
   leave(id: string): void {
     if (!this.players.delete(id)) return;
-    if (this.hostId === id) this.hostId = this.players.keys().next().value ?? null;
+    if (this.hostId === id) this.hostId = [...this.players.values()].find((p) => !p.bot)?.id ?? null;
     if (this.phase !== "lobby" && this.players.size < 2) {
       this.toLobby();
       return;
@@ -164,6 +171,16 @@ export class Room {
       case "hazard":
         this.placeHazard(p, msg.kind, msg.x, msg.y);
         return;
+      case "addBot": {
+        if (this.phase !== "lobby" || id !== this.hostId || !BOT_SKILLS.includes(msg.skill)) return;
+        const n = ++this.botSeq;
+        this.join(`bot-${n}`, `${BOT_NAMES[(n - 1) % BOT_NAMES.length]} (${msg.skill})`, msg.skill);
+        return;
+      }
+      case "removeBot":
+        if (this.phase !== "lobby" || id !== this.hostId || !this.players.get(msg.id)?.bot) return;
+        this.leave(msg.id);
+        return;
       case "again":
         if (this.phase === "matchEnd" && id === this.hostId) this.toLobby();
         return;
@@ -199,6 +216,16 @@ export class Room {
     this.hazards = pruneHazards(this.hazards, now);
     const racers = [...this.players.values()].filter((p) => p.alive && p.car);
 
+    for (const p of racers) {
+      if (!p.bot) continue;
+      const input = botInput(p.car!, track, p.bot, this.rng);
+      if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id }).car;
+      else {
+        p.inputs = [];
+        p.lastInput = input;
+      }
+    }
+
     if (this.mode === "contact") {
       for (const p of racers) {
         const next = p.inputs.shift();
@@ -219,7 +246,10 @@ export class Room {
     }
 
     const leader = racers.reduce<Player | null>((best, p) => (!best || p.progress.progress > best.progress.progress ? p : best), null);
-    if (leader) this.camera = stepCamera(this.camera, leader.car!, dt, suddenDeathScale(now));
+    if (leader) {
+      this.camera = stepCamera(this.camera, leader.car!, dt, suddenDeathScale(now));
+      this.botHazards(leader, now);
+    }
 
     if (now > ELIMINATION_GRACE) {
       for (const p of racers) if (isOutsideView(this.camera, p.car!.x, p.car!.y)) this.eliminate(p, now);
@@ -229,8 +259,22 @@ export class Room {
     if (alive.length <= (this.starters >= 2 ? 1 : 0)) this.endRound(alive[0] ?? null);
   }
 
+  private botHazards(leader: Player, now: number): void {
+    const track = this.track!;
+    for (const p of this.players.values()) {
+      if (!p.bot || p.alive || !p.car || now < p.nextBotHazardAt) continue;
+      p.nextBotHazardAt = now + 2 + this.rng() * 3;
+      const ready = HAZARD_KINDS.filter((k) => now >= p.cooldowns[k]);
+      if (!ready.length) continue;
+      const kind = ready[Math.floor(this.rng() * ready.length)]!;
+      const [x, y] = kind === "freeze" ? [leader.car!.x, leader.car!.y] : pointAt(track, leader.progress.s + 350 + this.rng() * 300);
+      this.placeHazard(p, kind, x, y);
+    }
+  }
+
   private eliminate(p: Player, now: number): void {
     p.alive = false;
+    p.nextBotHazardAt = now + 1.5;
     this.eliminationOrder.push(p.id);
     this.emit({ kind: "eliminated", id: p.id });
     const credit = p.lastHit && now - p.lastHit.at <= KILL_CREDIT_WINDOW ? this.players.get(p.lastHit.owner) : undefined;
@@ -309,6 +353,7 @@ export class Room {
     }
     this.setPhase("sketch");
     this.io.broadcast({ t: "sketch", drawerId, points: [], reset: true });
+    if (this.players.get(drawerId)?.bot) this.finishSketch();
   }
 
   private finishSketch(): void {
@@ -347,7 +392,7 @@ export class Room {
 
   private toLobby(): void {
     for (const p of this.players.values()) {
-      p.ready = false;
+      p.ready = p.bot !== null;
       p.alive = false;
       p.car = null;
     }
@@ -373,7 +418,7 @@ export class Room {
     this.io.broadcast({
       t: "room",
       code: this.code,
-      players: [...this.players.values()].map(({ id, name, color, ready, score }) => ({ id, name, color, ready, score })),
+      players: [...this.players.values()].map(({ id, name, color, ready, score, bot }) => ({ id, name, color, ready, score, bot: bot !== null })),
       hostId: this.hostId,
       mode: this.mode,
       phase: this.phase,

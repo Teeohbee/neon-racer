@@ -261,3 +261,67 @@ describe("preset tracks", () => {
     expect(new Set(names).size).toBe(PRESET_TRACKS.length);
   });
 });
+
+describe("bots", () => {
+  const roster = (g: ReturnType<typeof setup>) => g.last("room")!.players;
+
+  it("can only be added by the host, and are always ready", () => {
+    const g = setup(["ann", "bob"]);
+    g.send("bob", { t: "addBot", skill: "easy" });
+    expect(roster(g)).toHaveLength(2);
+    g.send("ann", { t: "addBot", skill: "hard" });
+    const bot = roster(g).find((p) => p.bot)!;
+    expect(bot.ready).toBe(true);
+    expect(bot.name).toContain("hard");
+  });
+
+  it("let a lone player start a match", () => {
+    const g = setup(["ann"], 1, false);
+    g.send("ann", { t: "addBot", skill: "medium" });
+    g.send("ann", { t: "ready", ready: true });
+    expect(g.room.phase).toBe("countdown");
+  });
+
+  it("drive themselves during the race", () => {
+    const g = setup(["ann"], 1, false);
+    g.send("ann", { t: "addBot", skill: "hard" });
+    g.send("ann", { t: "ready", ready: true });
+    g.run(COUNTDOWN_SECONDS + DT);
+    const id = roster(g).find((p) => p.bot)!.id;
+    const start = g.car(id);
+    g.run(1);
+    const moved = g.car(id);
+    expect(Math.hypot(moved.x - start.x, moved.y - start.y)).toBeGreaterThan(100);
+  });
+
+  it("can be removed by the host", () => {
+    const g = setup(["ann"]);
+    g.send("ann", { t: "addBot", skill: "easy" });
+    g.send("ann", { t: "removeBot", id: roster(g).find((p) => p.bot)!.id });
+    expect(roster(g)).toHaveLength(1);
+  });
+
+  it("don't keep a room alive or take host", () => {
+    const g = setup(["ann", "bob"]);
+    g.send("ann", { t: "addBot", skill: "easy" });
+    expect(g.room.size).toBe(2);
+    g.room.leave("ann");
+    expect(g.last("room")!.hostId).toBe("bob");
+  });
+
+  it("drop hazards once they're knocked out", () => {
+    const g = setup(["ann"], 1, false);
+    for (let i = 0; i < 3; i++) g.send("ann", { t: "addBot", skill: "hard" });
+    g.send("ann", { t: "ready", ready: true });
+    g.run(COUNTDOWN_SECONDS + DT);
+    const track = buildTrack(g.last("track")!.raw);
+    const behind = (id: string) => track.length - nearestOnTrack(track, g.car(id).x, g.car(id).y).s;
+    const bots = roster(g).filter((p) => p.bot).map((p) => p.id);
+    const victim = bots.sort((a, b) => behind(b) - behind(a))[0]!;
+    const c = g.car(victim);
+    g.run(ELIMINATION_GRACE + 0.1, () => g.send(victim, { t: "state", seq: 1, car: { ...c, x: c.x - 5000 } }));
+    let placed = false;
+    g.run(8, () => (placed ||= (g.last("snap")?.hazards ?? []).some((h) => h.owner === victim)));
+    expect(placed).toBe(true);
+  });
+});

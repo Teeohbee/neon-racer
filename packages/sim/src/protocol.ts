@@ -1,3 +1,4 @@
+import type { BotSkill } from "./bot";
 import type { Camera } from "./camera";
 import type { CarInput, CarState } from "./car";
 import type { Hazard, HazardKind } from "./hazards";
@@ -13,6 +14,7 @@ export interface PlayerInfo {
   color: number;
   ready: boolean;
   score: number;
+  bot: boolean;
 }
 
 export interface CarSnap extends CarState {
@@ -35,6 +37,8 @@ export type ClientMsg =
   | { t: "state"; seq: number; car: CarState }
   | { t: "input"; seq: number; input: CarInput }
   | { t: "hazard"; kind: HazardKind; x: number; y: number }
+  | { t: "addBot"; skill: BotSkill }
+  | { t: "removeBot"; id: string }
   | { t: "again" };
 
 export type ServerMsg =

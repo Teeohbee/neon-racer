@@ -8,3 +8,4 @@ export * from "./collision";
 export * from "./protocol";
 export * from "./room";
 export * from "./tracks";
+export * from "./bot";
