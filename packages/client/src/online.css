@@ -60,10 +60,6 @@
 .panel .modes { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
 .panel .big { font-size: 18px; padding: 10px 24px; margin-top: 6px; }
 .panel .hint, .online .hint { opacity: 0.6; margin: 10px 0 0; }
-.panel .results { margin: 10px 0 0; min-width: 220px; }
-.panel .results .delta { margin-left: auto; color: #d8f6ff; opacity: 0.6; font-variant-numeric: tabular-nums; }
-.panel .results .delta.up { color: #39ff88; opacity: 1; }
-.panel .results .delta.down { color: #ff3b5c; opacity: 1; }
 .seg { display: inline-flex; }
 .online .seg button { border-radius: 0; margin-left: -1px; padding: 4px 10px; }
 .online .seg button:first-child { border-radius: 6px 0 0 6px; }

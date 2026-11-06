@@ -1,0 +1,51 @@
+.podium-layer { position: absolute; inset: 56px 0 0 0; display: flex; justify-content: center; align-items: flex-start; pointer-events: none; z-index: 2; }
+.podium { box-sizing: border-box; background: #05060dcc; border: 1px solid #2a3866; border-radius: 12px; box-shadow: 0 0 28px #ff2bd633, inset 0 0 40px #00f0ff11; text-align: center; animation: podium-in 0.35s ease-out both; }
+.podium.round { margin-top: 4vh; padding: 14px 28px 0; min-width: 360px; }
+.podium.match { pointer-events: auto; width: calc(100vw - 32px); max-width: 860px; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a3866 transparent; padding: 20px 28px 22px; }
+.podium h1 { margin: 0; font-size: 34px; color: #ff2bd6; text-shadow: 0 0 14px #ff2bd6, 0 0 40px #ff2bd666; letter-spacing: 4px; }
+.podium .hint { margin: 6px 0 0; opacity: 0.6; }
+.podium-title { font-size: 20px; letter-spacing: 2px; color: #ffb000; text-shadow: 0 0 10px #ffb000; }
+
+.podium-steps { display: flex; justify-content: center; align-items: flex-end; gap: 10px; margin-top: 14px; }
+.podium-step { display: flex; flex-direction: column; align-items: center; width: 130px; color: var(--c); animation: podium-rise 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+.podium-step.p3 { animation-delay: 0.15s; }
+.podium-step.p2 { animation-delay: 0.45s; }
+.podium-step.p1 { animation-delay: 0.85s; }
+.podium-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; text-shadow: 0 0 8px var(--c); }
+.podium-value { margin: 2px 0 6px; font-size: 22px; font-weight: 700; color: #fff; text-shadow: 0 0 10px var(--c); font-variant-numeric: tabular-nums; }
+.podium-block { box-sizing: border-box; width: 100%; display: flex; align-items: flex-start; justify-content: center; padding-top: 6px; font-size: 26px; font-weight: 900; color: #05060d; background: linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 35%, #05060d)); border-radius: 6px 6px 0 0; box-shadow: 0 0 18px var(--c), inset 0 2px 0 #ffffff88; }
+.p1 .podium-block { height: 76px; }
+.p2 .podium-block { height: 52px; }
+.p3 .podium-block { height: 36px; }
+.round .p1 .podium-block { height: 56px; }
+.round .p2 .podium-block { height: 38px; }
+.round .p3 .podium-block { height: 26px; }
+.match .p1 .podium-name { font-size: 20px; }
+
+.podium-rest { list-style: none; display: flex; justify-content: center; gap: 22px; margin: 12px 0 0; padding: 0; counter-reset: rest 3; animation: podium-in 0.4s 1.3s ease-out both; }
+.podium-rest li { display: flex; gap: 8px; color: var(--c); opacity: 0.8; counter-increment: rest; }
+.podium-rest li::before { content: counter(rest) "."; opacity: 0.6; }
+
+.podium-awards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 18px; text-align: left; }
+.award { padding: 10px 14px; border: 1px solid var(--c); border-radius: 8px; background: #0a0d1ccc; box-shadow: 0 0 14px color-mix(in srgb, var(--c) 40%, transparent); animation: award-reveal 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+.award-title { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #ffb000; text-shadow: 0 0 8px #ffb000; }
+.award-winner { margin-top: 2px; font-size: 18px; font-weight: 700; color: var(--c); text-shadow: 0 0 8px var(--c); }
+.award-stat { font-size: 13px; color: #fff; }
+.award-blurb { margin-top: 4px; font-size: 12px; font-style: italic; opacity: 0.55; }
+
+.podium-actions { margin-top: 16px; }
+.podium-actions .big { font-size: 18px; padding: 10px 24px; }
+
+@keyframes podium-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes podium-rise {
+  from { opacity: 0; transform: translateY(40px) scaleY(0.4); transform-origin: bottom; }
+  to { opacity: 1; transform: none; }
+}
+@keyframes award-reveal {
+  0% { opacity: 0; transform: scale(1.3) rotate(-2deg); filter: blur(4px) brightness(2); }
+  60% { opacity: 1; transform: scale(0.97); filter: none; }
+  100% { opacity: 1; transform: none; }
+}

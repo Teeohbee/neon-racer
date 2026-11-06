@@ -22,6 +22,7 @@ import {
   validateDrawing,
   WORLD,
   VIEW,
+  type Award,
   type Camera,
   type CarSnap,
   type CarState,
@@ -48,6 +49,8 @@ import { createMinimap, drawTrackShape } from "./minimap";
 import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
 import { countdownLabel, createCountdown } from "./ui/countdown";
+import { formatDelta, formatScore } from "./ui/format";
+import { createPodium, finalStandings } from "./ui/podium";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -99,6 +102,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   let roundWinner: string | null = null;
   let roundResults: { id: string; delta: number }[] = [];
   let matchWinner: string | null = null;
+  let awards: Award[] = [];
   let hazardKind: HazardKind = "block";
   let mouse: Point | null = null;
   let steps = 0;
@@ -127,6 +131,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const thumbs = new Map(PRESET_TRACKS.map((t) => [t.name, trackThumb(buildTrack(t.points, t.features))]));
   root.append(top, center, bottom, toastBox);
   const countdown = createCountdown(root);
+  const podium = createPodium(root);
   const uiClick = (e: MouseEvent) => {
     if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
   };
@@ -136,6 +141,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
   const player = (id: string | null | undefined) => info?.players.find((p) => p.id === id);
   const nameOf = (id: string | null | undefined) => player(id)?.name ?? "Someone";
+  const entry = (id: string, value: string) => ({ name: nameOf(id), color: css(playerColor(player(id)?.color ?? 0)), value });
   const isDrawer = () => info?.phase === "sketch" && info.drawerId === you;
   const serverNow = () => buffer.serverNow(performance.now());
 
@@ -213,6 +219,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     if (info.phase === "lobby") {
       matchWinner = null;
+      awards = [];
       track = null;
     }
     if (info.phase === "countdown") {
@@ -221,6 +228,12 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     if (info.phase === "race") audio.sfx.go();
     if (info.phase !== "countdown") countdown.show(info.phase === "race" ? "GO" : null);
+    if (info.phase === "roundEnd") podium.round(roundWinner && nameOf(roundWinner), roundResults.slice(0, 3).map((r) => entry(r.id, formatDelta(r.delta))));
+    else if (info.phase === "matchEnd") {
+      const subtitle = info.win.kind === "laps" ? `${info.win.laps} laps of ${trackName}` : `First to ${info.win.target} on ${trackName}`;
+      const standings = finalStandings(info.players, matchWinner).map((p) => entry(p.id, formatScore(p.score)));
+      podium.match(`${nameOf(matchWinner)} wins!`, subtitle, standings, awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
+    } else podium.hide();
     if (info.phase !== "race") audio.danger(0);
   }
 
@@ -270,6 +283,9 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       case "matchWon":
         matchWinner = event.id;
         audio.sfx.matchWin();
+        break;
+      case "awards":
+        awards = event.awards;
         break;
     }
     drawUI();
@@ -625,39 +641,10 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       case "race":
         return [live.sudden];
       case "roundEnd":
-        return [
-          h(
-            "div",
-            { class: "panel slim" },
-            roundWinner ? `${nameOf(roundWinner)} wins the round!` : "Nobody survived that one",
-            roundResults.length
-              ? h(
-                  "ol",
-                  { class: "players results" },
-                  ...roundResults.map((r) =>
-                    h(
-                      "li",
-                      { style: `--c:${css(playerColor(player(r.id)?.color ?? 0))}` },
-                      h("span", { class: "dot" }),
-                      nameOf(r.id),
-                      h("span", { class: `delta${r.delta > 0 ? " up" : r.delta < 0 ? " down" : ""}` }, formatDelta(r.delta)),
-                    ),
-                  ),
-                )
-              : null,
-          ),
-        ];
+        return [];
       case "matchEnd":
-        return [
-          h(
-            "div",
-            { class: "panel lobby" },
-            h("h1", {}, `${nameOf(matchWinner)} wins!`),
-            h("p", { class: "hint" }, i.win.kind === "laps" ? `${i.win.laps} laps of ${trackName}` : `First to ${i.win.target} on ${trackName}`),
-            h("ol", { class: "players" }, ...[...i.players].sort((a, b) => b.score - a.score).map((p) => h("li", { style: `--c:${css(playerColor(p.color))}` }, h("span", { class: "dot" }), `${p.name} - ${formatScore(p.score)}`))),
-            i.hostId === you ? h("button", { class: "big", onclick: () => conn.send({ t: "again" }) }, "Back to lobby") : h("p", { class: "hint" }, "Waiting for the host…"),
-          ),
-        ];
+        podium.actions(i.hostId === you ? h("button", { class: "big", onclick: () => conn.send({ t: "again" }) }, "Back to lobby") : h("p", { class: "hint" }, "Waiting for the host…"));
+        return [];
     }
   }
 
@@ -775,13 +762,4 @@ function trackThumb(track: Track): HTMLCanvasElement {
 
 function carOf(c: CarState): CarState {
   return { x: c.x, y: c.y, angle: c.angle, vx: c.vx, vy: c.vy };
-}
-
-function formatDelta(delta: number): string {
-  return delta > 0 ? `+${delta}` : String(delta);
-}
-
-function formatScore(score: number): string {
-  if (Number.isInteger(score)) return String(score);
-  return `${Math.floor(score) || ""}½`;
 }
