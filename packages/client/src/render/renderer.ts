@@ -10,6 +10,7 @@ import { createReflections } from "./reflections";
 import { createScenery } from "./scenery";
 import { createWeather } from "./weather";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
+import { drawSlipstream } from "./slipstream";
 import { grainTexture } from "./textures";
 import type { AimView, CarView, FrameView, Renderer, SketchView } from "./types";
 
@@ -217,12 +218,13 @@ export function createRenderer(app: Application): Renderer {
   const hazardG = new Graphics();
   const sketchG = new Graphics();
   const carsLayer = new Container();
+  const slipstreamG = new Graphics();
   const aimG = new Graphics();
   const sparksG = new Graphics();
   const boostLayers = Array.from({ length: CHEVRONS }, () => new Graphics());
   const dangerG = new Graphics();
   const boostFx = createBoostFx({ length: CAR_LENGTH, width: CAR_WIDTH });
-  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, boostFx.view, carsLayer, aimG, sparksG);
+  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, slipstreamG, boostFx.view, carsLayer, aimG, sparksG);
   const reflections = createReflections();
   fxLayer.addChildAt(reflections.view, 0);
   fxRoot.addChild(fxLayer);
@@ -512,6 +514,7 @@ export function createRenderer(app: Application): Renderer {
       updateTrails(frame.cars, t);
       boostFx.update(frame.cars, t, dt);
       updateCars(frame.cars, t);
+      drawSlipstream(slipstreamG, frame.cars, t);
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
       updateSparks(dt);

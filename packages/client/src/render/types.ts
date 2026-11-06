@@ -13,6 +13,7 @@ export interface CarView {
   alive: boolean;
   frozen: boolean;
   isYou: boolean;
+  drafting?: number;
 }
 
 export interface SketchView {
