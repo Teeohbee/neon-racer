@@ -56,6 +56,7 @@ import { countdownLabel, createCountdown } from "./ui/countdown";
 import { formatDelta, formatScore } from "./ui/format";
 import { createPodium, finalStandings } from "./ui/podium";
 import { createStreamHud } from "./ui/stream-hud";
+import { bindLobbyShell, copyInvite } from "./shell/lobby-shell";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -145,6 +146,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   center.addEventListener("click", uiClick);
   bottom.addEventListener("click", uiClick);
   ui.append(root);
+  const unbindShell = bindLobbyShell(root, { active: () => info?.phase === "lobby" || info?.phase === "matchEnd", leave: () => leave() });
 
   const player = (id: string | null | undefined) => info?.players.find((p) => p.id === id);
   const nameOf = (id: string | null | undefined) => player(id)?.name ?? "Someone";
@@ -585,7 +587,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
               "div",
               { class: "lobby-head" },
               h("h1", {}, `Room ${i.code}`),
-              h("button", { class: "link", onclick: () => navigator.clipboard?.writeText(location.href).then(() => toast("Invite link copied")) }, "Copy invite link"),
+              h("button", { class: "link", onclick: () => copyInvite(location.href) }, "Copy invite link"),
             ),
             h(
               "div",
@@ -751,6 +753,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
   return () => {
     ended = true;
+    unbindShell();
     app.ticker.remove(tick);
     window.removeEventListener("keydown", onKey);
     app.canvas.removeEventListener("pointermove", onPointerMove);
