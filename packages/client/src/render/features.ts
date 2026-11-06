@@ -128,12 +128,11 @@ export function drawVoid(g: Graphics, track: Track) {
   }
 }
 
-export function drawTrackEdges(g: Graphics, track: Track) {
+export function drawTrackEdges(g: Graphics, track: Track, neon: readonly [number, number] = [UI.edgeLeft, UI.edgeRight]) {
   g.clear();
   const points = trackPoints(track);
   const edges = [offsetLoop(points, -HALF), offsetLoop(points, HALF)];
   const inner = [offsetLoop(points, -(HALF - STRIPE_DEPTH)), offsetLoop(points, HALF - STRIPE_DEPTH)];
-  const neon = [UI.edgeLeft, UI.edgeRight];
   for (const run of edgeRuns(track)) {
     edges.forEach((edge, k) => {
       const line = pick(edge, run.indices);

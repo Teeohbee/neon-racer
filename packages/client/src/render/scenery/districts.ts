@@ -37,6 +37,7 @@ export interface District {
   ambient: number;
   roofLight: number;
   weather: WeatherConfig | null;
+  edges?: readonly [number, number];
   block?: { leaf: number; min: number; stop: number; inset: [number, number] };
   signatures?: SignatureKind[];
   extras?: FloorExtra[];
@@ -67,6 +68,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x38426a,
     roofLight: 0x6cb8ff,
     weather: null,
+    edges: [0x4aa8ff, 0xa080ff],
     props: { lampSpacing: 260, billboards: 24, clutter: 90, helipads: 1, blinkers: 30, pylons: true, traffic: true, boats: false, yards: 12, bridges: false, crossCables: true },
   },
   Serpent: {
@@ -80,6 +82,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x40365a,
     roofLight: 0xff6fb4,
     weather: { rain: true, haze: 0x8a6aaa, hazeAlpha: 0.09 },
+    edges: [0x2ee6d6, 0xff4fa3],
     props: { lampSpacing: 240, billboards: 26, clutter: 80, helipads: 2, blinkers: 18, pylons: false, traffic: false, boats: true, yards: 0, bridges: true, crossCables: false },
   },
   "Kidney Bean": {
@@ -93,6 +96,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x2e3c44,
     roofLight: 0xff9a40,
     weather: { haze: 0x9ab8c0, hazeAlpha: 0.13, hazeScale: 5, hazeDrift: 8 },
+    edges: [0x30e0d0, 0x5a90ff],
     block: { leaf: 900, min: 380, stop: 0.5, inset: [16, 40] },
     signatures: ["containers", "cranes", "warehouses"],
     extras: ["ships", "buoys"],
@@ -109,6 +113,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x363c50,
     roofLight: 0xe8eeff,
     weather: null,
+    edges: [0xf0f4ff, 0x60a0ff],
     block: { leaf: 760, min: 340, stop: 0.4, inset: [20, 46] },
     signatures: ["glassTowers", "helipadLights", "logoBoards"],
     props: { lampSpacing: 240, billboards: 6, clutter: 40, helipads: 7, blinkers: 30, pylons: false, traffic: true, boats: false, yards: 0, bridges: false, crossCables: false },
@@ -124,6 +129,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x40324a,
     roofLight: 0xff6fb0,
     weather: { haze: 0xc06090, hazeAlpha: 0.05, hazeScale: 4 },
+    edges: [0xff3fa0, 0xb070ff],
     signatures: ["plazas", "lanternStrings"],
     extras: ["tiles", "crowd"],
     props: { lampSpacing: 240, billboards: 10, clutter: 50, helipads: 0, blinkers: 14, pylons: false, traffic: false, boats: false, yards: 0, bridges: false, crossCables: false },
@@ -139,6 +145,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x40342c,
     roofLight: 0xffb050,
     weather: { haze: 0xe0d0c0, hazeAlpha: 0.07, hazeScale: 2.5, hazeDrift: 30 },
+    edges: [0x40e070, 0x40c0ff],
     block: { leaf: 360, min: 180, stop: 0.5, inset: [6, 14] },
     signatures: ["awnings", "lanternStrings", "stallLanterns"],
     extras: ["stalls"],
@@ -155,6 +162,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x3a3250,
     roofLight: 0xffc040,
     weather: { haze: 0x5a3a8a, hazeAlpha: 0.04, fireworks: [0xffc840, 0xc070ff, 0xff5080, 0x60e0ff] },
+    edges: [0xb070ff, 0x60e0ff],
     signatures: ["domes", "spires", "courtyards"],
     extras: ["gardens"],
     props: { lampSpacing: 260, billboards: 8, clutter: 50, helipads: 1, blinkers: 10, pylons: false, traffic: false, boats: false, yards: 0, bridges: true, crossCables: false },
@@ -170,6 +178,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x40302a,
     roofLight: 0xff6020,
     weather: { haze: 0x5a3020, hazeAlpha: 0.08, particles: { kind: "embers", color: 0xff8a30 } },
+    edges: [0x40e0ff, 0xd0d8ff],
     signatures: ["furnaces", "smokestacks", "conveyors"],
     extras: ["lava"],
     props: { lampSpacing: 280, billboards: 6, clutter: 60, helipads: 0, blinkers: 20, pylons: false, traffic: false, boats: false, yards: 0, bridges: false, crossCables: false },
@@ -185,6 +194,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x2e3c34,
     roofLight: 0x80f0a0,
     weather: { haze: 0x406050, hazeAlpha: 0.05, particles: { kind: "fireflies", color: 0xd8ff70 } },
+    edges: [0x60f080, 0xc080ff],
     signatures: ["canopies", "greenhouses", "pond"],
     extras: ["paths", "trees"],
     props: { lampSpacing: 260, billboards: 6, clutter: 40, helipads: 0, blinkers: 8, pylons: false, traffic: false, boats: false, yards: 0, bridges: false, crossCables: false },
@@ -200,6 +210,7 @@ export const DISTRICTS: Record<string, District> = {
     ambient: 0x343844,
     roofLight: 0xf0f4ff,
     weather: null,
+    edges: [0x2a7aff, 0xf0f4ff],
     signatures: ["stadium"],
     extras: ["crowd", "kiosks"],
     props: { lampSpacing: 240, billboards: 10, clutter: 60, helipads: 2, blinkers: 20, pylons: false, traffic: false, boats: false, yards: 0, bridges: false, crossCables: false },

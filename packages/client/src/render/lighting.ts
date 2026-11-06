@@ -37,6 +37,7 @@ export interface LightFrame {
   t: number;
   dangerLine: number | null;
   ambient: number | null;
+  edges: readonly [number, number];
   extra: readonly { x: number; y: number; size: number; color: number; alpha: number }[];
 }
 
@@ -51,12 +52,12 @@ export interface Lighting {
 const toRgb = (c: number): [number, number, number] => [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
-function drawEdgeSpill(g: Graphics, track: Track) {
+function drawEdgeSpill(g: Graphics, track: Track, neon: readonly [number, number]) {
   g.clear();
   const points = trackPoints(track);
   const sides: [number[], number][] = [
-    [offsetLoop(points, -TRACK_WIDTH / 2), UI.edgeLeft],
-    [offsetLoop(points, TRACK_WIDTH / 2), UI.edgeRight],
+    [offsetLoop(points, -TRACK_WIDTH / 2), neon[0]],
+    [offsetLoop(points, TRACK_WIDTH / 2), neon[1]],
   ];
   for (const run of edgeRuns(track)) {
     for (const [side, neon] of sides) {
@@ -87,6 +88,7 @@ export function createLighting(app: Application): Lighting {
   const pool: Sprite[] = [];
   let used = 0;
   let currentTrack: Track | null = null;
+  let currentEdges: readonly [number, number] = [UI.edgeLeft, UI.edgeRight];
   let flashes: Flash[] = [];
   const carState = new Map<string, CarLightState>();
   const ambient = toRgb(LIGHT.ambient);
@@ -182,9 +184,10 @@ export function createLighting(app: Application): Lighting {
       world.scale.set(zoom);
       world.position.set(rw / 2 - frame.camera.x * zoom, rh / 2 - frame.camera.y * zoom);
 
-      if (frame.track !== currentTrack) {
+      if (frame.track !== currentTrack || frame.edges !== currentEdges) {
         currentTrack = frame.track;
-        if (currentTrack) drawEdgeSpill(spill, currentTrack);
+        currentEdges = frame.edges;
+        if (currentTrack) drawEdgeSpill(spill, currentTrack, currentEdges);
         else spill.clear();
       }
 

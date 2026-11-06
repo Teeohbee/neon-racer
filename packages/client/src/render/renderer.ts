@@ -18,6 +18,7 @@ const CAR_LENGTH = 40;
 const CAR_WIDTH = 20;
 const ICE_RING = 38;
 const GROUND_MARGIN = 3000;
+const DEFAULT_EDGES: readonly [number, number] = [UI.edgeLeft, UI.edgeRight];
 
 interface TrailPoint {
   x: number;
@@ -227,6 +228,7 @@ export function createRenderer(app: Application): Renderer {
   const trails = new Map<string, CarTrails>();
   let sparks: Spark[] = [];
   let currentTrack: Track | null = null;
+  let currentEdges: readonly [number, number] = DEFAULT_EDGES;
   let camera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: 1 };
   let lastFitKey = "";
   let lastTime = performance.now();
@@ -483,13 +485,16 @@ export function createRenderer(app: Application): Renderer {
       updateLetterbox(fit);
       applyCamera(fit);
 
-      if (frame.track !== currentTrack) {
+      scenery.setTrack(frame.track, frame.trackName);
+      const edges = scenery.edges() ?? DEFAULT_EDGES;
+      if (frame.track !== currentTrack || edges !== currentEdges) {
         currentTrack = frame.track;
+        currentEdges = edges;
         if (currentTrack) {
           drawTrackSurface(roadG, currentTrack, grainTex, UI.grain);
           drawTrackMarkings(roadG, currentTrack);
           drawVoid(voidG, currentTrack);
-          drawTrackEdges(edgesG, currentTrack);
+          drawTrackEdges(edgesG, currentTrack, edges);
           drawBoostChevrons(boostLayers, currentTrack);
         } else {
           for (const g of [roadG, voidG, edgesG, ...boostLayers]) g.clear();
@@ -506,7 +511,6 @@ export function createRenderer(app: Application): Renderer {
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
       updateSparks(dt);
-      scenery.setTrack(frame.track, frame.trackName);
       grid.visible = !scenery.active;
       scenery.update(camera, t, dt);
       const skyFlashes = weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t);
@@ -517,7 +521,7 @@ export function createRenderer(app: Application): Renderer {
         const zoom = fit.base / camera.scale;
         extraLights.push({ x: camera.x + (f.x - fit.sw / 2) / zoom, y: camera.y + (f.y - fit.sh / 2) / zoom, size: 1400 * camera.scale, color: f.color, alpha: 0.55 * f.alpha });
       }
-      lighting.update({ ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      lighting.update({ edges, ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
     screenToWorld(px: number, py: number): Point {

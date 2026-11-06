@@ -46,6 +46,7 @@ export interface Scenery {
   lights(): SceneLight[];
   ambient(): number | null;
   weather(): WeatherConfig | null;
+  edges(): readonly [number, number] | null;
   destroy(): void;
 }
 
@@ -151,6 +152,7 @@ export function createScenery(layers: SceneryLayers): Scenery {
     const rng = seeded(`${name}:void`);
 
     const deck = new Container();
+    deck.isRenderGroup = true;
     const plates = new Graphics();
     plates.rect(-2000, -2000, 10400, 8000).fill({ color: district.deck.seam });
     for (const p of layout.plates) plates.rect(p.x, p.y, p.w, p.h).fill({ color: p.tint });
@@ -165,6 +167,7 @@ export function createScenery(layers: SceneryLayers): Scenery {
     const tall = new Container();
     const poles = new Graphics();
     const pylonTops = new Container();
+    pylonTops.isRenderGroup = true;
     const tops = new Graphics();
     for (const p of layout.pylons) {
       tops.rect(p.x - PYLON_TOP, p.y - PYLON_TOP, PYLON_TOP * 2, PYLON_TOP * 2).moveTo(p.x - PYLON_TOP, p.y - PYLON_TOP).lineTo(p.x + PYLON_TOP, p.y + PYLON_TOP).moveTo(p.x + PYLON_TOP, p.y - PYLON_TOP).lineTo(p.x - PYLON_TOP, p.y + PYLON_TOP);
@@ -206,16 +209,19 @@ export function createScenery(layers: SceneryLayers): Scenery {
     const voidScene = buildVoidScene(layout.gaps, district, rng, soft);
     glow.addChild(voidScene.root);
     const lamps = new Container();
+    lamps.isRenderGroup = true;
     const heads = new Graphics();
     for (const l of layout.lamps) heads.circle(l.x, l.y, 7).fill({ color: l.color, alpha: 0.8 });
     lamps.addChild(heads);
     const blinkers = new Container();
+    blinkers.isRenderGroup = true;
     const blinkGroups = Array.from({ length: BLINK_GROUPS }, () => new Graphics());
     layout.blinkers.forEach((b, k) => blinkGroups[k % BLINK_GROUPS]!.circle(b.x, b.y, 5));
     for (const p of layout.pylons) blinkGroups[0]!.circle(p.x, p.y, 4);
     blinkGroups.forEach((g) => g.fill({ color: district.blinker }));
     blinkers.addChild(...blinkGroups);
     const boards = new Container();
+    boards.isRenderGroup = true;
     const billboards = layout.billboards.map((data) => {
       const b = buildBillboard(data);
       boards.addChild(b.view);
@@ -248,7 +254,10 @@ export function createScenery(layers: SceneryLayers): Scenery {
     for (const y of layout.yards) for (const [nx, ny] of y.nodes) yardGlow.circle(nx, ny, 3.5);
     yardGlow.fill({ color: district.accents[0]! });
     const yardArcs = new Graphics();
-    glow.addChild(roof, clutterGlow, yardGlow, yardArcs, cables);
+    const glowStatic = new Container();
+    glowStatic.isRenderGroup = true;
+    glowStatic.addChild(roof, clutterGlow, yardGlow);
+    glow.addChild(glowStatic, yardArcs, cables);
     glow.addChild(lamps, blinkers, boards, pylonGlow);
     layers.glow.addChild(glow);
 
@@ -269,9 +278,11 @@ export function createScenery(layers: SceneryLayers): Scenery {
       for (const c of parts.deck ?? []) deck.addChild(c);
       const sigGlow = new Container();
       for (const c of parts.glow ?? []) sigGlow.addChild(c);
-      glow.addChildAt(sigGlow, 0);
+      glowStatic.addChildAt(sigGlow, 0);
+      for (const c of parts.live ?? []) glow.addChild(c);
       for (const l of parts.lifted ?? []) {
         (l.layer === "tall" ? tall : glow).addChild(l.container);
+        l.container.isRenderGroup = true;
         sigLifted.push(l);
       }
     }
@@ -464,6 +475,10 @@ export function createScenery(layers: SceneryLayers): Scenery {
 
     weather() {
       return built?.district.weather ?? null;
+    },
+
+    edges() {
+      return built?.district.edges ?? null;
     },
 
     lights() {

@@ -40,6 +40,7 @@ export interface View {
 export interface Parts {
   deck?: Container[];
   glow?: Container[];
+  live?: Container[];
   lifted?: { container: Container; height: number; layer: "tall" | "glow" }[];
   towers?: Tower[];
   update?(v: View): void;
@@ -347,7 +348,8 @@ function plazas(kit: Kit): Parts {
   const lanterns = strings(kit, pairs, STRING_HEIGHT);
   return {
     deck: [paving],
-    glow: [...tiles, fountains],
+    glow: tiles,
+    live: [fountains],
     towers: lanterns.towers!,
     lifted: lanterns.lifted!,
     update: (v) => {
@@ -571,7 +573,7 @@ function pond(kit: Kit): Parts {
   }
   return {
     deck: [water],
-    glow: [ripples],
+    live: [ripples],
     update: (v) => {
       ripples.clear();
       for (const s of spots) {
@@ -650,7 +652,8 @@ function stadium(kit: Kit): Parts {
   lifted.addChild(banks);
   return {
     deck: [bowl, pitch],
-    glow: [segments, ...crowd, flashes],
+    glow: [segments, ...crowd],
+    live: [flashes],
     towers,
     lifted: [
       { container: lifted, height: FLOOD_HEIGHT, layer: "glow" },
