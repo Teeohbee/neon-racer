@@ -277,9 +277,9 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     now += DT;
     if (fellOff(track, car.x, car.y)) {
       fall = { at: now, s: nearestOnTrack(track, car.x, car.y).s };
+      renderer.fall({ ...car, id: CAR_ID, color: COLOR });
       car = { ...car, vx: 0, vy: 0 };
       prev = car;
-      renderer.burst(car.x, car.y, COLOR);
       renderer.impact(car.x, car.y, IMPACT.eliminatedYou);
       hud.flash("Fell!");
       audio.sfx.eliminated("fell");

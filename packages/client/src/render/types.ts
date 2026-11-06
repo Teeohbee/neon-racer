@@ -1,4 +1,5 @@
 import type { Camera, Hazard, HazardKind, Point, Track } from "@neon/sim";
+import type { FallStart } from "./falling";
 
 export interface CarView {
   id: string;
@@ -47,5 +48,6 @@ export interface Renderer {
   screenToWorld(px: number, py: number): Point;
   burst(x: number, y: number, color: number): void;
   impact(x: number, y: number, strength: number): void;
+  fall(car: FallStart): void;
   destroy(): void;
 }

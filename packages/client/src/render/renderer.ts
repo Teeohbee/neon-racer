@@ -5,6 +5,8 @@ import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
+import { createFallLayer } from "./fall-layer";
+import type { FallStart } from "./falling";
 import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
 import { createLighting } from "./lighting";
 import { createReflections } from "./reflections";
@@ -228,6 +230,8 @@ export function createRenderer(app: Application): Renderer {
   fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, slipstreamG, boostFx.view, carsLayer, aimG, sparksG);
   const reflections = createReflections();
   fxLayer.addChildAt(reflections.view, 0);
+  const falls = createFallLayer(drawCarBody);
+  fxLayer.addChildAt(falls.view, fxLayer.getChildIndex(carsLayer));
   fxRoot.addChild(fxLayer);
   const weather = createWeather();
   root.addChild(litLayer, lighting.view, fxRoot, weather.view, labelLayer, letterbox);
@@ -301,7 +305,7 @@ export function createRenderer(app: Application): Renderer {
     for (const car of views) {
       seen.add(car.id);
       const sprite = spriteFor(car);
-      const visible = car.alive;
+      const visible = car.alive && !falls.has(car.id);
       sprite.root.visible = visible;
       sprite.label.visible = visible;
       if (!visible) continue;
@@ -523,6 +527,7 @@ export function createRenderer(app: Application): Renderer {
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
       updateSparks(dt);
+      falls.update(dt);
       grid.visible = !scenery.active;
       scenery.update(camera, t, dt);
       const skyFlashes = weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t, { seed: frame.trackName ?? "", now: frame.now });
@@ -556,6 +561,10 @@ export function createRenderer(app: Application): Renderer {
 
     impact(x: number, y: number, strength: number) {
       jolt = hit(jolt, strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2));
+    },
+
+    fall(car: FallStart) {
+      falls.add(car);
     },
 
     destroy() {
