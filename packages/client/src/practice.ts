@@ -240,7 +240,8 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
         }
         break;
       case "Escape":
-        if (mode === "sketch") exitSketch();
+        if (mode !== "sketch") return;
+        exitSketch();
         break;
       case "Backquote":
         panel.toggle();
