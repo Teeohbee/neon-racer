@@ -31,7 +31,7 @@ import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createSketchTool } from "./sketch";
-import { sfx } from "./audio";
+import { createEngineSound, sfx } from "./audio";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -56,6 +56,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
+  const engine = createEngineSound();
 
   let you = "";
   let info: RoomMsg | null = null;
@@ -292,6 +293,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     render();
     updateLive();
+    const mine = info?.phase === "race" && myAlive ? (info.mode === "contact" ? predictor.state : local) : null;
+    engine.update(mine ? Math.hypot(mine.vx, mine.vy) : 0);
   };
   app.ticker.add(tick);
 
@@ -503,6 +506,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     app.canvas.removeEventListener("pointermove", onPointerMove);
     app.canvas.removeEventListener("pointerdown", onPointerDown);
     conn.close();
+    engine.stop();
     keyboard.dispose();
     tool.dispose();
     renderer.destroy();
