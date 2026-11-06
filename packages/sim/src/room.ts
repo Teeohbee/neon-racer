@@ -315,7 +315,7 @@ export class Room {
       const ready = HAZARD_KINDS.filter((k) => now >= p.cooldowns[k]);
       if (!ready.length) continue;
       const kind = ready[Math.floor(this.rng() * ready.length)]!;
-      const [x, y] = kind === "freeze" ? [leader.car!.x, leader.car!.y] : pointAt(track, leader.progress.s + 350 + this.rng() * 300);
+      const [x, y] = kind === "freeze" ? [leader.car!.x, leader.car!.y] : pointAt(track, leader.progress.s + 150 + this.rng() * 250);
       this.placeHazard(p, kind, x, y);
     }
   }
