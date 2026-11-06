@@ -11,6 +11,7 @@ import type { FallStart } from "./falling";
 import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
 import { createLighting } from "./lighting";
 import { createReflections } from "./reflections";
+import { createPostFx } from "./postfx";
 import { createScenery } from "./scenery";
 import { createWeather } from "./weather";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
@@ -237,6 +238,8 @@ export function createRenderer(app: Application): Renderer {
   const weather = createWeather();
   root.addChild(litLayer, lighting.view, fxRoot, weather.view, labelLayer, letterbox);
   app.stage.addChild(root);
+  const postfx = createPostFx(root);
+  root.addChildAt(postfx.vignette, root.getChildIndex(letterbox));
 
   const cars = new Map<string, CarSprite>();
   const trails = new Map<string, CarTrails>();
@@ -547,6 +550,7 @@ export function createRenderer(app: Application): Renderer {
         extraLights.push({ x: camera.x + (f.x - fit.sw / 2) / zoom, y: camera.y + (f.y - fit.sh / 2) / zoom, size: 1400 * camera.scale, color: f.color, alpha: 0.55 * f.alpha });
       }
       reflections.update({ wet: !frame.sketch && scenery.weather()?.rain === true, track: frame.track, edges, cars: frame.cars, lights: extraLights, brakeOf: lighting.brakeOf, t });
+      postfx.update({ w: fit.sw, h: fit.sh }, { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh }, dt);
       lighting.update({ edges, ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
       jolt = release(jolt);
     },
@@ -573,8 +577,17 @@ export function createRenderer(app: Application): Renderer {
       falls.add(car);
     },
 
+    pulse(strength: number) {
+      postfx.pulse(strength);
+    },
+
+    danger(level: number) {
+      postfx.danger(level);
+    },
+
     destroy() {
       app.stage.removeChild(root);
+      postfx.destroy();
       fxRoot.filters = [];
       bloom.destroy();
       scenery.destroy();
