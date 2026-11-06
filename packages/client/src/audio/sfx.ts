@@ -125,10 +125,6 @@ export function eliminated(o: Out, t: number, reason: EliminationReason, opts: E
     case "line":
       zap(o, t, g, pan);
       break;
-    case "screen":
-      noise(o, t, { attack: 0.12, peak: 0.4 * g, decay: 0.55, filter: { type: "bandpass", freq: 3200, to: 220, q: 1.4 }, pan });
-      tone(o, t, { type: "triangle", freq: 700, to: 120, attack: 0.05, peak: 0.12 * g, decay: 0.6, pan });
-      break;
     case "left":
       tone(o, t, { type: "triangle", freq: 520, to: 300, peak: 0.15 * g, decay: 0.18, pan });
       break;

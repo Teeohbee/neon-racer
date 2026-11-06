@@ -13,8 +13,6 @@ export type { AudibleCar } from "./audio/voices";
 export const sfx = {
   tick: () => audio.sfx.countdownTick(),
   go: () => audio.sfx.go(),
-  blip: () => audio.sfx.eliminated("screen", { you: false }),
-  out: () => audio.sfx.eliminated("screen"),
   win: () => audio.sfx.roundWin(),
 };
 
