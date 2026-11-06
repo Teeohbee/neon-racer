@@ -1,13 +1,25 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
 import { emptyInput } from "../src/car";
-import type { ClientMsg, GameEvent, ServerMsg } from "../src/protocol";
-import { COUNTDOWN_SECONDS, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, TARGET_SCORE, TICK_RATE } from "../src/room";
-import { buildTrack, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point } from "../src/track";
+import type { ClientMsg, GameEvent, ServerMsg, WinCondition } from "../src/protocol";
+import { COUNTDOWN_SECONDS, DEFAULT_WIN, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, SNAP_EVERY, TICK_RATE } from "../src/room";
+import { buildTrack, dropAt, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point, type Track } from "../src/track";
 import { PRESET_TRACKS, type PresetTrack } from "../src/tracks";
 
 const DT = 1 / TICK_RATE;
 const loop: Point[] = ovalPoints(3200, 2000, 2200, 1300);
+const loopTrack = buildTrack(loop);
+const dropAhead: PresetTrack = { name: "Drop Ahead", points: loop, features: [{ kind: "drop", at: pointAt(loopTrack, 400).slice(0, 2) as Point, span: 200 }] };
+
+let savedPresets: PresetTrack[] | null = null;
+const usePresets = (...tracks: PresetTrack[]) => {
+  const old = PRESET_TRACKS.splice(0, PRESET_TRACKS.length, ...tracks);
+  savedPresets ??= old;
+};
+afterEach(() => {
+  if (savedPresets) PRESET_TRACKS.splice(0, PRESET_TRACKS.length, ...savedPresets);
+  savedPresets = null;
+});
 
 function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
   const sent: { to: string | "*"; msg: ServerMsg }[] = [];
@@ -33,36 +45,51 @@ function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
     run(COUNTDOWN_SECONDS + DT);
   };
   const car = (id: string) => last("snap")!.cars.find((c) => c.id === id)!;
-  const track = buildTrack(loop);
-  const gridOrder = () =>
-    [...names].sort((a, b) => {
-      const behind = (id: string) => track.length - nearestOnTrack(track, car(id).x, car(id).y).s;
-      return behind(a) - behind(b);
-    });
+  let built: { msg: unknown; track: Track } | null = null;
+  const track = () => {
+    const msg = last("track")!;
+    if (built?.msg !== msg) built = { msg, track: buildTrack(msg.raw, msg.features) };
+    return built.track;
+  };
+  const arc = (id: string) => nearestOnTrack(track(), car(id).x, car(id).y).s;
+  const gridOrder = () => {
+    const ref = arc(names[0]!);
+    const ahead = (id: string) => {
+      const d = arc(id) - ref;
+      const L = track().length;
+      return d > L / 2 ? d - L : d < -L / 2 ? d + L : d;
+    };
+    return [...names].sort((a, b) => ahead(b) - ahead(a));
+  };
   const knockOut = (id: string) => {
     const c = car(id);
     run(ELIMINATION_GRACE + 0.1, () => send(id, { t: "state", seq: 1, car: { ...c, x: c.x - 5000 } }));
   };
   const driveForward = (ids: string[], distance: number) => {
-    const from = Object.fromEntries(ids.map((id) => [id, nearestOnTrack(track, car(id).x, car(id).y).s]));
+    const from = Object.fromEntries(ids.map((id) => [id, arc(id)]));
     let seq = 0;
     run(distance / 40 / TICK_RATE, () => {
       seq++;
       for (const id of ids) {
-        const [x, y, angle] = pointAt(track, from[id]! + seq * 40);
+        const [x, y, angle] = pointAt(track(), from[id]! + seq * 40);
         send(id, { t: "state", seq, car: { x, y, angle, vx: 0, vy: 0 } });
       }
     });
+    run(SNAP_EVERY * DT);
   };
   const score = (id: string) => last("room")!.players.find((p) => p.id === id)!.score;
   const finish = (...outFirstToLast: string[]) => outFirstToLast.forEach(knockOut);
   const nextRace = () => {
     run(ROUND_END_SECONDS + DT);
-    send(drawer(), { t: "sketch", points: loop, reset: true });
-    send(drawer(), { t: "submit" });
     run(COUNTDOWN_SECONDS + DT);
   };
-  return { room, sent, run, last, events, send, readyAll, drawer, toRace, car, gridOrder, knockOut, score, finish, nextRace, driveForward, track };
+  const win = (id: string) => {
+    driveForward([id], 300);
+    finish(...names.filter((n) => n !== id && car(n)?.alive));
+  };
+  const setWin = (condition: WinCondition) => send(last("room")!.hostId!, { t: "winCondition", ...condition });
+  const leaderProgress = () => last("snap")!.line! + LINE_GAP;
+  return { room, sent, run, last, events, send, readyAll, drawer, toRace, car, arc, gridOrder, knockOut, score, finish, nextRace, driveForward, win, setWin, leaderProgress, track };
 }
 
 describe("lobby", () => {
@@ -164,10 +191,10 @@ describe("racing in ghost mode", () => {
     g.run(SUDDEN_DEATH_AT + 30);
     expect(g.room.phase).toBe("race");
     const [, back] = g.gridOrder();
-    const start = nearestOnTrack(g.track, g.car(back!).x, g.car(back!).y).s;
+    const start = nearestOnTrack(g.track(), g.car(back!).x, g.car(back!).y).s;
     let seq = 0;
     g.run(0.25, () => {
-      const [x, y, angle] = pointAt(g.track, start - ++seq * 40);
+      const [x, y, angle] = pointAt(g.track(), start - ++seq * 40);
       g.send(back!, { t: "state", seq, car: { x, y, angle, vx: 0, vy: 0 } });
     });
     expect(g.events()).toContainEqual({ kind: "eliminated", id: back, reason: "line" });
@@ -182,7 +209,7 @@ describe("racing in ghost mode", () => {
     expect(g.last("snap")!.line).toBeNull();
     g.run(COUNTDOWN_SECONDS);
     const [front] = g.gridOrder();
-    const leader = nearestOnTrack(g.track, g.car(front!).x, g.car(front!).y).s - g.track.length;
+    const leader = nearestOnTrack(g.track(), g.car(front!).x, g.car(front!).y).s - g.track().length;
     expect(g.last("snap")!.line).toBeCloseTo(leader - LINE_GAP);
     g.knockOut(g.gridOrder()[1]!);
     g.run(DT * 3);
@@ -196,17 +223,6 @@ describe("racing in ghost mode", () => {
     g.room.leave("cat");
     expect(g.events()).toContainEqual({ kind: "eliminated", id: "cat", reason: "left" });
     expect(g.room.phase).toBe("race");
-  });
-
-  it("hands the next sketch to the first player out", () => {
-    const g = setup(["ann", "bob", "cat"]);
-    g.toRace();
-    const [, middle, back] = g.gridOrder();
-    g.knockOut(middle!);
-    g.knockOut(back!);
-    g.run(ROUND_END_SECONDS + DT);
-    expect(g.room.phase).toBe("sketch");
-    expect(g.drawer()).toBe(middle);
   });
 });
 
@@ -248,21 +264,17 @@ describe("hazards", () => {
 });
 
 describe("falling off", () => {
-  const plain = buildTrack(loop);
-  const [sx, sy] = pointAt(plain, 0);
-  const dropTrack: PresetTrack = { name: "Drop Test", points: loop, features: [{ kind: "drop", at: [sx, sy], span: 600 }] };
-  let saved: PresetTrack[] = [];
-  afterEach(() => void PRESET_TRACKS.splice(0, PRESET_TRACKS.length, ...saved));
-
   it("eliminates a car that leaves the road over a drop", () => {
-    saved = PRESET_TRACKS.splice(0, PRESET_TRACKS.length, dropTrack);
+    usePresets(dropAhead);
     const g = setup(["ann", "bob"], 1, false);
     g.readyAll();
-    expect(g.last("track")!.features).toEqual(dropTrack.features);
-    g.run(COUNTDOWN_SECONDS + ELIMINATION_GRACE + DT);
+    expect(g.last("track")!.features).toEqual(dropAhead.features);
+    g.run(COUNTDOWN_SECONDS + DT);
+    g.driveForward(["ann", "bob"], 400 + g.track().length - g.arc("ann"));
+    expect(dropAt(g.track(), g.arc("ann"))).toBe(true);
     const c = g.car("ann");
-    g.send("ann", { t: "state", seq: 1, car: { ...c, x: c.x + TRACK_WIDTH } });
-    g.run(DT * 3);
+    g.send("ann", { t: "state", seq: 999, car: { ...c, x: c.x + TRACK_WIDTH } });
+    g.run(ELIMINATION_GRACE);
     expect(g.events()).toContainEqual({ kind: "eliminated", id: "ann", reason: "fell" });
   });
 });
@@ -322,21 +334,19 @@ describe("contact mode", () => {
 });
 
 describe("match flow", () => {
-  it("ends the match at the target score and returns to the lobby on request", () => {
+  it("ends a first-to-target match and returns to the lobby on request", () => {
     const g = setup();
-    g.readyAll();
-    while (g.room.phase === "sketch") {
-      g.send(g.drawer(), { t: "sketch", points: loop, reset: true });
-      g.send(g.drawer(), { t: "submit" });
-      g.run(COUNTDOWN_SECONDS + DT);
-      g.knockOut(g.gridOrder()[1]!);
+    g.setWin({ kind: "score", target: 5 });
+    g.toRace();
+    while (g.room.phase === "race") {
+      g.win(g.gridOrder()[0]!);
       g.run(ROUND_END_SECONDS + DT);
+      if ((g.room.phase as string) === "countdown") g.run(COUNTDOWN_SECONDS + DT);
     }
     expect(g.room.phase).toBe("matchEnd");
-    const winner = g.events().find((e) => e.kind === "matchWon");
-    const scores = g.last("room")!.players.map((p) => p.score);
-    expect(g.score((winner as { id: string }).id)).toBeGreaterThanOrEqual(TARGET_SCORE);
-    expect(scores.filter((s) => s >= TARGET_SCORE)).toHaveLength(1);
+    const winner = (g.events().find((e) => e.kind === "matchWon") as { id: string }).id;
+    expect(g.score(winner)).toBeGreaterThanOrEqual(5);
+    expect(g.last("room")!.players.filter((p) => p.score >= 5)).toHaveLength(1);
     const host = g.last("room")!.hostId!;
     g.send(host === "ann" ? "bob" : "ann", { t: "again" });
     expect(g.room.phase).toBe("matchEnd");
@@ -358,29 +368,178 @@ describe("match flow", () => {
   });
 });
 
+describe("rounds within a match", () => {
+  const trackMessages = (g: ReturnType<typeof setup>) => g.sent.filter((m) => m.msg.t === "track").length;
+
+  it("stay on the same track", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.readyAll();
+    g.run(COUNTDOWN_SECONDS + DT);
+    g.win("ann");
+    g.nextRace();
+    g.win("bob");
+    g.nextRace();
+    expect(g.room.phase).toBe("race");
+    expect(g.last("room")!.round).toBe(3);
+    expect(trackMessages(g)).toBe(1);
+  });
+
+  it("only sketch once per match", () => {
+    const g = setup();
+    g.toRace();
+    g.win("ann");
+    g.run(ROUND_END_SECONDS + DT);
+    expect(g.room.phase).toBe("countdown");
+    expect(trackMessages(g)).toBe(1);
+  });
+
+  it("restart the pack behind where the winner finished, keeping progress continuous", () => {
+    const g = setup(["ann", "bob", "cat"]);
+    g.toRace();
+    g.driveForward(["ann"], 500);
+    const finishedAt = g.car("ann");
+    g.finish("cat", "bob");
+    const lastRaceSnap = g.sent.filter((m) => m.msg.t === "snap" && m.msg.phase === "race").at(-1)!.msg as Extract<ServerMsg, { t: "snap" }>;
+    g.run(ROUND_END_SECONDS + DT);
+    expect(g.room.phase).toBe("countdown");
+    expect(Math.hypot(g.car("ann").x - finishedAt.x, g.car("ann").y - finishedAt.y)).toBeLessThan(TRACK_WIDTH / 2);
+    expect(g.gridOrder()).toEqual(["ann", "bob", "cat"]);
+    expect(g.arc("ann") - g.arc("cat")).toBeLessThan(250);
+    expect(g.last("snap")!.camera.x).toBeCloseTo(g.car("ann").x, 0);
+    expect(g.last("snap")!.camera.y).toBeCloseTo(g.car("ann").y, 0);
+    g.run(COUNTDOWN_SECONDS + DT);
+    expect(g.leaderProgress()).toBeCloseTo(lastRaceSnap.line! + LINE_GAP, 0);
+  });
+
+  it("move the restart grid forward off a drop", () => {
+    usePresets(dropAhead);
+    const g = setup(["ann", "bob"], 1, false);
+    g.readyAll();
+    g.run(COUNTDOWN_SECONDS + DT);
+    const [front, back] = g.gridOrder();
+    g.driveForward([front!], 400 + g.track().length - g.arc(front!));
+    expect(dropAt(g.track(), g.arc(front!))).toBe(true);
+    const before = g.leaderProgress();
+    g.knockOut(back!);
+    g.run(ROUND_END_SECONDS + DT);
+    expect(g.room.phase).toBe("countdown");
+    for (const id of ["ann", "bob"]) expect(dropAt(g.track(), g.arc(id))).toBe(false);
+    g.run(COUNTDOWN_SECONDS + DT);
+    expect(g.leaderProgress()).toBeGreaterThan(before);
+    expect(g.leaderProgress() - before).toBeLessThan(400);
+  });
+});
+
+describe("win condition", () => {
+  it("defaults to three laps and only the host can change it to an allowed value", () => {
+    const g = setup();
+    const win = () => g.last("room")!.win;
+    expect(win()).toEqual({ kind: "laps", laps: 3 });
+    g.send("bob", { t: "winCondition", kind: "score", target: 5 });
+    expect(win()).toEqual(DEFAULT_WIN);
+    for (const bad of [{ kind: "laps", laps: 4 }, { kind: "score", target: 7 }, { kind: "time" }]) g.send("ann", { t: "winCondition", ...bad } as unknown as ClientMsg);
+    expect(win()).toEqual(DEFAULT_WIN);
+    g.send("ann", { t: "winCondition", kind: "score", target: 12 });
+    expect(win()).toEqual({ kind: "score", target: 12 });
+  });
+
+  it("ends a lap race the moment the leader completes the final lap", () => {
+    const g = setup();
+    g.setWin({ kind: "laps", laps: 2 });
+    g.toRace();
+    const [front, back] = g.gridOrder();
+    expect(g.last("snap")!.lap).toBe(1);
+    g.driveForward([front!, back!], g.track().length + 100);
+    expect(g.last("snap")!.lap).toBe(2);
+    g.driveForward([front!, back!], g.track().length);
+    expect(g.room.phase).toBe("roundEnd");
+    expect(g.events()).toContainEqual({ kind: "roundScored", results: [{ id: front, delta: 2 }, { id: back, delta: 1 }] });
+    g.run(ROUND_END_SECONDS + DT);
+    expect(g.room.phase).toBe("matchEnd");
+    expect(g.events()).toContainEqual({ kind: "matchWon", id: front });
+  });
+
+  it("breaks a tie on points in favour of whoever got furthest", () => {
+    const g = setup();
+    g.setWin({ kind: "laps", laps: 2 });
+    g.toRace();
+    g.win("ann");
+    g.nextRace();
+    g.driveForward(["bob"], 400);
+    g.driveForward(["ann", "bob"], g.track().length * 2);
+    expect(g.room.phase).toBe("roundEnd");
+    expect([g.score("ann"), g.score("bob")]).toEqual([3, 3]);
+    g.run(ROUND_END_SECONDS + DT);
+    expect(g.events()).toContainEqual({ kind: "matchWon", id: "bob" });
+  });
+
+  it("does not count laps in a first-to-target match", () => {
+    const g = setup();
+    g.setWin({ kind: "score", target: 8 });
+    g.toRace();
+    expect(g.last("snap")!.lap).toBeNull();
+    g.driveForward(["ann", "bob"], g.track().length * 3);
+    expect(g.room.phase).toBe("race");
+  });
+});
+
+describe("track selection", () => {
+  const all = PRESET_TRACKS.map((t) => t.name);
+  const selection = (g: ReturnType<typeof setup>) => g.last("room")!.tracks;
+  const matchTracks = (g: ReturnType<typeof setup>, matches: number) =>
+    Array.from({ length: matches }, () => {
+      g.readyAll();
+      const name = g.last("track")!.name;
+      g.room.leave("bob");
+      g.room.join("bob", "bob");
+      return name;
+    });
+
+  it("starts with every track and only the host can change it", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    expect(selection(g)).toEqual(all);
+    g.send("bob", { t: "tracks", names: [all[0]!] });
+    expect(selection(g)).toEqual(all);
+    g.send("ann", { t: "tracks", names: [all[0]!] });
+    expect(selection(g)).toEqual([all[0]]);
+  });
+
+  it("ignores unknown names and never leaves the rotation empty", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.send("ann", { t: "tracks", names: ["Nowhere", all[2]!, all[1]!] });
+    expect(selection(g)).toEqual([all[1], all[2]]);
+    g.send("ann", { t: "tracks", names: [] });
+    g.send("ann", { t: "tracks", names: ["Nowhere"] });
+    expect(selection(g)).toEqual([all[1], all[2]]);
+  });
+
+  it("draws each match's track from the selection without repeats until all have been played", () => {
+    const g = setup(["ann", "bob"], 3, false);
+    const picked = all.slice(0, 3);
+    g.send("ann", { t: "tracks", names: picked });
+    const names = matchTracks(g, 6);
+    expect(new Set(names.slice(0, 3))).toEqual(new Set(picked));
+    expect(new Set(names.slice(3))).toEqual(new Set(picked));
+  });
+
+  it("repeats a single selected track every match", () => {
+    const g = setup(["ann", "bob"], 3, false);
+    g.send("ann", { t: "tracks", names: [all[4]!] });
+    expect(matchTracks(g, 3)).toEqual([all[4], all[4], all[4]]);
+  });
+
+  it("plays every track before repeating one by default", () => {
+    const g = setup(["ann", "bob"], 3, false);
+    expect(new Set(matchTracks(g, all.length)).size).toBe(all.length);
+  });
+});
+
 describe("preset tracks", () => {
-  it("skips sketching and goes straight to the countdown on a named track", () => {
+  it("skip sketching and go straight to the countdown on a named track", () => {
     const g = setup(["ann", "bob"], 1, false);
     g.readyAll();
     expect(g.room.phase).toBe("countdown");
     expect(PRESET_TRACKS.map((t) => t.name)).toContain(g.last("track")!.name);
-  });
-
-  it("plays every track before repeating one", () => {
-    const g = setup(["ann", "bob"], 3, false);
-    g.readyAll();
-    const names: string[] = [];
-    for (let i = 0; i < PRESET_TRACKS.length; i++) {
-      names.push(g.last("track")!.name);
-      g.run(COUNTDOWN_SECONDS + DT);
-      g.knockOut(g.gridOrder()[1]!);
-      g.run(ROUND_END_SECONDS + DT);
-      if (g.room.phase === "matchEnd") {
-        g.send(g.last("room")!.hostId!, { t: "again" });
-        g.readyAll();
-      }
-    }
-    expect(new Set(names).size).toBe(PRESET_TRACKS.length);
   });
 });
 

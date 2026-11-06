@@ -9,6 +9,10 @@ export type Mode = "ghost" | "contact";
 export type EliminationReason = "screen" | "line" | "fell" | "left";
 export type Phase = "lobby" | "sketch" | "countdown" | "race" | "roundEnd" | "matchEnd";
 
+export const SCORE_TARGETS = [5, 8, 12] as const;
+export const LAP_COUNTS = [2, 3, 5] as const;
+export type WinCondition = { kind: "score"; target: (typeof SCORE_TARGETS)[number] } | { kind: "laps"; laps: (typeof LAP_COUNTS)[number] };
+
 export interface PlayerInfo {
   id: string;
   name: string;
@@ -41,6 +45,8 @@ export type ClientMsg =
   | { t: "hazard"; kind: HazardKind; x: number; y: number }
   | { t: "addBot"; skill: BotSkill }
   | { t: "removeBot"; id: string }
+  | { t: "tracks"; names: string[] }
+  | ({ t: "winCondition" } & WinCondition)
   | { t: "again" };
 
 export type ServerMsg =
@@ -54,7 +60,8 @@ export type ServerMsg =
       mode: Mode;
       phase: Phase;
       drawerId: string | null;
-      target: number;
+      win: WinCondition;
+      tracks: string[];
       remaining: number;
       round: number;
     }
@@ -68,6 +75,7 @@ export type ServerMsg =
       now: number;
       camera: Camera;
       line: number | null;
+      lap: number | null;
       cars: CarSnap[];
       hazards: Hazard[];
       cooldowns: Record<string, Record<HazardKind, number>>;

@@ -3,7 +3,7 @@ import { isOutsideView, lineGap, stepCamera, type Camera } from "./camera";
 import { emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
-import type { ClientMsg, EliminationReason, GameEvent, Mode, Phase, ServerMsg } from "./protocol";
+import { LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
 import { advanceProgress, buildTrack, dropAt, gridSlots, nearestOnTrack, pointAt, TRACK_WIDTH, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { randomTrackPoints, validateDrawing } from "./validate";
@@ -13,12 +13,14 @@ export const TICK_RATE = 60;
 export const SNAP_EVERY = 3;
 export const MAX_PLAYERS = 6;
 export const TARGET_SCORE = 8;
+export const DEFAULT_WIN: WinCondition = { kind: "laps", laps: 3 };
 export const SKETCH_SECONDS = 30;
 export const COUNTDOWN_SECONDS = 3;
 export const ROUND_END_SECONDS = 4;
 export const ELIMINATION_GRACE = 1;
 export const KILL_CREDIT_WINDOW = 3;
 const MAX_PROGRESS_STEP = 200;
+const GRID_CLEAR_STEP = 20;
 const FALL_MARGIN = 8;
 const PLACE_POINTS = [2, 1];
 const LAST_PLACE_POINTS = -1;
@@ -57,7 +59,6 @@ export class Room {
   private players = new Map<string, Player>();
   private hostId: string | null = null;
   private drawerId: string | null = null;
-  private nextDrawerId: string | null = null;
   private drawing: Point[] = [];
   private raw: Point[] | null = null;
   private trackName = "";
@@ -71,10 +72,14 @@ export class Room {
   private tick = 0;
   private round = 0;
   private eliminationOrder: string[] = [];
+  private standings: string[] = [];
   private starters = 0;
-  private presetBag: number[] = [];
+  private win: WinCondition = DEFAULT_WIN;
+  private finalLapDone = false;
+  private selected: string[] = PRESET_TRACKS.map((t) => t.name);
+  private presetBag: string[] = [];
   private botSeq = 0;
-  private lastPreset = -1;
+  private lastPreset: string | null = null;
   private readonly rng: () => number;
   private readonly sketching: boolean;
 
@@ -185,6 +190,23 @@ export class Room {
         this.join(`bot-${n}`, `${BOT_NAMES[(n - 1) % BOT_NAMES.length]} (${msg.skill})`, msg.skill);
         return;
       }
+      case "tracks": {
+        if (this.phase !== "lobby" || id !== this.hostId || !Array.isArray(msg.names)) return;
+        const names = PRESET_TRACKS.map((t) => t.name).filter((n) => msg.names.includes(n));
+        if (!names.length) return;
+        this.selected = names;
+        this.presetBag = [];
+        this.broadcastRoom();
+        return;
+      }
+      case "winCondition": {
+        if (this.phase !== "lobby" || id !== this.hostId) return;
+        const win = parseWin(msg);
+        if (!win) return;
+        this.win = win;
+        this.broadcastRoom();
+        return;
+      }
       case "removeBot":
         if (this.phase !== "lobby" || id !== this.hostId || !this.players.get(msg.id)?.bot) return;
         this.leave(msg.id);
@@ -261,6 +283,11 @@ export class Room {
       this.camera = stepCamera(this.camera, leader.car!, dt, 1);
       this.line = leader.progress.progress - lineGap(now);
       this.botHazards(leader, now);
+      if (this.win.kind === "laps" && leader.progress.progress >= this.win.laps * track.length) {
+        this.finalLapDone = true;
+        this.endRound();
+        return;
+      }
     }
 
     if (now > ELIMINATION_GRACE) {
@@ -272,7 +299,7 @@ export class Room {
     }
 
     const alive = [...this.players.values()].filter((p) => p.alive);
-    if (alive.length <= (this.starters >= 2 ? 1 : 0)) this.endRound(alive[0] ?? null);
+    if (alive.length <= (this.starters >= 2 ? 1 : 0)) this.endRound();
   }
 
   private botHazards(leader: Player, now: number): void {
@@ -301,10 +328,10 @@ export class Room {
     }
   }
 
-  private endRound(winner: Player | null): void {
-    const ranked = [...(winner ? [winner.id] : []), ...[...this.eliminationOrder].reverse()]
-      .map((id) => this.players.get(id))
-      .filter((p): p is Player => !!p);
+  private endRound(): void {
+    const alive = [...this.players.values()].filter((p) => p.alive).sort((a, b) => b.progress.progress - a.progress.progress);
+    const ranked = [...alive, ...[...this.eliminationOrder].reverse().flatMap((id) => this.players.get(id) ?? [])];
+    this.standings = ranked.map((p) => p.id);
     const results = ranked.map((p, rank) => {
       const delta = PLACE_POINTS[rank] ?? (ranked.length >= 3 && rank === ranked.length - 1 ? LAST_PLACE_POINTS : 0);
       p.score = Math.max(0, p.score + delta);
@@ -312,36 +339,41 @@ export class Room {
     });
     this.emit({ kind: "roundScored", results });
     this.emit({ kind: "roundWon", id: ranked[0]?.id ?? null });
-    this.nextDrawerId = this.eliminationOrder.find((id) => this.players.has(id)) ?? null;
     this.line = null;
     this.setPhase("roundEnd");
   }
 
   private nextRound(): void {
-    const best = [...this.players.values()].sort((a, b) => b.score - a.score)[0];
-    if (best && best.score >= TARGET_SCORE) {
+    const best = [...this.players.values()].sort((a, b) => b.score - a.score || b.progress.progress - a.progress.progress)[0];
+    const over = this.win.kind === "laps" ? this.finalLapDone : !!best && best.score >= this.win.target;
+    if (best && over) {
       this.emit({ kind: "matchWon", id: best.id });
       this.setPhase("matchEnd");
       return;
     }
-    this.startRound(this.nextDrawerId && this.players.has(this.nextDrawerId) ? this.nextDrawerId : this.randomPlayerId());
+    this.regrid();
   }
 
-  private startRound(drawerId: string): void {
+  private startMatch(): void {
+    this.round = 0;
+    this.finalLapDone = false;
+    this.standings = [];
+    for (const p of this.players.values()) p.score = 0;
     if (this.sketching) {
-      this.startSketch(drawerId);
+      this.startSketch(this.randomPlayerId());
       return;
     }
     this.round++;
     this.drawerId = null;
-    const preset = PRESET_TRACKS[this.nextPreset()]!;
+    const name = this.nextPreset();
+    const preset = PRESET_TRACKS.find((t) => t.name === name)!;
     this.startCountdown(preset.points, preset.name, preset.features);
   }
 
-  private nextPreset(): number {
+  private nextPreset(): string {
     if (this.presetBag.length === 0) {
-      this.presetBag = shuffle([...PRESET_TRACKS.keys()].filter((i) => i !== this.lastPreset), this.rng);
-      if (this.lastPreset >= 0) this.presetBag.push(this.lastPreset);
+      this.presetBag = shuffle(this.selected.filter((n) => n !== this.lastPreset), this.rng);
+      if (this.lastPreset && this.selected.includes(this.lastPreset)) this.presetBag.push(this.lastPreset);
     }
     this.lastPreset = this.presetBag.shift()!;
     return this.lastPreset;
@@ -361,9 +393,7 @@ export class Room {
   private maybeStart(): void {
     const players = [...this.players.values()];
     if (this.phase !== "lobby" || players.length < 2 || !players.every((p) => p.ready)) return;
-    for (const p of players) p.score = 0;
-    this.round = 0;
-    this.startRound(this.randomPlayerId());
+    this.startMatch();
   }
 
   private startSketch(drawerId: string): void {
@@ -392,19 +422,39 @@ export class Room {
     this.trackName = name;
     this.features = features;
     this.track = buildTrack(this.raw, features);
-    this.line = null;
     this.io.broadcast({ t: "track", raw: this.raw, name, features });
 
     const others = shuffle([...this.players.values()].filter((p) => p.id !== this.drawerId), this.rng);
     const drawer = this.drawerId ? this.players.get(this.drawerId) : undefined;
-    const order = drawer ? [...others, drawer] : others;
-    const slots = gridSlots(this.track, order.length);
+    this.grid(drawer ? [...others, drawer] : others, 0, 0);
+  }
+
+  private regrid(): void {
+    const track = this.track!;
+    this.round++;
+    const ranked = this.standings.flatMap((id) => this.players.get(id) ?? []);
+    const order = [...ranked, ...[...this.players.values()].filter((p) => !ranked.includes(p))];
+    const lead = ranked.find((p) => p.car);
+    const front = gridOffsets(track, 1)[0]!.back;
+    const s = lead ? nearestOnTrack(track, lead.car!.x, lead.car!.y).s : 0;
+    this.grid(order, s - front, (lead?.progress.progress ?? 0) - front);
+  }
+
+  private grid(order: Player[], anchor: number, anchorProgress: number): void {
+    const track = this.track!;
+    const offsets = gridOffsets(track, order.length);
+    let shift = 0;
+    while (shift < track.length && offsets.some((o) => dropAt(track, anchor + shift + o.back))) shift += GRID_CLEAR_STEP;
+    const slots = offsets.map((o) => {
+      const at = anchor + shift + o.back;
+      const [x, y, angle] = pointAt(track, at);
+      return { x: x - Math.sin(angle) * o.lateral, y: y + Math.cos(angle) * o.lateral, angle, s: ((at % track.length) + track.length) % track.length, back: o.back };
+    });
     order.forEach((p, i) => {
       const slot = slots[i]!;
-      const s = nearestOnTrack(this.track!, slot.x, slot.y).s;
       p.car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
       p.alive = true;
-      p.progress = { s, progress: s > this.track!.length / 2 ? s - this.track!.length : s };
+      p.progress = { s: slot.s, progress: anchorProgress + shift + slot.back };
       p.inputs = [];
       p.lastInput = emptyInput;
       p.lastHit = null;
@@ -413,6 +463,7 @@ export class Room {
     this.starters = order.length;
     this.eliminationOrder = [];
     this.hazards = [];
+    this.line = null;
     const front = slots[0]!;
     this.camera = { x: front.x, y: front.y, scale: 1 };
     this.setPhase("countdown");
@@ -451,7 +502,8 @@ export class Room {
       mode: this.mode,
       phase: this.phase,
       drawerId: this.drawerId,
-      target: TARGET_SCORE,
+      win: this.win,
+      tracks: this.selected,
       remaining: this.remaining(),
       round: this.round,
     });
@@ -466,10 +518,17 @@ export class Room {
       now: this.phaseTime,
       camera: this.camera,
       line: this.phase === "race" ? this.line : null,
+      lap: this.leaderLap(),
       cars: players.filter((p) => p.car).map((p) => ({ id: p.id, ...p.car!, alive: p.alive, ack: p.ack })),
       hazards: this.hazards,
       cooldowns: Object.fromEntries(players.map((p) => [p.id, p.cooldowns])),
     };
+  }
+
+  private leaderLap(): number | null {
+    if (this.win.kind !== "laps" || !this.track) return null;
+    const best = Math.max(0, ...[...this.players.values()].filter((p) => p.alive).map((p) => p.progress.progress));
+    return Math.min(this.win.laps, Math.floor(best / this.track.length) + 1);
   }
 
   private emit(event: GameEvent): void {
@@ -488,6 +547,26 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
     [items[i], items[j]] = [items[j]!, items[i]!];
   }
   return items;
+}
+
+function gridOffsets(track: Track, count: number): { back: number; lateral: number }[] {
+  return gridSlots(track, count).map((slot) => {
+    const at = nearestOnTrack(track, slot.x, slot.y);
+    const [cx, cy] = pointAt(track, at.s);
+    return { back: at.s > track.length / 2 ? at.s - track.length : at.s, lateral: (slot.y - cy) * at.tx - (slot.x - cx) * at.ty };
+  });
+}
+
+function parseWin(msg: Partial<Record<"kind" | "target" | "laps", unknown>>): WinCondition | null {
+  if (msg.kind === "score") {
+    const target = SCORE_TARGETS.find((t) => t === msg.target);
+    return target ? { kind: "score", target } : null;
+  }
+  if (msg.kind === "laps") {
+    const laps = LAP_COUNTS.find((l) => l === msg.laps);
+    return laps ? { kind: "laps", laps } : null;
+  }
+  return null;
 }
 
 function isPoint(p: unknown): p is Point {
