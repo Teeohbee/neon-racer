@@ -26,6 +26,7 @@ import { createKeyboard, isTyping } from "./input";
 import { PLAYER_COLORS } from "./render/palette";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
+import { createMinimap } from "./minimap";
 import { createSketchTool } from "./sketch";
 
 const DT = 1 / 60;
@@ -115,6 +116,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   const panel = createDebugPanel(ui, params);
   const sketch = createSketchTool(app.canvas, renderer.screenToWorld);
   const hud = createHud(ui);
+  const minimap = createMinimap(ui);
 
   let presetIndex = 0;
   let track: Track = buildTrack(PRESET_TRACKS[presetIndex]!.points);
@@ -287,6 +289,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     };
 
     renderer.render({ camera, track, cars: [carView], hazards: [], now, sketch: sketchView, aim: null });
+    minimap.update(mode === "drive" ? track : null, [carView], camera);
     hud.stats({ speed: speedOf(car), lap: laps, time: lapStart === null ? null : now - lapStart, best });
   };
 
@@ -317,5 +320,6 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     panel.dispose();
     hud.dispose();
     renderer.destroy();
+    minimap.dispose();
   };
 }
