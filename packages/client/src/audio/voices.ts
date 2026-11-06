@@ -53,6 +53,8 @@ export function screenPosition(car: { x: number; y: number }, camera: Camera): {
   };
 }
 
+export const screenPan = (point: { x: number; y: number }, camera: Camera) => clamp(screenPosition(point, camera).nx, -1, 1) * PAN_WIDTH;
+
 export function planVoices(cars: AudibleCar[], camera: Camera, gears: Map<string, number> = new Map(), max = MAX_VOICES): VoicePlan[] {
   const plans: (VoicePlan & { dist: number })[] = [];
   for (const car of cars) {

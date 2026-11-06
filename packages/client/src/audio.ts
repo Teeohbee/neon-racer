@@ -6,6 +6,7 @@ export const audio = createAudio();
 export const audioSettingsWidget = () => createAudioSettings(audio.settings, audio.sfx.click);
 export const bindAudioMuteKey = (target: Window = window) => bindMuteKey(audio.settings, target);
 export { dangerLevel } from "./audio/levels";
+export { screenPan } from "./audio/voices";
 export type { Mood } from "./audio/sequencer";
 export type { AudibleCar } from "./audio/voices";
 

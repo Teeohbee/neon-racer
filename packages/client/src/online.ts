@@ -1,11 +1,14 @@
 import type { Application, Ticker } from "pixi.js";
 import {
   BOT_SKILLS,
+  boostAt,
   buildTrack,
   describeProblem,
   HAZARD_KINDS,
   HAZARD_SPECS,
   isFrozen,
+  nearestOnTrack,
+  pointAt,
   LAP_COUNTS,
   PRESET_TRACKS,
   SCORE_TARGETS,
@@ -14,6 +17,7 @@ import {
   SUDDEN_DEATH_AT,
   TARGET_SCORE,
   TICK_RATE,
+  TRACK_WIDTH,
   validateDrawing,
   WORLD,
   VIEW,
@@ -39,7 +43,7 @@ import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap, drawTrackShape } from "./minimap";
 import { createSketchTool } from "./sketch";
-import { createEngineSound, sfx } from "./audio";
+import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -55,6 +59,10 @@ const YOUR_OUT_REASONS: Record<EliminationReason, string> = { screen: "You dropp
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 const THUMB = { width: 84, height: 50, pad: 200 };
 const DEFAULT_LAPS = 3;
+const BUMP_DV = 150;
+const BUMP_FULL = 500;
+const BUMP_GAP_MS = 150;
+const MOODS: Record<RoomMsg["phase"], Mood> = { lobby: "lobby", sketch: "lobby", countdown: "race", race: "race", roundEnd: "race", matchEnd: "lobby" };
 
 export interface OnlineOptions {
   room: string;
@@ -68,7 +76,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
-  const engine = createEngineSound();
+  const audioWidget = audioSettingsWidget();
   const minimap = createMinimap(ui);
 
   let you = "";
@@ -96,16 +104,28 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   let lastCountdown = -1;
   let ended = false;
   let roomReceivedAt = performance.now();
+  let heard: { cars: CarView[]; camera: Camera; line: number | null } | null = null;
+  let onBoost = false;
+  let lastVelocity: { vx: number; vy: number } | null = null;
+  let lastBumpAt = 0;
+  const hazardsSeen = new Map<number, boolean>();
   const toasts: { text: string; until: number }[] = [];
 
   const root = h("div", { class: "online" });
   const top = h("div", { class: "online-top" });
+  const topInfo = h("div", { class: "online-top-info" });
+  top.append(topInfo, audioWidget.el, h("button", { class: "leave", onclick: () => leave() }, "Leave"));
   const center = h("div", { class: "online-center" });
   const bottom = h("div", { class: "online-bottom" });
   const toastBox = h("div", { class: "online-toasts" });
   const live = { timer: h("span"), goal: h("span"), countdown: h("div", { class: "countdown" }), sudden: h("div", { class: "sudden" }), cooldowns: new Map<HazardKind, HTMLElement>() };
   const thumbs = new Map(PRESET_TRACKS.map((t) => [t.name, trackThumb(buildTrack(t.points, t.features))]));
   root.append(top, center, bottom, toastBox);
+  const uiClick = (e: MouseEvent) => {
+    if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
+  };
+  center.addEventListener("click", uiClick);
+  bottom.addEventListener("click", uiClick);
   ui.append(root);
 
   const player = (id: string | null | undefined) => info?.players.find((p) => p.id === id);
@@ -193,11 +213,13 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       roundResults = [];
       resetFromSnap = true;
     }
-    if (info.phase === "race") sfx.go();
+    if (info.phase === "race") audio.sfx.go();
+    if (info.phase !== "race") audio.danger(0);
   }
 
   function onSnap(snap: Extract<ServerMsg, { t: "snap" }>) {
     buffer.push(snap, performance.now());
+    hazardSounds(snap);
     const mine = snap.cars.find((c) => c.id === you);
     if (!mine) {
       myAlive = false;
@@ -219,10 +241,11 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         if (car) renderer.burst(car.x, car.y, playerColor(player(event.id)?.color ?? 0));
         if (event.id === you) {
           myAlive = false;
-          sfx.out();
+          audio.sfx.eliminated(event.reason);
+          audio.danger(0);
           toast(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
         } else {
-          sfx.blip();
+          audio.sfx.eliminated(event.reason, { you: false, pan: car && heard ? screenPan(car, heard.camera) : 0 });
           toast(`${nameOf(event.id)} ${OUT_REASONS[event.reason]}`);
         }
         break;
@@ -235,11 +258,11 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         break;
       case "roundWon":
         roundWinner = event.id;
-        if (event.id === you) sfx.win();
+        if (event.id === you) audio.sfx.roundWin();
         break;
       case "matchWon":
         matchWinner = event.id;
-        sfx.win();
+        audio.sfx.matchWin();
         break;
     }
     drawUI();
@@ -304,6 +327,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   };
   const onPointerDown = (e: PointerEvent) => {
     if (info?.phase !== "race" || myAlive || !mouse || e.button !== 0) return;
+    if (serverNow() >= (buffer.latest()?.cooldowns[you]?.[hazardKind] ?? 0)) audio.sfx.hazardPlaced();
     conn.send({ t: "hazard", kind: hazardKind, x: mouse[0], y: mouse[1] });
   };
   window.addEventListener("keydown", onKey);
@@ -318,8 +342,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     render();
     updateLive();
-    const mine = info?.phase === "race" && myAlive ? (info.mode === "contact" ? predictor.state : local) : null;
-    engine.update(mine ? Math.hypot(mine.vx, mine.vy) : 0);
+    updateAudio();
   };
   app.ticker.add(tick);
 
@@ -327,6 +350,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const phase = info?.phase ?? "lobby";
     const now = serverNow();
     if (phase === "sketch") {
+      heard = null;
       const sketch: SketchView = isDrawer()
         ? { points: tool.points, preview: drawPreview, valid: localProblems.length === 0 }
         : { points: watched, preview: watchedPreview, valid: true };
@@ -336,6 +360,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     const sampled = phase === "lobby" ? null : buffer.sample(performance.now());
     if (!sampled) {
+      heard = null;
       renderer.render({ camera: worldCamera, track: phase === "matchEnd" ? track : null, cars: [], hazards: [], now });
       minimap.update(null, [], null);
       return;
@@ -347,6 +372,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       phase === "race" && !myAlive && mouse
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
+    heard = { cars, camera: sampled.camera, line: sampled.line };
     renderer.render({ camera: sampled.camera, track, cars, hazards, now, aim, dangerLine: sampled.line });
     minimap.update(track, cars, sampled.camera, sampled.line);
   }
@@ -371,6 +397,65 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     };
   }
 
+  function updateAudio() {
+    const phase = info?.phase ?? "lobby";
+    const racing = phase === "race" && heard !== null;
+    const now = serverNow();
+    audio.music.setMood(phase === "race" && now > SUDDEN_DEATH_AT ? "suddenDeath" : MOODS[phase]);
+    audio.engines.update(heard && (phase === "race" || phase === "countdown") ? heard.cars : [], heard?.camera ?? worldCamera);
+    const me = heard?.cars.find((c) => c.isYou && c.alive);
+    if (!racing || !me) {
+      audio.music.setIntensity(phase === "race" ? 0.3 : phase === "countdown" ? 0.25 : 0.2);
+      audio.danger(0);
+      onBoost = false;
+      lastVelocity = null;
+      return;
+    }
+    const camera = heard!.camera;
+    const offCentre = Math.hypot((me.x - camera.x) / ((VIEW.width * camera.scale) / 2), (me.y - camera.y) / ((VIEW.height * camera.scale) / 2));
+    audio.music.setIntensity(0.4 + 0.6 * Math.max(0, 1 - offCentre / 0.8));
+    if (track && heard!.line !== null) {
+      const [lx, ly] = pointAt(track, heard!.line);
+      audio.danger(dangerLevel(Math.hypot(me.x - lx, me.y - ly)));
+    } else audio.danger(0);
+    if (track) {
+      const near = nearestOnTrack(track, me.x, me.y);
+      const boosting = near.dist <= TRACK_WIDTH / 2 && boostAt(track, near.s);
+      if (boosting && !onBoost) audio.sfx.boost();
+      onBoost = boosting;
+    }
+    detectBump(now);
+  }
+
+  function detectBump(now: number) {
+    const state = info?.mode === "contact" ? predictor.state : local;
+    if (!state || isFrozen(you, buffer.latest()?.hazards ?? [], now)) {
+      lastVelocity = null;
+      return;
+    }
+    const prev = lastVelocity;
+    lastVelocity = { vx: state.vx, vy: state.vy };
+    if (!prev) return;
+    const dv = Math.hypot(state.vx - prev.vx, state.vy - prev.vy);
+    const t = performance.now();
+    if (dv < BUMP_DV || t - lastBumpAt < BUMP_GAP_MS) return;
+    lastBumpAt = t;
+    audio.sfx.bump(Math.min(1, dv / BUMP_FULL));
+  }
+
+  function hazardSounds(snap: Extract<ServerMsg, { t: "snap" }>) {
+    const live = new Set<number>();
+    for (const hz of snap.hazards) {
+      live.add(hz.id);
+      const armed = snap.now >= hz.armsAt;
+      const seen = hazardsSeen.get(hz.id);
+      if (seen === undefined && !armed) audio.sfx.hazardArming(hz.armsAt - snap.now);
+      if (armed && seen === false) audio.sfx.hazardActivate(hz.kind, heard ? screenPan(hz, heard.camera) : 0);
+      hazardsSeen.set(hz.id, armed);
+    }
+    for (const id of hazardsSeen.keys()) if (!live.has(id)) hazardsSeen.delete(id);
+  }
+
   function updateLive() {
     if (!info) return;
     const remaining = Math.max(0, info.remaining - (performance.now() - roomReceivedAt) / 1000);
@@ -378,7 +463,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (info.phase === "countdown") {
       const n = Math.ceil(remaining);
       live.countdown.textContent = n > 0 ? String(n) : "GO";
-      if (n !== lastCountdown && n > 0) sfx.tick();
+      if (n !== lastCountdown && n > 0) audio.sfx.countdownTick();
       lastCountdown = n;
     }
     live.goal.textContent = info.win.kind === "laps" ? `Lap ${buffer.latest()?.lap ?? 1}/${info.win.laps}` : `First to ${info.win.target}`;
@@ -410,7 +495,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const snapCars = new Map(buffer.latest()?.cars.map((c) => [c.id, c]) ?? []);
     const racing = info.phase === "race" || info.phase === "roundEnd";
 
-    top.replaceChildren(
+    topInfo.replaceChildren(
       h("div", { class: "code" }, `Room ${info.code}`),
       h("div", { class: "round" }, info.phase !== "lobby" ? `Round ${info.round} · ` : "", info.phase !== "lobby" ? live.goal : null),
       h(
@@ -424,7 +509,6 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           ),
         ),
       ),
-      h("button", { class: "leave", onclick: () => leave() }, "Leave"),
     );
 
     center.replaceChildren(...centerPanel());
@@ -622,7 +706,9 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     app.canvas.removeEventListener("pointermove", onPointerMove);
     app.canvas.removeEventListener("pointerdown", onPointerDown);
     conn.close();
-    engine.stop();
+    audio.engines.stop();
+    audio.danger(0);
+    audioWidget.dispose();
     minimap.dispose();
     keyboard.dispose();
     tool.dispose();

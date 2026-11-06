@@ -4,6 +4,8 @@
 .online button:disabled { opacity: 0.5; cursor: default; }
 .online button.on { border-color: #00f0ff; color: #00f0ff; box-shadow: 0 0 10px #00f0ff55; }
 .online-top { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; gap: 16px; align-items: center; text-shadow: 0 0 6px #00f0ff88; }
+.online-top-info { display: contents; }
+.online-top .audio-settings .audio-slider input { width: 64px; }
 .online-top .code { color: #00f0ff; letter-spacing: 2px; }
 .online-top .round { opacity: 0.7; }
 .online-top .scores { display: flex; gap: 12px; flex: 1; justify-content: center; }
