@@ -3,3 +3,4 @@ export * from "./track";
 export * from "./hazards";
 export * from "./camera";
 export * from "./world";
+export * from "./validate";
