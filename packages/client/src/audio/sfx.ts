@@ -30,6 +30,11 @@ export function boost(o: Out, t: number) {
   tone(o, t, { type: "sawtooth", freq: 110, to: 440, glide: 0.35, attack: 0.04, peak: 0.08, decay: 0.45, filter: { type: "lowpass", freq: 600, to: 2400 } });
 }
 
+export function slipstream(o: Out, t: number) {
+  noise(o, t, { attack: 0.12, peak: 0.16, decay: 0.45, filter: { type: "bandpass", freq: 2400, to: 700, q: 1.2 } });
+  noise(o, t + 0.05, { attack: 0.08, peak: 0.06, decay: 0.3, filter: { type: "highpass", freq: 4500 } });
+}
+
 export function bump(o: Out, t: number, intensity = 1, pan = 0) {
   const k = Number.isFinite(intensity) ? Math.max(0.15, Math.min(1, intensity)) : 1;
   tone(o, t, { freq: 130 * (0.8 + k * 0.3), to: 42, glide: 0.14, peak: 0.75 * k, decay: 0.24, pan });

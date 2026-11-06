@@ -23,6 +23,7 @@ export function createSfx(out: () => Out | null, now: () => number) {
     countdownTick: () => play(fx.countdownTick),
     go: () => play(fx.go),
     boost: () => play(fx.boost),
+    slipstream: () => play(fx.slipstream),
     bump: (intensity = 1, pan = 0) => play((o, t) => fx.bump(o, t, intensity, pan)),
     hazardPlaced: () => play(fx.hazardPlaced),
     hazardArming: (duration?: number) => play((o, t) => fx.hazardArming(o, t, duration)),
