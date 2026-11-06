@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { awardDelay, finalStandings, podiumOrder } from "../src/ui/podium";
+import { awardDelay, finalStandings, nameFit, podiumOrder } from "../src/ui/podium";
 import { formatDelta, formatScore } from "../src/ui/format";
 
 const player = (id: string, score: number) => ({ id, name: id, color: 0, ready: true, score, bot: false });
@@ -50,5 +50,20 @@ describe("format", () => {
     expect(formatDelta(2)).toBe("+2");
     expect(formatDelta(0)).toBe("0");
     expect(formatDelta(-1)).toBe("-1");
+  });
+});
+
+describe("nameFit", () => {
+  it("leaves short names at full size", () => {
+    expect(nameFit("Toby")).toBe("");
+  });
+
+  it("shrinks longer names a step at a time", () => {
+    expect(nameFit("Glitch (h)")).toBe("long");
+    expect(nameFit("Glitch (hard) 22")).toBe("very-long");
+  });
+
+  it("counts characters rather than UTF-16 units", () => {
+    expect(nameFit("🏎️🏎️🏎️🏎️")).toBe("");
   });
 });

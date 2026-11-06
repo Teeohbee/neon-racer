@@ -4,6 +4,8 @@ import "./podium.css";
 
 const AWARD_FIRST = 2.4;
 const AWARD_GAP = 1.8;
+const LONG_NAME = 9;
+const VERY_LONG_NAME = 13;
 
 export interface PodiumEntry {
   name: string;
@@ -30,10 +32,26 @@ export function awardDelay(index: number): number {
   return AWARD_FIRST + index * AWARD_GAP;
 }
 
-export function createPodium(parent: HTMLElement) {
+export function nameFit(name: string): "" | "long" | "very-long" {
+  const length = [...name].length;
+  return length > VERY_LONG_NAME ? "very-long" : length > LONG_NAME ? "long" : "";
+}
+
+export interface PodiumSounds {
+  click?: () => void;
+  reveal?: () => void;
+}
+
+export function createPodium(parent: HTMLElement, sounds: PodiumSounds = {}) {
   const layer = h("div", { class: "podium-layer" });
   const actions = h("div", { class: "podium-actions" });
   parent.append(layer);
+  actions.addEventListener("click", (e) => {
+    if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) sounds.click?.();
+  });
+  layer.addEventListener("animationstart", (e) => {
+    if (e.animationName === "award-reveal") sounds.reveal?.();
+  });
 
   const steps = (entries: PodiumEntry[]) =>
     h(
@@ -43,7 +61,7 @@ export function createPodium(parent: HTMLElement) {
         h(
           "div",
           { class: `podium-step p${place}`, style: `--c:${item.color}` },
-          h("div", { class: "podium-name" }, item.name),
+          h("div", { class: `podium-name ${nameFit(item.name)}`, title: item.name }, item.name),
           h("div", { class: "podium-value" }, item.value),
           h("div", { class: "podium-block" }, String(place)),
         ),

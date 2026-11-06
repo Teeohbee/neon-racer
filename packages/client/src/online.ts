@@ -138,7 +138,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const thumbs = new Map(PRESET_TRACKS.map((t) => [t.name, trackThumb(buildTrack(t.points, t.features))]));
   root.append(top, center, bottom, toastBox);
   const countdown = createCountdown(root);
-  const podium = createPodium(root);
+  const podium = createPodium(root, { click: audio.sfx.click, reveal: audio.sfx.reveal });
   const stream = createStreamHud(root, top, (id) => nameOf(id));
   const uiClick = (e: MouseEvent) => {
     if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
