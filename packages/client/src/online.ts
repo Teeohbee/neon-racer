@@ -54,6 +54,7 @@ import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from ".
 import { countdownLabel, createCountdown } from "./ui/countdown";
 import { formatDelta, formatScore } from "./ui/format";
 import { createPodium, finalStandings } from "./ui/podium";
+import { createStreamHud } from "./ui/stream-hud";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -64,7 +65,6 @@ const SKETCH_FLUSH_EVERY = 6;
 const DRIFT_LATERAL = 120;
 const TOAST_MS = 3000;
 const HAZARD_LABELS: Record<HazardKind, string> = { block: "Block", slow: "Slow", freeze: "Freeze" };
-const OUT_REASONS: Record<EliminationReason, string> = { line: "got caught by the line", fell: "fell off", left: "left" };
 const YOUR_OUT_REASONS: Record<EliminationReason, string> = { line: "The line caught you", fell: "You fell off", left: "You left" };
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 const THUMB = { width: 84, height: 50, pad: 200 };
@@ -137,6 +137,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   root.append(top, center, bottom, toastBox);
   const countdown = createCountdown(root);
   const podium = createPodium(root);
+  const stream = createStreamHud(root, top, (id) => nameOf(id));
   const uiClick = (e: MouseEvent) => {
     if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
   };
@@ -231,6 +232,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       roundResults = [];
       resetFromSnap = true;
     }
+    stream.phase(info.phase, info.code);
     if (info.phase === "race") audio.sfx.go();
     if (info.phase !== "countdown") countdown.show(info.phase === "race" ? "GO" : null);
     if (info.phase === "roundEnd") podium.round(roundWinner && nameOf(roundWinner), roundResults.slice(0, 3).map((r) => entry(r.id, formatDelta(r.delta))));
@@ -260,6 +262,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   }
 
   function onEvent(event: GameEvent) {
+    stream.event(event);
     switch (event.kind) {
       case "eliminated": {
         const car = buffer.latest()?.cars.find((c) => c.id === event.id);
@@ -272,18 +275,14 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           renderer.pulse(PULSE.eliminated);
           audio.sfx.eliminated(event.reason);
           audio.danger(0);
-          toast(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
+          stream.alert(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
         } else {
           audio.sfx.eliminated(event.reason, { you: false, pan: car && heard ? screenPan(car, heard.camera) : 0 });
-          toast(`${nameOf(event.id)} ${OUT_REASONS[event.reason]}`);
         }
         break;
       }
       case "roundScored":
         roundResults = event.results;
-        break;
-      case "hazardKill":
-        toast(`${nameOf(event.by)}'s hazard took out ${nameOf(event.victim)} (+½)`);
         break;
       case "roundWon":
         roundWinner = event.id;
@@ -376,6 +375,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     render();
     updateLive();
     updateAudio();
+    stream.update(track, heard, serverNow());
   };
   app.ticker.add(tick);
 
@@ -754,6 +754,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     audioWidget.dispose();
     displayWidget.dispose();
     minimap.dispose();
+    stream.dispose();
     keyboard.dispose();
     tool.dispose();
     renderer.destroy();
