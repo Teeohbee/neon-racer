@@ -26,7 +26,9 @@
 .online-top .code { color: #00f0ff; letter-spacing: 2px; }
 .online-top .round { opacity: 0.7; }
 .online-top .scores { display: flex; gap: 12px; flex: 1; justify-content: safe center; }
-.online-top .score { color: var(--c); text-shadow: 0 0 6px var(--c); }
+.online-top .score { display: flex; gap: 5px; min-width: 0; color: var(--c); text-shadow: 0 0 6px var(--c); }
+.online-top .score .name { min-width: 2em; overflow: hidden; text-overflow: ellipsis; }
+.online-top .score .pts { flex: none; }
 .online-top .score.out { opacity: 0.35; text-decoration: line-through; }
 .online-center { position: absolute; inset: 60px 0 auto 0; display: flex; justify-content: center; }
 .panel { pointer-events: auto; background: #05060dd9; border: 1px solid #2a3866; border-radius: 10px; padding: 18px 24px; box-shadow: 0 0 24px #00f0ff22; max-width: 560px; }

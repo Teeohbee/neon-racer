@@ -398,6 +398,16 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     };
   }
 
+  function raceStanding(me: CarView): number {
+    const alive = heard!.cars.filter((c) => c.alive);
+    const line = heard!.line;
+    if (!track || line === null || alive.length < 2) return 1;
+    const L = track.length;
+    const ahead = (c: CarView) => (((nearestOnTrack(track!, c.x, c.y).s - line) % L) + L) % L;
+    const mine = ahead(me);
+    return alive.filter((c) => c !== me && ahead(c) < mine).length / (alive.length - 1);
+  }
+
   function updateAudio() {
     const phase = info?.phase ?? "lobby";
     const racing = phase === "race" && heard !== null;
@@ -412,9 +422,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       lastVelocity = null;
       return;
     }
-    const camera = heard!.camera;
-    const offCentre = Math.hypot((me.x - camera.x) / ((VIEW.width * camera.scale) / 2), (me.y - camera.y) / ((VIEW.height * camera.scale) / 2));
-    audio.music.setIntensity(0.4 + 0.6 * Math.max(0, 1 - offCentre / 0.8));
+    audio.music.setIntensity(0.4 + 0.6 * raceStanding(me));
     if (track && heard!.line !== null) {
       const [lx, ly] = pointAt(track, heard!.line);
       audio.danger(dangerLevel(Math.hypot(me.x - lx, me.y - ly)));
@@ -505,8 +513,9 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         ...players.map((p) =>
           h(
             "span",
-            { class: `score${racing && snapCars.get(p.id)?.alive === false ? " out" : ""}`, style: `--c:${css(playerColor(p.color))}` },
-            `${p.name} ${formatScore(p.score)}`,
+            { class: `score${racing && snapCars.get(p.id)?.alive === false ? " out" : ""}`, style: `--c:${css(playerColor(p.color))}`, title: `${p.name} ${formatScore(p.score)}` },
+            h("span", { class: "name" }, p.name),
+            h("span", { class: "pts" }, formatScore(p.score)),
           ),
         ),
       ),
