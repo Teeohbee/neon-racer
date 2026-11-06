@@ -36,6 +36,7 @@ export interface FrameView {
   now: number;
   sketch?: SketchView;
   aim?: AimView | null;
+  dangerLine?: number | null;
 }
 
 export interface Renderer {

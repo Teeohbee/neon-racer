@@ -4,11 +4,18 @@ export const TRACK_WIDTH = 150;
 export const WORLD = { width: 6400, height: 4000 };
 const SPACING = 20;
 
+export type FeatureSpec = { kind: "drop"; at: Point; span: number } | { kind: "boost"; at: Point };
+
+export const BOOST_LENGTH = 160;
+const FALL_MARGIN = 8;
+
 export interface Track {
   xs: number[];
   ys: number[];
   cum: number[];
   length: number;
+  drops: [from: number, to: number][];
+  boosts: number[];
 }
 
 export function ovalPoints(cx: number, cy: number, rx: number, ry: number, n = 96): Point[] {
@@ -98,7 +105,7 @@ export function smoothLoop(raw: Point[]): Point[] {
   return resampleClosed(points, SPACING);
 }
 
-export function buildTrack(raw: Point[]): Track {
+export function buildTrack(raw: Point[], features: FeatureSpec[] = []): Track {
   const points = smoothLoop(raw);
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
@@ -108,7 +115,32 @@ export function buildTrack(raw: Point[]): Track {
     cum.push(cum[i - 1]! + Math.hypot(xs[j]! - xs[i - 1]!, ys[j]! - ys[i - 1]!));
   }
   const length = cum.pop()!;
-  return { xs, ys, cum, length };
+  const track: Track = { xs, ys, cum, length, drops: [], boosts: [] };
+  const wrap = (v: number) => ((v % length) + length) % length;
+  for (const f of features) {
+    const s = nearestOnTrack(track, f.at[0], f.at[1]).s;
+    if (f.kind === "drop") track.drops.push([wrap(s - f.span / 2), wrap(s + f.span / 2)]);
+    else track.boosts.push(s);
+  }
+  return track;
+}
+
+const forwardGap = (from: number, to: number, length: number) => (((to - from) % length) + length) % length;
+
+export function dropAt(track: Track, s: number): boolean {
+  return track.drops.some(([from, to]) => forwardGap(from, s, track.length) <= forwardGap(from, to, track.length));
+}
+
+export function boostAt(track: Track, s: number): boolean {
+  return track.boosts.some((c) => {
+    const d = forwardGap(c, s, track.length);
+    return Math.min(d, track.length - d) <= BOOST_LENGTH / 2;
+  });
+}
+
+export function fellOff(track: Track, x: number, y: number): boolean {
+  const p = nearestOnTrack(track, x, y);
+  return p.dist > TRACK_WIDTH / 2 + FALL_MARGIN && dropAt(track, p.s);
 }
 
 export interface Projection {
