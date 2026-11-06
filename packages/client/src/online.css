@@ -37,3 +37,4 @@
 .menu input:focus { border-color: #ff2bd6; box-shadow: 0 0 8px #ff2bd655; }
 .menu .code-input { width: 70px; text-transform: uppercase; letter-spacing: 3px; }
 .menu label { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.panel .players .remove { padding: 0 8px; margin-left: 8px; line-height: 1.4; }

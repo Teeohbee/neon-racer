@@ -1,5 +1,6 @@
 import type { Application, Ticker } from "pixi.js";
 import {
+  BOT_SKILLS,
   buildTrack,
   describeProblem,
   HAZARD_KINDS,
@@ -424,7 +425,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                   { style: `--c:${css(playerColor(p.color))}` },
                   h("span", { class: "dot" }),
                   `${p.name}${p.id === i.hostId ? " ★" : ""}${p.id === you ? " (you)" : ""}`,
-                  h("span", { class: p.ready ? "ready yes" : "ready" }, p.ready ? "ready" : "not ready"),
+                  h("span", { class: p.ready ? "ready yes" : "ready" }, p.bot ? "bot" : p.ready ? "ready" : "not ready"),
+                  p.bot && isHost ? h("button", { class: "remove", title: "Remove bot", onclick: () => conn.send({ t: "removeBot", id: p.id }) }, "×") : null,
                 ),
               ),
             ),
@@ -440,8 +442,18 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                 ),
               ),
             ),
+            isHost
+              ? h(
+                  "div",
+                  { class: "modes" },
+                  "Add bot: ",
+                  ...BOT_SKILLS.map((skill) =>
+                    h("button", { disabled: i.players.length >= 6, onclick: () => conn.send({ t: "addBot", skill }) }, skill),
+                  ),
+                )
+              : null,
             h("button", { class: `big${me?.ready ? " on" : ""}`, onclick: () => conn.send({ t: "ready", ready: !me?.ready }) }, me?.ready ? "Ready ✓" : "Ready up"),
-            h("p", { class: "hint" }, i.players.length < 2 ? "Waiting for at least one more racer…" : "Starts when everyone is ready."),
+            h("p", { class: "hint" }, i.players.length < 2 ? (isHost ? "Invite someone or add a bot to race." : "Waiting for at least one more racer…") : "Starts when everyone is ready."),
           ),
         ];
       }
