@@ -86,3 +86,14 @@ export function pushOutOfBlocks(car: CarState, hazards: Hazard[], now: number): 
 export function pruneHazards(hazards: Hazard[], now: number): Hazard[] {
   return hazards.filter((h) => now < h.expiresAt);
 }
+
+export function touchingHazard(carId: string, car: { x: number; y: number }, hazards: Hazard[], now: number): Hazard | undefined {
+  return (
+    freezeOn(carId, hazards, now) ??
+    hazards.find((h) => {
+      if (!isLive(h, now)) return false;
+      const d = Math.hypot(car.x - h.x, car.y - h.y);
+      return (h.kind === "slow" && d <= h.radius) || (h.kind === "block" && d <= h.radius + CAR_RADIUS + 4);
+    })
+  );
+}
