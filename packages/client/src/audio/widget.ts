@@ -11,18 +11,19 @@ export function createAudioSettings(settings: SettingsStore, onClick?: () => voi
   };
   const music = slider("Music", "music");
   const sfx = slider("SFX", "sfx");
-  const mute = h("button", { class: "audio-mute", title: "Mute (M)" });
+  const label = h("span", { class: "audio-label" });
+  const mute = h("button", { class: "audio-mute", title: "Mute (M)" }, h("span", { class: "audio-icon" }, "♪"), label);
   mute.addEventListener("click", () => {
     settings.toggleMute();
     onClick?.();
   });
-  const el = h("div", { class: "audio-settings" }, mute, music.el, sfx.el);
+  const el = h("div", { class: "audio-settings" }, mute, h("div", { class: "audio-sliders" }, music.el, sfx.el));
 
   const sync = () => {
     const s = settings.get();
     music.input.value = String(Math.round(s.music * 100));
     sfx.input.value = String(Math.round(s.sfx * 100));
-    mute.textContent = s.muted ? "Sound off" : "Sound on";
+    label.textContent = s.muted ? "Sound off" : "Sound on";
     mute.classList.toggle("on", !s.muted);
     el.classList.toggle("muted", s.muted);
   };

@@ -6,6 +6,23 @@
 .online-top { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; gap: 16px; align-items: center; text-shadow: 0 0 6px #00f0ff88; }
 .online-top-info { display: contents; }
 .online-top .audio-settings .audio-slider input { width: 64px; }
+.online-top .code, .online-top .round { white-space: nowrap; }
+.online-top .scores { min-width: 0; overflow: hidden; white-space: nowrap; }
+@media (max-width: 1100px) {
+  .online-top { gap: 12px; }
+  .online-top .scores { justify-content: flex-start; gap: 10px; }
+  .online-top .audio-settings { position: relative; }
+  .online-top .audio-settings button { min-width: 0; padding: 4px 10px; }
+  .online-top .audio-label { display: none; }
+  .online-top .audio-icon { display: inline; }
+  .online-top .audio-settings.muted .audio-icon { text-decoration: line-through; opacity: 0.6; }
+  .online-top .audio-sliders { display: none; position: absolute; top: 100%; right: 0; flex-direction: column; align-items: flex-end; gap: 8px; margin-top: 6px; padding: 10px 12px; background: #05060dee; border: 1px solid #2a3866; border-radius: 8px; z-index: 5; }
+  .online-top .audio-sliders::before { content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
+  .online-top .audio-settings:hover .audio-sliders, .online-top .audio-settings:focus-within .audio-sliders { display: flex; }
+}
+@media (max-width: 1000px) {
+  .hazards .hint { display: none; }
+}
 .online-top .code { color: #00f0ff; letter-spacing: 2px; }
 .online-top .round { opacity: 0.7; }
 .online-top .scores { display: flex; gap: 12px; flex: 1; justify-content: center; }
@@ -13,6 +30,7 @@
 .online-top .score.out { opacity: 0.35; text-decoration: line-through; }
 .online-center { position: absolute; inset: 60px 0 auto 0; display: flex; justify-content: center; }
 .panel { pointer-events: auto; background: #05060dd9; border: 1px solid #2a3866; border-radius: 10px; padding: 18px 24px; box-shadow: 0 0 24px #00f0ff22; max-width: 560px; }
+.panel.lobby { box-sizing: border-box; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a3866 transparent; }
 .panel.slim { padding: 10px 16px; }
 .panel h1 { margin: 0 0 12px; font-size: 28px; color: #ff2bd6; text-shadow: 0 0 12px #ff2bd6; letter-spacing: 3px; }
 .panel .players { list-style: none; padding: 0; margin: 14px 0; }

@@ -5,3 +5,5 @@
 .audio-settings .audio-slider { display: flex; margin: 0; gap: 6px; align-items: center; opacity: 0.85; }
 .audio-settings .audio-slider input { width: 90px; padding: 0; border: none; background: none; box-shadow: none; accent-color: #ff2bd6; }
 .audio-settings.muted .audio-slider { opacity: 0.4; }
+.audio-sliders { display: flex; gap: 12px; align-items: center; }
+.audio-icon { display: none; }
