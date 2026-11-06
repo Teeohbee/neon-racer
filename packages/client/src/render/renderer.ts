@@ -4,6 +4,7 @@ import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point
 import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createLighting } from "./lighting";
+import { createReflections } from "./reflections";
 import { createScenery } from "./scenery";
 import { createWeather } from "./weather";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
@@ -219,6 +220,8 @@ export function createRenderer(app: Application): Renderer {
   const boostLayers = Array.from({ length: CHEVRONS }, () => new Graphics());
   const dangerG = new Graphics();
   fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, carsLayer, aimG, sparksG);
+  const reflections = createReflections();
+  fxLayer.addChildAt(reflections.view, 0);
   fxRoot.addChild(fxLayer);
   const weather = createWeather();
   root.addChild(litLayer, lighting.view, fxRoot, weather.view, labelLayer, letterbox);
@@ -521,6 +524,7 @@ export function createRenderer(app: Application): Renderer {
         const zoom = fit.base / camera.scale;
         extraLights.push({ x: camera.x + (f.x - fit.sw / 2) / zoom, y: camera.y + (f.y - fit.sh / 2) / zoom, size: 1400 * camera.scale, color: f.color, alpha: 0.55 * f.alpha });
       }
+      reflections.update({ wet: !frame.sketch && scenery.weather()?.rain === true, track: frame.track, edges, cars: frame.cars, lights: extraLights, brakeOf: lighting.brakeOf, t });
       lighting.update({ edges, ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
@@ -547,6 +551,7 @@ export function createRenderer(app: Application): Renderer {
       scenery.destroy();
       weather.destroy();
       lighting.destroy();
+      reflections.destroy();
       root.destroy({ children: true });
       grainTex.destroy(true);
       cars.clear();
