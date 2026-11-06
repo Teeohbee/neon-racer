@@ -1,7 +1,8 @@
 import { Application, Container, Graphics, Rectangle, Text, TilingSprite } from "pixi.js";
 import { AdvancedBloomFilter } from "pixi-filters";
 import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point, type Track } from "@neon/sim";
-import { flat, offsetLoop, trackPoints } from "./geometry";
+import { flat, offsetLoop } from "./geometry";
+import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createLighting } from "./lighting";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { grainTexture } from "./textures";
@@ -89,10 +90,7 @@ function drawRoadEdges(g: Graphics, points: Point[], edgeWidth: number, edges: [
   });
 }
 
-function drawTrackSurface(g: Graphics, track: Track) {
-  g.clear();
-  drawRoadSurface(g, trackPoints(track), { color: UI.road, alpha: 1 });
-
+function drawTrackMarkings(g: Graphics, track: Track) {
   for (let s = 200; s < track.length - 100; s += 400) {
     const [x, y, a] = pointAt(track, s);
     const c = Math.cos(a);
@@ -200,7 +198,9 @@ export function createRenderer(app: Application): Renderer {
   grain.alpha = UI.grain;
   const trailsG = new Graphics();
   const hazardZoneG = new Graphics();
-  litLayer.addChild(grid, roadG, grain, trailsG, hazardZoneG);
+  grainTex.source.addressMode = "repeat";
+  const voidG = new Graphics();
+  litLayer.addChild(grid, grain, voidG, roadG, trailsG, hazardZoneG);
   const lighting = createLighting(app);
 
   const edgesG = new Graphics();
@@ -209,7 +209,9 @@ export function createRenderer(app: Application): Renderer {
   const carsLayer = new Container();
   const aimG = new Graphics();
   const sparksG = new Graphics();
-  fxLayer.addChild(edgesG, hazardG, sketchG, carsLayer, aimG, sparksG);
+  const boostLayers = Array.from({ length: CHEVRONS }, () => new Graphics());
+  const dangerG = new Graphics();
+  fxLayer.addChild(edgesG, ...boostLayers, dangerG, hazardG, sketchG, carsLayer, aimG, sparksG);
   fxRoot.addChild(fxLayer);
   root.addChild(litLayer, lighting.view, fxRoot, labelLayer, letterbox);
   app.stage.addChild(root);
@@ -477,12 +479,13 @@ export function createRenderer(app: Application): Renderer {
       if (frame.track !== currentTrack) {
         currentTrack = frame.track;
         if (currentTrack) {
-          drawTrackSurface(roadG, currentTrack);
-          edgesG.clear();
-          drawRoadEdges(edgesG, trackPoints(currentTrack), 4, [UI.edgeLeft, UI.edgeRight]);
+          drawTrackSurface(roadG, currentTrack, grainTex, UI.grain);
+          drawTrackMarkings(roadG, currentTrack);
+          drawVoid(voidG, currentTrack);
+          drawTrackEdges(edgesG, currentTrack);
+          drawBoostChevrons(boostLayers, currentTrack);
         } else {
-          roadG.clear();
-          edgesG.clear();
+          for (const g of [roadG, voidG, edgesG, ...boostLayers]) g.clear();
         }
       }
 
@@ -496,7 +499,9 @@ export function createRenderer(app: Application): Renderer {
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
       updateSparks(dt);
-      lighting.update({ camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
+      drawDangerLine(dangerG, frame.track, frame.dangerLine, t);
+      lighting.update({ dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
     screenToWorld(px: number, py: number): Point {

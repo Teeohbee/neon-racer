@@ -1,6 +1,8 @@
 import type { Application, Ticker } from "pixi.js";
 import {
   advanceProgress,
+  fellOff,
+  pointAt,
   buildTrack,
   describeProblem,
   gridSlots,
@@ -32,6 +34,8 @@ import { createSketchTool } from "./sketch";
 const DT = 1 / 60;
 const MAX_FRAME = 0.25;
 const MAX_PROGRESS_STEP = 200;
+const FALL_RESPAWN_DELAY = 0.6;
+const FALL_SETBACK = 250;
 const CAR_ID = "you";
 const COLOR = PLAYER_COLORS[0];
 const SKETCH_CAMERA: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
@@ -119,7 +123,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   const minimap = createMinimap(ui);
 
   let presetIndex = 0;
-  let track: Track = buildTrack(PRESET_TRACKS[presetIndex]!.points);
+  let track: Track = buildTrack(PRESET_TRACKS[presetIndex]!.points, PRESET_TRACKS[presetIndex]!.features);
   let car: CarState = { x: 0, y: 0, angle: 0, vx: 0, vy: 0 };
   let prev = car;
   let input: CarInput = keyboard.read();
@@ -135,6 +139,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   let sketchDirty = false;
   let preview: Point[] | null = null;
   let problems: TrackProblem[] = [];
+  let fall: { at: number; s: number } | null = null;
 
   const reset = () => {
     const slot = gridSlots(track, 1)[0]!;
@@ -146,6 +151,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     lapStart = null;
     laps = 0;
     acc = 0;
+    fall = null;
     camera = { x: car.x, y: car.y, scale: 1 };
   };
 
@@ -206,7 +212,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
         presetIndex = (presetIndex + 1) % PRESET_TRACKS.length;
         const preset = PRESET_TRACKS[presetIndex]!;
         if (mode === "sketch") exitSketch();
-        useTrack(buildTrack(preset.points));
+        useTrack(buildTrack(preset.points, preset.features));
         hud.flash(`${presetIndex + 1}/${PRESET_TRACKS.length} ${preset.name}`);
         break;
       }
@@ -236,11 +242,38 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   };
   window.addEventListener("keydown", onKey);
 
+  const respawn = (s: number) => {
+    const [x, y, angle] = pointAt(track, s);
+    car = { x, y, angle, vx: 0, vy: 0 };
+    prev = car;
+    const at = nearestOnTrack(track, x, y).s;
+    let delta = at - progress.s;
+    if (delta < -track.length / 2) delta += track.length;
+    if (delta > track.length / 2) delta -= track.length;
+    progress = { s: at, progress: progress.progress + delta };
+  };
+
   const step = () => {
+    if (fall) {
+      now += DT;
+      if (now - fall.at >= FALL_RESPAWN_DELAY) {
+        respawn(fall.s - FALL_SETBACK);
+        fall = null;
+      }
+      return;
+    }
     prev = car;
     const result = stepWorldCar(car, input, DT, { track, hazards: [], now, params, carId: CAR_ID });
     car = result.car;
     now += DT;
+    if (fellOff(track, car.x, car.y)) {
+      fall = { at: now, s: nearestOnTrack(track, car.x, car.y).s };
+      car = { ...car, vx: 0, vy: 0 };
+      prev = car;
+      renderer.burst(car.x, car.y, COLOR);
+      hud.flash("Fell!");
+      return;
+    }
     const { s } = nearestOnTrack(track, car.x, car.y);
     progress = advanceProgress(progress, s, track.length, MAX_PROGRESS_STEP);
     const lap = Math.floor(progress.progress / track.length);
@@ -283,12 +316,12 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       angle: view.angle,
       speed: speedOf(car),
       drifting: mode === "drive" && isDrifting(car, input),
-      alive: true,
+      alive: fall === null,
       frozen: false,
       isYou: true,
     };
 
-    renderer.render({ camera, track, cars: [carView], hazards: [], now, sketch: sketchView, aim: null });
+    renderer.render({ camera, track, cars: [carView], hazards: [], now, sketch: sketchView, aim: null, dangerLine: null });
     minimap.update(mode === "drive" ? track : null, [carView], camera);
     hud.stats({ speed: speedOf(car), lap: laps, time: lapStart === null ? null : now - lapStart, best });
   };

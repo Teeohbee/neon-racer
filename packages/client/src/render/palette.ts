@@ -32,6 +32,21 @@ export const LIGHT = {
   tail: 0xff2236,
   frozen: 0x6fd0ff,
   startLine: 0xdde6ff,
+  drop: 0xff3a1a,
+  boost: 0xffd23a,
+  danger: 0xff1030,
+};
+
+export const FEATURE = {
+  void: 0x000000,
+  cliff: 0x7a1830,
+  dropEdge: 0xff3020,
+  dropStripe: 0xffaa00,
+  boost: 0xffd23a,
+  boostCore: 0xffffff,
+  boostBase: 0xfff0a0,
+  danger: 0xff1a3a,
+  dangerCore: 0xffe0e6,
 };
 
 export const HAZARD_COLORS: Record<HazardKind, number> = {

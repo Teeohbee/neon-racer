@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, RenderTexture, Sprite, Texture } from "pixi.js";
 import { pointAt, TRACK_WIDTH, type Camera, type Hazard, type Track } from "@neon/sim";
-import { offsetLoop, trackPoints } from "./geometry";
+import { acrossTrack, edgeRuns, offsetLoop, pick, trackPoints } from "./geometry";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { coneLightTexture, softLightTexture } from "./textures";
 import type { AimView, CarView } from "./types";
@@ -34,6 +34,8 @@ export interface LightFrame {
   aim: AimView | null | undefined;
   bright: boolean;
   dt: number;
+  t: number;
+  dangerLine: number | null;
 }
 
 export interface Lighting {
@@ -54,9 +56,13 @@ function drawEdgeSpill(g: Graphics, track: Track) {
     [offsetLoop(points, -TRACK_WIDTH / 2), UI.edgeLeft],
     [offsetLoop(points, TRACK_WIDTH / 2), UI.edgeRight],
   ];
-  for (const [side, color] of sides) {
-    for (let i = 0; i < SPILL_STEPS; i++) {
-      g.poly(side, true).stroke({ width: 12 + (200 * (i + 1)) / SPILL_STEPS, color, alpha: 0.045, join: "round" });
+  for (const run of edgeRuns(track)) {
+    for (const [side, neon] of sides) {
+      const line = pick(side, run.indices);
+      const color = run.drop ? LIGHT.drop : neon;
+      for (let i = 0; i < SPILL_STEPS; i++) {
+        g.poly(line, run.closed).stroke({ width: 12 + (200 * (i + 1)) / SPILL_STEPS, color, alpha: run.drop ? 0.07 : 0.045, join: "round" });
+      }
     }
   }
 }
@@ -184,6 +190,19 @@ export function createLighting(app: Application): Lighting {
       if (currentTrack) {
         const [sx, sy] = pointAt(currentTrack, 0);
         light(soft, sx, sy, TRACK_WIDTH * 2.4, LIGHT.startLine, 0.55);
+        for (const c of currentTrack.boosts) {
+          const [bx, by] = pointAt(currentTrack, c);
+          light(soft, bx, by, 420, LIGHT.boost, 0.6 + 0.25 * Math.sin(frame.t * 6 + c));
+        }
+        if (frame.dangerLine !== null) {
+          const pulse = 0.85 + 0.15 * Math.sin(frame.t * 9);
+          const [dx, dy] = pointAt(currentTrack, frame.dangerLine);
+          light(soft, dx, dy, 620, LIGHT.danger, pulse);
+          for (const side of [-1, 1]) {
+            const [ex, ey] = acrossTrack(currentTrack, frame.dangerLine, side * (TRACK_WIDTH / 2 + 70));
+            light(soft, ex, ey, 220, LIGHT.danger, pulse);
+          }
+        }
       }
       const carsById = new Map(frame.cars.map((c) => [c.id, c]));
       for (const h of frame.hazards) hazardLights(h, frame.now, carsById);
