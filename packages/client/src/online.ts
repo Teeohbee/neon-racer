@@ -10,6 +10,7 @@ import {
   nearestOnTrack,
   pointAt,
   LAP_COUNTS,
+  MAX_PLAYERS,
   PRESET_TRACKS,
   SCORE_TARGETS,
   smoothLoop,
@@ -521,52 +522,71 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       case "lobby": {
         const me = player(you);
         const isHost = i.hostId === you;
+        const slots = Array.from({ length: MAX_PLAYERS }, (_, n) => i.players[n] ?? null);
         return [
           h(
             "div",
             { class: "panel lobby" },
-            h("h1", {}, `Room ${i.code}`),
-            h("button", { class: "link", onclick: () => navigator.clipboard?.writeText(location.href).then(() => toast("Invite link copied")) }, "Copy invite link"),
             h(
-              "ul",
-              { class: "players" },
-              ...i.players.map((p) =>
-                h(
-                  "li",
-                  { style: `--c:${css(playerColor(p.color))}` },
-                  h("span", { class: "dot" }),
-                  `${p.name}${p.id === i.hostId ? " ★" : ""}${p.id === you ? " (you)" : ""}`,
-                  h("span", { class: p.ready ? "ready yes" : "ready" }, p.bot ? "bot" : p.ready ? "ready" : "not ready"),
-                  p.bot && isHost ? h("button", { class: "remove", title: "Remove bot", onclick: () => conn.send({ t: "removeBot", id: p.id }) }, "×") : null,
-                ),
-              ),
+              "div",
+              { class: "lobby-head" },
+              h("h1", {}, `Room ${i.code}`),
+              h("button", { class: "link", onclick: () => navigator.clipboard?.writeText(location.href).then(() => toast("Invite link copied")) }, "Copy invite link"),
             ),
             h(
               "div",
-              { class: "modes" },
-              "Mode: ",
-              ...(["ghost", "contact"] as const).map((mode) =>
+              { class: "lobby-cols" },
+              h(
+                "div",
+                { class: "lobby-settings" },
                 h(
-                  "button",
-                  { class: i.mode === mode ? "on" : "", disabled: !isHost, onclick: () => conn.send({ t: "mode", mode }) },
-                  mode === "ghost" ? "Ghost (no contact)" : "Contact (bumping)",
-                ),
-              ),
-            ),
-            isHost
-              ? h(
                   "div",
                   { class: "modes" },
-                  "Add bot: ",
-                  ...BOT_SKILLS.map((skill) =>
-                    h("button", { disabled: i.players.length >= 6, onclick: () => conn.send({ t: "addBot", skill }) }, skill),
+                  "Mode: ",
+                  h(
+                    "span",
+                    { class: "seg" },
+                    ...(["ghost", "contact"] as const).map((mode) =>
+                      h(
+                        "button",
+                        { class: i.mode === mode ? "on" : "", disabled: !isHost, onclick: () => conn.send({ t: "mode", mode }) },
+                        mode === "ghost" ? "Ghost (no contact)" : "Contact (bumping)",
+                      ),
+                    ),
                   ),
-                )
-              : null,
-            winPicker(i.win, isHost),
-            trackPicker(i.tracks, isHost),
-            h("button", { class: `big${me?.ready ? " on" : ""}`, onclick: () => conn.send({ t: "ready", ready: !me?.ready }) }, me?.ready ? "Ready ✓" : "Ready up"),
-            h("p", { class: "hint" }, i.players.length < 2 ? (isHost ? "Invite someone or add a bot to race." : "Waiting for at least one more racer…") : "Starts when everyone is ready."),
+                ),
+                winPicker(i.win, isHost),
+                trackPicker(i.tracks, isHost),
+              ),
+              h(
+                "div",
+                { class: "lobby-players" },
+                h(
+                  "ul",
+                  { class: "players slots" },
+                  ...slots.map((p) =>
+                    p
+                      ? h(
+                          "li",
+                          { style: `--c:${css(playerColor(p.color))}` },
+                          h("span", { class: "dot" }),
+                          h("span", { class: "name" }, `${p.name}${p.id === i.hostId ? " ★" : ""}${p.id === you ? " (you)" : ""}`),
+                          h("span", { class: p.ready ? "ready yes" : "ready" }, p.bot ? "bot" : p.ready ? "ready" : "not ready"),
+                          p.bot && isHost ? h("button", { class: "remove", title: "Remove bot", onclick: () => conn.send({ t: "removeBot", id: p.id }) }, "×") : null,
+                        )
+                      : h(
+                          "li",
+                          { class: "open" },
+                          h("span", { class: "dot" }),
+                          h("span", { class: "name" }, "Open slot"),
+                          isHost ? h("span", { class: "add-bot" }, ...BOT_SKILLS.map((skill) => h("button", { title: `Add a ${skill} bot`, onclick: () => conn.send({ t: "addBot", skill }) }, `+ ${skill}`))) : null,
+                        ),
+                  ),
+                ),
+                h("button", { class: `big${me?.ready ? " on" : ""}`, onclick: () => conn.send({ t: "ready", ready: !me?.ready }) }, me?.ready ? "Ready ✓" : "Ready up"),
+                h("p", { class: "hint" }, i.players.length < 2 ? (isHost ? "Invite someone or add a bot to race." : "Waiting for at least one more racer…") : "Starts when everyone is ready."),
+              ),
+            ),
           ),
         ];
       }

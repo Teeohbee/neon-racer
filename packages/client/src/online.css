@@ -25,12 +25,29 @@
 }
 .online-top .code { color: #00f0ff; letter-spacing: 2px; }
 .online-top .round { opacity: 0.7; }
-.online-top .scores { display: flex; gap: 12px; flex: 1; justify-content: center; }
+.online-top .scores { display: flex; gap: 12px; flex: 1; justify-content: safe center; }
 .online-top .score { color: var(--c); text-shadow: 0 0 6px var(--c); }
 .online-top .score.out { opacity: 0.35; text-decoration: line-through; }
 .online-center { position: absolute; inset: 60px 0 auto 0; display: flex; justify-content: center; }
 .panel { pointer-events: auto; background: #05060dd9; border: 1px solid #2a3866; border-radius: 10px; padding: 18px 24px; box-shadow: 0 0 24px #00f0ff22; max-width: 560px; }
-.panel.lobby { box-sizing: border-box; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a3866 transparent; }
+.panel.lobby { box-sizing: border-box; width: calc(100vw - 32px); max-width: 920px; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a3866 transparent; }
+.lobby-head { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; }
+.lobby-head h1 { margin: 0; }
+.lobby-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+.lobby-players .slots { margin: 12px 0; }
+.panel .players.slots li { box-sizing: border-box; height: 34px; padding: 0; overflow: hidden; }
+.panel .players .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel .players li.open { color: #d8f6ff; }
+.panel .players li.open .dot { background: none; box-shadow: none; border: 1px dashed #2a3866; box-sizing: border-box; }
+.panel .players li.open .name { opacity: 0.35; }
+.panel .players .add-bot { display: flex; gap: 4px; margin-left: auto; }
+.online .players .add-bot button { padding: 2px 6px; font-size: 11px; opacity: 0.75; }
+.online .players .add-bot button:hover { opacity: 1; }
+.lobby-players .big { width: 100%; margin-top: 0; }
+.lobby-players .hint { min-height: 2.6em; }
+@media (max-width: 1000px) {
+  .lobby-cols { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
 .panel.slim { padding: 10px 16px; }
 .panel h1 { margin: 0 0 12px; font-size: 28px; color: #ff2bd6; text-shadow: 0 0 12px #ff2bd6; letter-spacing: 3px; }
 .panel .players { list-style: none; padding: 0; margin: 14px 0; }
