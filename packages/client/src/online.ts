@@ -449,15 +449,16 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (!racing || !me) {
       audio.music.setIntensity(phase === "race" ? 0.3 : phase === "countdown" ? 0.25 : 0.2);
       audio.danger(0);
+      renderer.danger(0);
       onBoost = false;
       lastVelocity = null;
       return;
     }
     audio.music.setIntensity(0.4 + 0.6 * raceStanding(me));
-    if (track && heard!.line !== null) {
-      const [lx, ly] = pointAt(track, heard!.line);
-      audio.danger(dangerLevel(Math.hypot(me.x - lx, me.y - ly)));
-    } else audio.danger(0);
+    const line = track && heard!.line !== null ? pointAt(track, heard!.line) : null;
+    const danger = line ? dangerLevel(Math.hypot(me.x - line[0], me.y - line[1])) : 0;
+    audio.danger(danger);
+    renderer.danger(danger);
     if (track) {
       const near = nearestOnTrack(track, me.x, me.y);
       const boosting = near.dist <= TRACK_WIDTH / 2 && boostAt(track, near.s);
