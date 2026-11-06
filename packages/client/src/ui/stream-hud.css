@@ -11,6 +11,7 @@
 .stream-badge.hot .stream-viewers b { color: #ff2bd6; text-shadow: 0 0 8px #ff2bd6; }
 
 .online.streaming .online-top .scores { gap: 6px; }
+.online.streaming .online-top .audio-sliders { display: none; }
 .online.streaming .online-top .score { padding: 2px 8px; font-size: 13px; background: #05060dcc; border: 1px solid #1f2b55; border-left: 3px solid var(--c); border-radius: 3px; text-shadow: none; }
 .online.streaming .online-top .score .pts { color: #fff; font-variant-numeric: tabular-nums; }
 .online.streaming .online-top .score.out { border-left-style: dashed; }
