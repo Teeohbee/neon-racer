@@ -21,6 +21,51 @@ export interface Minimap {
   dispose(): void;
 }
 
+function tick(ctx: CanvasRenderingContext2D, track: Track, s: number, half: number) {
+  const [x, y, angle] = pointAt(track, s);
+  const nx = -Math.sin(angle) * half;
+  const ny = Math.cos(angle) * half;
+  ctx.beginPath();
+  ctx.moveTo(x - nx, y - ny);
+  ctx.lineTo(x + nx, y + ny);
+  ctx.stroke();
+}
+
+export function drawTrackShape(ctx: CanvasRenderingContext2D, track: Track, scale: number): void {
+  ctx.beginPath();
+  track.xs.forEach((x, i) => (i ? ctx.lineTo(x, track.ys[i]!) : ctx.moveTo(x, track.ys[i]!)));
+  ctx.closePath();
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#1d2a55";
+  ctx.lineWidth = 220;
+  ctx.stroke();
+  ctx.strokeStyle = "#00f0ff";
+  ctx.shadowColor = "#00f0ff";
+  ctx.shadowBlur = 6 / scale;
+  ctx.lineWidth = 45;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ff3b3b";
+  ctx.lineWidth = 90;
+  for (const [from, to] of track.drops) {
+    const span = (((to - from) % track.length) + track.length) % track.length;
+    const steps = Math.max(1, Math.ceil(span / DROP_STEP));
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const [x, y] = pointAt(track, from + (span * i) / steps);
+      if (i) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#ffd400";
+  ctx.lineWidth = 60;
+  for (const s of track.boosts) tick(ctx, track, s, 130);
+  const [sx, sy] = [track.xs[0]!, track.ys[0]!];
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(sx - 90, sy - 90, 180, 180);
+}
+
 export function createMinimap(ui: HTMLElement): Minimap {
   const canvas = h("canvas", { class: "minimap", width: WIDTH * DPR, height: HEIGHT * DPR });
   canvas.style.width = `${WIDTH}px`;
@@ -33,51 +78,10 @@ export function createMinimap(ui: HTMLElement): Minimap {
   const baseCtx = base.getContext("2d")!;
   let drawnTrack: Track | null = null;
 
-  const tick = (target: CanvasRenderingContext2D, track: Track, s: number, half: number) => {
-    const [x, y, angle] = pointAt(track, s);
-    const nx = -Math.sin(angle) * half;
-    const ny = Math.cos(angle) * half;
-    target.beginPath();
-    target.moveTo(x - nx, y - ny);
-    target.lineTo(x + nx, y + ny);
-    target.stroke();
-  };
-
   const drawTrack = (track: Track) => {
     baseCtx.setTransform(DPR * SCALE, 0, 0, DPR * SCALE, 0, 0);
     baseCtx.clearRect(0, 0, WORLD.width, WORLD.height);
-    baseCtx.beginPath();
-    track.xs.forEach((x, i) => (i ? baseCtx.lineTo(x, track.ys[i]!) : baseCtx.moveTo(x, track.ys[i]!)));
-    baseCtx.closePath();
-    baseCtx.lineJoin = "round";
-    baseCtx.strokeStyle = "#1d2a55";
-    baseCtx.lineWidth = 220;
-    baseCtx.stroke();
-    baseCtx.strokeStyle = "#00f0ff";
-    baseCtx.shadowColor = "#00f0ff";
-    baseCtx.shadowBlur = 6 / SCALE;
-    baseCtx.lineWidth = 45;
-    baseCtx.stroke();
-    baseCtx.shadowBlur = 0;
-    baseCtx.strokeStyle = "#ff3b3b";
-    baseCtx.lineWidth = 90;
-    for (const [from, to] of track.drops) {
-      const span = (((to - from) % track.length) + track.length) % track.length;
-      const steps = Math.max(1, Math.ceil(span / DROP_STEP));
-      baseCtx.beginPath();
-      for (let i = 0; i <= steps; i++) {
-        const [x, y] = pointAt(track, from + (span * i) / steps);
-        if (i) baseCtx.lineTo(x, y);
-        else baseCtx.moveTo(x, y);
-      }
-      baseCtx.stroke();
-    }
-    baseCtx.strokeStyle = "#ffd400";
-    baseCtx.lineWidth = 60;
-    for (const s of track.boosts) tick(baseCtx, track, s, 130);
-    const [sx, sy] = [track.xs[0]!, track.ys[0]!];
-    baseCtx.fillStyle = "#ffffff";
-    baseCtx.fillRect(sx - 90, sy - 90, 180, 180);
+    drawTrackShape(baseCtx, track, SCALE);
     drawnTrack = track;
   };
 

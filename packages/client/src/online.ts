@@ -6,9 +6,13 @@ import {
   HAZARD_KINDS,
   HAZARD_SPECS,
   isFrozen,
+  LAP_COUNTS,
+  PRESET_TRACKS,
+  SCORE_TARGETS,
   smoothLoop,
   stepWorldCar,
   SUDDEN_DEATH_AT,
+  TARGET_SCORE,
   TICK_RATE,
   validateDrawing,
   WORLD,
@@ -23,6 +27,7 @@ import {
   type ServerMsg,
   type Track,
   type TrackProblem,
+  type WinCondition,
 } from "@neon/sim";
 import { h } from "./dom";
 import { createKeyboard, isTyping } from "./input";
@@ -32,7 +37,7 @@ import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
-import { createMinimap } from "./minimap";
+import { createMinimap, drawTrackShape } from "./minimap";
 import { createSketchTool } from "./sketch";
 import { createEngineSound, sfx } from "./audio";
 import "./online.css";
@@ -48,6 +53,8 @@ const HAZARD_LABELS: Record<HazardKind, string> = { block: "Block", slow: "Slow"
 const OUT_REASONS: Record<EliminationReason, string> = { screen: "dropped off screen", line: "got caught by the line", fell: "fell off", left: "left" };
 const YOUR_OUT_REASONS: Record<EliminationReason, string> = { screen: "You dropped off screen", line: "The line caught you", fell: "You fell off", left: "You left" };
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
+const THUMB = { width: 84, height: 50, pad: 200 };
+const DEFAULT_LAPS = 3;
 
 export interface OnlineOptions {
   room: string;
@@ -67,6 +74,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   let you = "";
   let info: RoomMsg | null = null;
   let track: Track | null = null;
+  let trackName = "";
   let watched: Point[] = [];
   let watchedPreview: Point[] | null = null;
   let localProblems: TrackProblem[] = [];
@@ -95,7 +103,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const center = h("div", { class: "online-center" });
   const bottom = h("div", { class: "online-bottom" });
   const toastBox = h("div", { class: "online-toasts" });
-  const live = { timer: h("span"), countdown: h("div", { class: "countdown" }), sudden: h("div", { class: "sudden" }), cooldowns: new Map<HazardKind, HTMLElement>() };
+  const live = { timer: h("span"), goal: h("span"), countdown: h("div", { class: "countdown" }), sudden: h("div", { class: "sudden" }), cooldowns: new Map<HazardKind, HTMLElement>() };
+  const thumbs = new Map(PRESET_TRACKS.map((t) => [t.name, trackThumb(buildTrack(t.points, t.features))]));
   root.append(top, center, bottom, toastBox);
   ui.append(root);
 
@@ -144,6 +153,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         break;
       case "track":
         track = buildTrack(msg.raw, msg.features);
+        trackName = msg.name;
         toast(`Track: ${msg.name}`);
         buffer.clear();
         resetFromSnap = true;
@@ -179,7 +189,10 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       matchWinner = null;
       track = null;
     }
-    if (info.phase === "countdown") roundResults = [];
+    if (info.phase === "countdown") {
+      roundResults = [];
+      resetFromSnap = true;
+    }
     if (info.phase === "race") sfx.go();
   }
 
@@ -368,6 +381,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       if (n !== lastCountdown && n > 0) sfx.tick();
       lastCountdown = n;
     }
+    live.goal.textContent = info.win.kind === "laps" ? `Lap ${buffer.latest()?.lap ?? 1}/${info.win.laps}` : `First to ${info.win.target}`;
     const now = serverNow();
     live.sudden.textContent = info.phase === "race" && now > SUDDEN_DEATH_AT ? "SUDDEN DEATH - the line is closing in" : "";
     const cooldowns = buffer.latest()?.cooldowns[you];
@@ -394,11 +408,11 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     const players = [...info.players].sort((a, b) => b.score - a.score);
     const snapCars = new Map(buffer.latest()?.cars.map((c) => [c.id, c]) ?? []);
-    const racing = info.phase === "countdown" || info.phase === "race" || info.phase === "roundEnd";
+    const racing = info.phase === "race" || info.phase === "roundEnd";
 
     top.replaceChildren(
       h("div", { class: "code" }, `Room ${info.code}`),
-      h("div", { class: "round" }, info.phase !== "lobby" ? `Round ${info.round} · first to ${info.target}` : ""),
+      h("div", { class: "round" }, info.phase !== "lobby" ? `Round ${info.round} · ` : "", info.phase !== "lobby" ? live.goal : null),
       h(
         "div",
         { class: "scores" },
@@ -465,6 +479,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                   ),
                 )
               : null,
+            winPicker(i.win, isHost),
+            trackPicker(i.tracks, isHost),
             h("button", { class: `big${me?.ready ? " on" : ""}`, onclick: () => conn.send({ t: "ready", ready: !me?.ready }) }, me?.ready ? "Ready ✓" : "Ready up"),
             h("p", { class: "hint" }, i.players.length < 2 ? (isHost ? "Invite someone or add a bot to race." : "Waiting for at least one more racer…") : "Starts when everyone is ready."),
           ),
@@ -516,11 +532,64 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
             "div",
             { class: "panel lobby" },
             h("h1", {}, `${nameOf(matchWinner)} wins!`),
+            h("p", { class: "hint" }, i.win.kind === "laps" ? `${i.win.laps} laps of ${trackName}` : `First to ${i.win.target} on ${trackName}`),
             h("ol", { class: "players" }, ...[...i.players].sort((a, b) => b.score - a.score).map((p) => h("li", { style: `--c:${css(playerColor(p.color))}` }, h("span", { class: "dot" }), `${p.name} - ${formatScore(p.score)}`))),
             i.hostId === you ? h("button", { class: "big", onclick: () => conn.send({ t: "again" }) }, "Back to lobby") : h("p", { class: "hint" }, "Waiting for the host…"),
           ),
         ];
     }
+  }
+
+  function winPicker(win: WinCondition, isHost: boolean): HTMLElement {
+    const values: WinCondition[] = win.kind === "laps" ? LAP_COUNTS.map((laps) => ({ kind: "laps", laps })) : SCORE_TARGETS.map((target) => ({ kind: "score", target }));
+    const pick = (next: WinCondition) => conn.send({ t: "winCondition", ...next });
+    return h(
+      "div",
+      { class: "modes" },
+      "Win: ",
+      h(
+        "span",
+        { class: "seg" },
+        h("button", { class: win.kind === "laps" ? "on" : "", disabled: !isHost, onclick: () => pick({ kind: "laps", laps: DEFAULT_LAPS }) }, "Laps"),
+        h("button", { class: win.kind === "score" ? "on" : "", disabled: !isHost, onclick: () => pick({ kind: "score", target: TARGET_SCORE }) }, "Points"),
+      ),
+      h(
+        "span",
+        { class: "seg" },
+        ...values.map((v) => {
+          const n = v.kind === "laps" ? v.laps : v.target;
+          const on = win.kind === "laps" ? win.laps === n : win.target === n;
+          return h("button", { class: on ? "on" : "", disabled: !isHost, onclick: () => pick(v) }, String(n));
+        }),
+      ),
+      h("span", { class: "hint" }, win.kind === "laps" ? "laps, one track" : "points to win"),
+    );
+  }
+
+  function trackPicker(selected: string[], isHost: boolean): HTMLElement {
+    const toggle = (name: string) => conn.send({ t: "tracks", names: selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name] });
+    return h(
+      "div",
+      { class: "track-picker" },
+      h(
+        "div",
+        { class: "modes" },
+        `Tracks (${selected.length}/${PRESET_TRACKS.length})`,
+        isHost ? h("button", { disabled: selected.length === PRESET_TRACKS.length, onclick: () => conn.send({ t: "tracks", names: PRESET_TRACKS.map((t) => t.name) }) }, "All") : null,
+      ),
+      h(
+        "div",
+        { class: "track-grid" },
+        ...PRESET_TRACKS.map((t) =>
+          h(
+            "button",
+            { class: `track-card${selected.includes(t.name) ? " on" : ""}`, disabled: !isHost, title: t.name, onclick: () => toggle(t.name) },
+            thumbs.get(t.name)!,
+            h("span", {}, t.name),
+          ),
+        ),
+      ),
+    );
   }
 
   function hazardBar(): HTMLElement[] {
@@ -560,6 +629,19 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     renderer.destroy();
     root.remove();
   };
+}
+
+function trackThumb(track: Track): HTMLCanvasElement {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const canvas = h("canvas", { width: THUMB.width * dpr, height: THUMB.height * dpr });
+  canvas.style.width = `${THUMB.width}px`;
+  canvas.style.height = `${THUMB.height}px`;
+  const ctx = canvas.getContext("2d")!;
+  const [minX, maxX, minY, maxY] = [Math.min(...track.xs), Math.max(...track.xs), Math.min(...track.ys), Math.max(...track.ys)];
+  const scale = Math.min(THUMB.width / (maxX - minX + THUMB.pad * 2), THUMB.height / (maxY - minY + THUMB.pad * 2));
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (THUMB.width / 2 - ((minX + maxX) / 2) * scale), dpr * (THUMB.height / 2 - ((minY + maxY) / 2) * scale));
+  drawTrackShape(ctx, track, scale);
+  return canvas;
 }
 
 function carOf(c: CarState): CarState {

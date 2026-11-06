@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { lerpAngle, SnapshotBuffer, type Snap } from "../src/net/interpolation";
 
 const snap = (tick: number, x: number, phase: Snap["phase"] = "race", line: number | null = null): Snap => ({
-  t: "snap", tick, phase, now: tick / 60, camera: { x, y: 0, scale: 1 }, line,
+  t: "snap", tick, phase, now: tick / 60, camera: { x, y: 0, scale: 1 }, line, lap: null,
   cars: [{ id: "a", x, y: 0, angle: 0, vx: 0, vy: 0, alive: true, ack: 0 }], hazards: [], cooldowns: {},
 });
 

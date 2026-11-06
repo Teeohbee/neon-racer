@@ -25,6 +25,18 @@
 .panel .results .delta { margin-left: auto; color: #d8f6ff; opacity: 0.6; font-variant-numeric: tabular-nums; }
 .panel .results .delta.up { color: #39ff88; opacity: 1; }
 .panel .results .delta.down { color: #ff3b5c; opacity: 1; }
+.seg { display: inline-flex; }
+.online .seg button { border-radius: 0; margin-left: -1px; padding: 4px 10px; }
+.online .seg button:first-child { border-radius: 6px 0 0 6px; }
+.online .seg button:last-child { border-radius: 0 6px 6px 0; }
+.online .seg button.on { position: relative; }
+.panel .modes .hint { margin: 0; }
+.track-picker .modes { margin-bottom: 6px; }
+.track-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.online .track-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; font-size: 11px; opacity: 0.35; filter: grayscale(1); }
+.online .track-card.on { opacity: 1; filter: none; border-color: #00f0ff; }
+.online .track-card:disabled { cursor: default; }
+.online .seg button.on:disabled { opacity: 1; }
 .panel .problems { color: #ff3b5c; margin: 8px 0 0; padding-left: 18px; }
 .countdown { font-size: 120px; color: #ffb000; text-shadow: 0 0 30px #ffb000; margin-top: 18vh; }
 .sudden { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b; font-size: 18px; letter-spacing: 2px; }
