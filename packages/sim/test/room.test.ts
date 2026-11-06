@@ -629,6 +629,28 @@ describe("bots", () => {
     expect(Math.hypot(moved.x - start.x, moved.y - start.y)).toBeGreaterThan(100);
   });
 
+  it("pick up speed in the slipstream of a car ahead", () => {
+    const botSpeed = (tow: boolean) => {
+      usePresets({ name: "Loop", points: loop, features: [] });
+      const g = setup(["ann"], 1, false);
+      g.send("ann", { t: "addBot", skill: "hard" });
+      g.send("ann", { t: "ready", ready: true });
+      g.run(COUNTDOWN_SECONDS + DT);
+      const id = roster(g).find((p) => p.bot)!.id;
+      let seq = 0;
+      g.run(1.5, () => {
+        if (!tow) return;
+        const b = g.car(id);
+        const fx = Math.cos(b.angle);
+        const fy = Math.sin(b.angle);
+        g.send("ann", { t: "state", seq: ++seq, car: { x: b.x + fx * 120, y: b.y + fy * 120, angle: b.angle, vx: fx * 650, vy: fy * 650 } });
+      });
+      const b = g.car(id);
+      return Math.hypot(b.vx, b.vy);
+    };
+    expect(botSpeed(true)).toBeGreaterThan(botSpeed(false) + 40);
+  });
+
   it("can be removed by the host", () => {
     const g = setup(["ann"]);
     g.send("ann", { t: "addBot", skill: "easy" });

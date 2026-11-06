@@ -6,6 +6,7 @@ import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, 
 import { LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
 import { advanceProgress, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
+import { Slipstream } from "./slipstream";
 import { randomTrackPoints, validateDrawing } from "./validate";
 import { BOOST_FACTOR, stepWorldCar } from "./world";
 
@@ -68,6 +69,7 @@ export class Room {
   private track: Track | null = null;
   private hazards: Hazard[] = [];
   private hazardSeq = 0;
+  private slipstream = new Slipstream();
   private camera: Camera = { x: 0, y: 0, scale: 1 };
   private phaseTime = 0;
   private tick = 0;
@@ -247,11 +249,12 @@ export class Room {
     const now = this.phaseTime;
     this.hazards = pruneHazards(this.hazards, now);
     const racers = [...this.players.values()].filter((p) => p.alive && p.car);
+    const drafts = this.slipstream.update(racers.map((p) => ({ id: p.id, car: p.car! })), dt);
 
     for (const p of racers) {
       if (!p.bot) continue;
-      const input = botInput(p.car!, track, p.bot, this.rng);
-      if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id }).car;
+      const input = botInput(p.car!, track, p.bot, this.rng, drafts.get(p.id));
+      if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id) }).car;
       else {
         p.inputs = [];
         p.lastInput = input;
@@ -265,7 +268,7 @@ export class Room {
           p.lastInput = next.input;
           p.ack = next.seq;
         }
-        p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id }).car;
+        p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id) }).car;
       }
       const resolved = resolveCarCollisions(racers.map((p) => p.car!));
       racers.forEach((p, i) => (p.car = resolved[i]!));
