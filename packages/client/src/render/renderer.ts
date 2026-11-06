@@ -3,6 +3,7 @@ import { AdvancedBloomFilter } from "pixi-filters";
 import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point, type Track } from "@neon/sim";
 import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
+import { createBoostFx } from "./boost-fx";
 import { createLighting } from "./lighting";
 import { createReflections } from "./reflections";
 import { createScenery } from "./scenery";
@@ -219,7 +220,8 @@ export function createRenderer(app: Application): Renderer {
   const sparksG = new Graphics();
   const boostLayers = Array.from({ length: CHEVRONS }, () => new Graphics());
   const dangerG = new Graphics();
-  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, carsLayer, aimG, sparksG);
+  const boostFx = createBoostFx({ length: CAR_LENGTH, width: CAR_WIDTH });
+  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, boostFx.view, carsLayer, aimG, sparksG);
   const reflections = createReflections();
   fxLayer.addChildAt(reflections.view, 0);
   fxRoot.addChild(fxLayer);
@@ -510,6 +512,7 @@ export function createRenderer(app: Application): Renderer {
       for (const h of frame.hazards) drawHazard(h, frame.now, carsById);
 
       updateTrails(frame.cars, t);
+      boostFx.update(frame.cars, t, dt);
       updateCars(frame.cars, t);
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
@@ -552,6 +555,7 @@ export function createRenderer(app: Application): Renderer {
       weather.destroy();
       lighting.destroy();
       reflections.destroy();
+      boostFx.destroy();
       root.destroy({ children: true });
       grainTex.destroy(true);
       cars.clear();

@@ -9,6 +9,7 @@ export interface CarView {
   angle: number;
   speed: number;
   drifting: boolean;
+  boosting: boolean;
   alive: boolean;
   frozen: boolean;
   isYou: boolean;

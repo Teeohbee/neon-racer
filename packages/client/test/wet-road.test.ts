@@ -4,7 +4,7 @@ import type { CarView } from "../src/render/types";
 import { collectGlints, createGlints } from "../src/render/wet-road";
 
 const car = (over: Partial<CarView> = {}): CarView => ({
-  id: "a", name: "a", color: 0x00f0ff, x: 100, y: 200, angle: 0, speed: 300, drifting: false, alive: true, frozen: false, isYou: false, ...over,
+  id: "a", name: "a", color: 0x00f0ff, x: 100, y: 200, angle: 0, speed: 300, drifting: false, alive: true, frozen: false, isYou: false, boosting: false, ...over,
 });
 const lamp = (alpha = 0.6) => ({ x: 50, y: 60, size: 400, color: 0xffd8c8, alpha });
 const noBrake = () => 0;

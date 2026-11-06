@@ -330,6 +330,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       angle: view.angle,
       speed: speedOf(car),
       drifting: mode === "drive" && isDrifting(car, input),
+      boosting: mode === "drive" && boosting,
       alive: fall === null,
       frozen: false,
       isYou: true,

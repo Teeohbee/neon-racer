@@ -39,6 +39,7 @@ import { createKeyboard, isTyping } from "./input";
 import { connect } from "./net/connection";
 import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
+import { onBoostPad } from "./render/boost-fx";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
@@ -392,6 +393,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       angle: car.angle,
       speed: Math.hypot(car.vx, car.vy),
       drifting: Math.abs(lateral) > DRIFT_LATERAL,
+      boosting: snap.alive && !!track && onBoostPad(track, car.x, car.y),
       alive: snap.alive,
       frozen: isFrozen(snap.id, hazards, now),
       isYou: snap.id === you,
