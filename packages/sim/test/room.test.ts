@@ -406,6 +406,56 @@ describe("match flow", () => {
     expect(g.room.phase).toBe("lobby");
   });
 
+  const playMatch = (g: ReturnType<typeof setup>) => {
+    g.setWin({ kind: "score", target: 5 });
+    g.toRace();
+    while (g.room.phase === "race") {
+      g.win(g.gridOrder()[0]!);
+      g.run(ROUND_END_SECONDS + DT);
+      if ((g.room.phase as string) === "countdown") g.run(COUNTDOWN_SECONDS + DT);
+    }
+  };
+  const lastAwards = (g: ReturnType<typeof setup>) => (g.events().at(-1) as Extract<GameEvent, { kind: "awards" }>).awards;
+
+  it("hands out awards straight after the match is won", () => {
+    const g = setup();
+    playMatch(g);
+    expect(g.events().at(-2)!.kind).toBe("matchWon");
+    expect(g.events().at(-1)!.kind).toBe("awards");
+    const titles = lastAwards(g).map((a) => a.title);
+    expect(titles).toContain("Garbage Collected");
+    expect(titles).toContain("Sponsored Content");
+    expect(titles).toContain("Main Character Energy");
+  });
+
+  it("starts every match with fresh stats", () => {
+    const g = setup();
+    playMatch(g);
+    g.send(g.last("room")!.hostId!, { t: "again" });
+    const before = g.events().length;
+    playMatch(g);
+    const wins = g.events().slice(before).filter((e) => e.kind === "roundWon");
+    const sponsored = lastAwards(g).find((a) => a.title === "Sponsored Content")!;
+    const mostWins = Math.max(...["ann", "bob"].map((id) => wins.filter((e) => e.kind === "roundWon" && e.id === id).length));
+    expect(sponsored.stat).toBe(`${mostWins} rounds won`);
+  });
+
+  it("counts hazards placed and hazard kills towards awards", () => {
+    const g = setup(["ann", "bob", "cat", "dan"]);
+    g.setWin({ kind: "laps", laps: 2 });
+    g.toRace();
+    const [front, second, middle, back] = g.gridOrder();
+    g.knockOut(back!);
+    const victim = g.car(middle!);
+    g.send(back!, { t: "hazard", kind: "slow", x: victim.x, y: victim.y });
+    g.run(1);
+    g.knockOut(middle!);
+    g.driveForward([front!, second!], g.track().length * 2 + 400);
+    g.run(ROUND_END_SECONDS + DT);
+    expect(g.room.phase).toBe("matchEnd");
+    expect(lastAwards(g)).toContainEqual({ id: back, title: "Black ICE Dealer", blurb: expect.any(String), stat: "1 racer flatlined" });
+  });
+
   it("drops back to the lobby when only one player is left", () => {
     const g = setup();
     g.toRace();

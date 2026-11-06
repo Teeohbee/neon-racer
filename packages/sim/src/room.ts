@@ -1,3 +1,4 @@
+import { MatchStats } from "./awards";
 import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
 import { frameCamera, isOutsideView, lineGap, type Camera } from "./camera";
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
@@ -83,6 +84,7 @@ export class Room {
   private presetBag: string[] = [];
   private botSeq = 0;
   private lastPreset: string | null = null;
+  private stats = new MatchStats();
   private readonly rng: () => number;
   private readonly sketching: boolean;
 
@@ -289,6 +291,7 @@ export class Room {
     const leader = racers.reduce<Player | null>((best, p) => (!best || p.progress.progress > best.progress.progress ? p : best), null);
     if (leader) {
       this.line = leader.progress.progress - lineGap(now);
+      this.trackStats(racers, leader, now, dt);
       const [lx, ly] = pointAt(track, this.line);
       this.camera = frameCamera(this.camera, leader.car!, { x: lx, y: ly }, dt);
       this.botHazards(leader, now);
@@ -310,6 +313,11 @@ export class Room {
     if (alive.length <= (this.starters >= 2 ? 1 : 0)) this.endRound();
   }
 
+  private trackStats(racers: Player[], leader: Player, now: number, dt: number): void {
+    this.stats.leading(leader.id, dt);
+    for (const p of racers) this.stats.sample(p.id, p.car!, now > ELIMINATION_GRACE ? p.progress.progress - this.line! : null, dt);
+  }
+
   private botHazards(leader: Player, now: number): void {
     const track = this.track!;
     for (const p of this.players.values()) {
@@ -328,9 +336,11 @@ export class Room {
     p.nextBotHazardAt = now + 1.5;
     this.eliminationOrder.push(p.id);
     this.emit({ kind: "eliminated", id: p.id, reason });
+    this.stats.eliminated(p.id, reason);
     const credit = p.lastHit && now - p.lastHit.at <= KILL_CREDIT_WINDOW ? this.players.get(p.lastHit.owner) : undefined;
     if (credit && credit.id !== p.id) {
       credit.score += 0.5;
+      this.stats.hazardKill(credit.id);
       this.emit({ kind: "hazardKill", by: credit.id, victim: p.id });
       this.broadcastRoom();
     }
@@ -347,6 +357,7 @@ export class Room {
     });
     this.emit({ kind: "roundScored", results });
     this.emit({ kind: "roundWon", id: ranked[0]?.id ?? null });
+    this.stats.endRound(ranked[0]?.id ?? null);
     this.line = null;
     this.setPhase("roundEnd");
   }
@@ -356,6 +367,7 @@ export class Room {
     const over = this.win.kind === "laps" ? this.finalLapDone : !!best && best.score >= this.win.target;
     if (best && over) {
       this.emit({ kind: "matchWon", id: best.id });
+      this.emit({ kind: "awards", awards: this.stats.awards([...this.players.keys()]) });
       this.setPhase("matchEnd");
       return;
     }
@@ -366,6 +378,7 @@ export class Room {
     this.round = 0;
     this.finalLapDone = false;
     this.standings = [];
+    this.stats = new MatchStats();
     for (const p of this.players.values()) p.score = 0;
     if (this.sketching) {
       this.startSketch(this.randomPlayerId());
@@ -395,6 +408,7 @@ export class Room {
     const hazard = placeHazard(kind, x, y, p.id, now, ++this.hazardSeq, targets);
     if (!hazard) return;
     this.hazards.push(hazard);
+    this.stats.hazardPlaced(p.id);
     p.cooldowns[kind] = now + HAZARD_SPECS[kind].cooldown;
   }
 
