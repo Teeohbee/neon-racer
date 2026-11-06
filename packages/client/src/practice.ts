@@ -30,6 +30,7 @@ import { createDebugPanel, loadCarParams } from "./debug-panel";
 import { createKeyboard, isTyping } from "./input";
 import { PLAYER_COLORS } from "./render/palette";
 import { IMPACT } from "./render/impact";
+import { PULSE } from "./render/envelopes";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap } from "./minimap";
@@ -282,13 +283,17 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       prev = car;
       renderer.impact(car.x, car.y, IMPACT.eliminatedYou);
       hud.flash("Fell!");
+      renderer.pulse(PULSE.eliminated);
       audio.sfx.eliminated("fell");
       boosting = false;
       return;
     }
     const { s, dist } = nearestOnTrack(track, car.x, car.y);
     const onBoost = dist <= TRACK_WIDTH / 2 && boostAt(track, s);
-    if (onBoost && !boosting) audio.sfx.boost();
+    if (onBoost && !boosting) {
+      audio.sfx.boost();
+      renderer.pulse(PULSE.boost);
+    }
     boosting = onBoost;
     progress = advanceProgress(progress, s, track.length, MAX_PROGRESS_STEP);
     const lap = Math.floor(progress.progress / track.length);

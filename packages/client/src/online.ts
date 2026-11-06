@@ -44,6 +44,7 @@ import { Predictor } from "./net/prediction";
 import { onBoostPad } from "./render/boost-fx";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { IMPACT } from "./render/impact";
+import { PULSE } from "./render/envelopes";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap, drawTrackShape } from "./minimap";
@@ -265,6 +266,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         if (car) renderer.impact(car.x, car.y, event.id === you ? IMPACT.eliminatedYou : IMPACT.eliminated);
         if (event.id === you) {
           myAlive = false;
+          renderer.pulse(PULSE.eliminated);
           audio.sfx.eliminated(event.reason);
           audio.danger(0);
           toast(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
@@ -459,7 +461,10 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (track) {
       const near = nearestOnTrack(track, me.x, me.y);
       const boosting = near.dist <= TRACK_WIDTH / 2 && boostAt(track, near.s);
-      if (boosting && !onBoost) audio.sfx.boost();
+      if (boosting && !onBoost) {
+        audio.sfx.boost();
+        renderer.pulse(PULSE.boost);
+      }
       onBoost = boosting;
     }
     detectBump(now);
