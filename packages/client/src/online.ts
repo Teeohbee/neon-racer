@@ -37,6 +37,7 @@ import {
 import { h } from "./dom";
 import { createKeyboard, isTyping } from "./input";
 import { connect } from "./net/connection";
+import { createDrafting } from "./net/drafting";
 import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
 import { onBoostPad } from "./render/boost-fx";
@@ -78,6 +79,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
+  const drafting = createDrafting(() => audio.sfx.slipstream());
   const audioWidget = audioSettingsWidget();
   const minimap = createMinimap(ui);
 
@@ -272,13 +274,14 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
   function stepContext() {
     const latest = buffer.latest();
-    return { track, hazards: latest?.hazards ?? [], now: serverNow(), carId: you };
+    return { track, hazards: latest?.hazards ?? [], now: serverNow(), carId: you, draft: drafting.own(you) };
   }
 
   function step() {
     steps++;
     if (info?.phase === "race" && myAlive && track && local) {
       const input = keyboard.read();
+      drafting.step(you, info.mode === "ghost" ? local : predictor.state, buffer.sample(performance.now())?.cars ?? [], DT);
       if (info.mode === "ghost") {
         local = stepWorldCar(local, input, DT, stepContext()).car;
         if (steps % STATE_EVERY === 0) conn.send({ t: "state", seq: steps, car: local });
@@ -369,6 +372,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     const hazards = sampled.snap.hazards;
     const cars = sampled.cars.map((c) => carView(c, hazards, now));
+    drafting.paint(cars, performance.now() / 1000);
     const cooldown = buffer.latest()?.cooldowns[you]?.[hazardKind] ?? 0;
     const aim =
       phase === "race" && !myAlive && mouse
