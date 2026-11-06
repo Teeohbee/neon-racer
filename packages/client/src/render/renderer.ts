@@ -252,7 +252,9 @@ export function createRenderer(app: Application): Renderer {
   let jolt = calm();
   const trackContacts = createContactTracker(HAZARD_COLORS.block);
   const impactAt = (x: number, y: number, strength: number) => {
-    jolt = hit(jolt, strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2));
+    const felt = strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2);
+    jolt = hit(jolt, felt);
+    postfx.pulse(felt * 0.6);
   };
 
   const applyCamera = (fit: Fit) => {
