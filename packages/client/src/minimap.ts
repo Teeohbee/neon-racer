@@ -1,4 +1,4 @@
-import { viewBounds, WORLD, type Camera, type Track } from "@neon/sim";
+import { pointAt, viewBounds, WORLD, type Camera, type Track } from "@neon/sim";
 import { h } from "./dom";
 import { css } from "./render/palette";
 
@@ -6,6 +6,7 @@ const WIDTH = 220;
 const SCALE = WIDTH / WORLD.width;
 const HEIGHT = Math.round(WORLD.height * SCALE);
 const DPR = Math.min(2, window.devicePixelRatio || 1);
+const DROP_STEP = 40;
 
 export interface MinimapCar {
   x: number;
@@ -16,7 +17,7 @@ export interface MinimapCar {
 }
 
 export interface Minimap {
-  update(track: Track | null, cars: MinimapCar[], camera: Camera | null): void;
+  update(track: Track | null, cars: MinimapCar[], camera: Camera | null, dangerLine?: number | null): void;
   dispose(): void;
 }
 
@@ -31,6 +32,16 @@ export function createMinimap(ui: HTMLElement): Minimap {
   base.height = canvas.height;
   const baseCtx = base.getContext("2d")!;
   let drawnTrack: Track | null = null;
+
+  const tick = (target: CanvasRenderingContext2D, track: Track, s: number, half: number) => {
+    const [x, y, angle] = pointAt(track, s);
+    const nx = -Math.sin(angle) * half;
+    const ny = Math.cos(angle) * half;
+    target.beginPath();
+    target.moveTo(x - nx, y - ny);
+    target.lineTo(x + nx, y + ny);
+    target.stroke();
+  };
 
   const drawTrack = (track: Track) => {
     baseCtx.setTransform(DPR * SCALE, 0, 0, DPR * SCALE, 0, 0);
@@ -48,6 +59,22 @@ export function createMinimap(ui: HTMLElement): Minimap {
     baseCtx.lineWidth = 45;
     baseCtx.stroke();
     baseCtx.shadowBlur = 0;
+    baseCtx.strokeStyle = "#ff3b3b";
+    baseCtx.lineWidth = 90;
+    for (const [from, to] of track.drops) {
+      const span = (((to - from) % track.length) + track.length) % track.length;
+      const steps = Math.max(1, Math.ceil(span / DROP_STEP));
+      baseCtx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const [x, y] = pointAt(track, from + (span * i) / steps);
+        if (i) baseCtx.lineTo(x, y);
+        else baseCtx.moveTo(x, y);
+      }
+      baseCtx.stroke();
+    }
+    baseCtx.strokeStyle = "#ffd400";
+    baseCtx.lineWidth = 60;
+    for (const s of track.boosts) tick(baseCtx, track, s, 130);
     const [sx, sy] = [track.xs[0]!, track.ys[0]!];
     baseCtx.fillStyle = "#ffffff";
     baseCtx.fillRect(sx - 90, sy - 90, 180, 180);
@@ -55,7 +82,7 @@ export function createMinimap(ui: HTMLElement): Minimap {
   };
 
   return {
-    update(track, cars, camera) {
+    update(track, cars, camera, dangerLine = null) {
       canvas.hidden = !track;
       if (!track) return;
       if (track !== drawnTrack) drawTrack(track);
@@ -68,6 +95,13 @@ export function createMinimap(ui: HTMLElement): Minimap {
         ctx.strokeStyle = "rgba(216, 246, 255, 0.55)";
         ctx.lineWidth = 30;
         ctx.strokeRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
+      }
+      if (dangerLine !== null) {
+        ctx.strokeStyle = "#ff3b3b";
+        ctx.shadowColor = "#ff3b3b";
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 70;
+        tick(ctx, track, dangerLine, 260);
       }
       for (const car of [...cars].sort((a, b) => Number(a.isYou) - Number(b.isYou))) {
         if (!car.alive) continue;

@@ -16,6 +16,7 @@ import {
   type Camera,
   type CarSnap,
   type CarState,
+  type EliminationReason,
   type GameEvent,
   type HazardKind,
   type Point,
@@ -44,6 +45,8 @@ const SKETCH_FLUSH_EVERY = 6;
 const DRIFT_LATERAL = 120;
 const TOAST_MS = 3000;
 const HAZARD_LABELS: Record<HazardKind, string> = { block: "Block", slow: "Slow", freeze: "Freeze" };
+const OUT_REASONS: Record<EliminationReason, string> = { screen: "dropped off screen", line: "got caught by the line", fell: "fell off", left: "left" };
+const YOUR_OUT_REASONS: Record<EliminationReason, string> = { screen: "You dropped off screen", line: "The line caught you", fell: "You fell off", left: "You left" };
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 
 export interface OnlineOptions {
@@ -73,6 +76,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   let myAlive = false;
   let resetFromSnap = false;
   let roundWinner: string | null = null;
+  let roundResults: { id: string; delta: number }[] = [];
   let matchWinner: string | null = null;
   let hazardKind: HazardKind = "block";
   let mouse: Point | null = null;
@@ -139,7 +143,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         drawUI();
         break;
       case "track":
-        track = buildTrack(msg.raw);
+        track = buildTrack(msg.raw, msg.features);
         toast(`Track: ${msg.name}`);
         buffer.clear();
         resetFromSnap = true;
@@ -175,6 +179,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       matchWinner = null;
       track = null;
     }
+    if (info.phase === "countdown") roundResults = [];
     if (info.phase === "race") sfx.go();
   }
 
@@ -202,13 +207,16 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         if (event.id === you) {
           myAlive = false;
           sfx.out();
-          toast("You're out - drop hazards with 1/2/3 + click");
+          toast(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
         } else {
           sfx.blip();
-          toast(`${nameOf(event.id)} is out`);
+          toast(`${nameOf(event.id)} ${OUT_REASONS[event.reason]}`);
         }
         break;
       }
+      case "roundScored":
+        roundResults = event.results;
+        break;
       case "hazardKill":
         toast(`${nameOf(event.by)}'s hazard took out ${nameOf(event.victim)} (+½)`);
         break;
@@ -326,8 +334,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       phase === "race" && !myAlive && mouse
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
-    renderer.render({ camera: sampled.camera, track, cars, hazards, now, aim });
-    minimap.update(track, cars, sampled.camera);
+    renderer.render({ camera: sampled.camera, track, cars, hazards, now, aim, dangerLine: sampled.line });
+    minimap.update(track, cars, sampled.camera, sampled.line);
   }
 
   function carView(snap: CarSnap, hazards: Extract<ServerMsg, { t: "snap" }>["hazards"], now: number): CarView {
@@ -361,7 +369,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       lastCountdown = n;
     }
     const now = serverNow();
-    live.sudden.textContent = info.phase === "race" && now > SUDDEN_DEATH_AT ? "SUDDEN DEATH - the camera is closing in" : "";
+    live.sudden.textContent = info.phase === "race" && now > SUDDEN_DEATH_AT ? "SUDDEN DEATH - the line is closing in" : "";
     const cooldowns = buffer.latest()?.cooldowns[you];
     for (const [kind, el] of live.cooldowns) {
       const left = Math.max(0, (cooldowns?.[kind] ?? 0) - now);
@@ -480,7 +488,28 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       case "race":
         return [live.sudden];
       case "roundEnd":
-        return [h("div", { class: "panel slim" }, roundWinner ? `${nameOf(roundWinner)} wins the round!` : "Nobody survived that one")];
+        return [
+          h(
+            "div",
+            { class: "panel slim" },
+            roundWinner ? `${nameOf(roundWinner)} wins the round!` : "Nobody survived that one",
+            roundResults.length
+              ? h(
+                  "ol",
+                  { class: "players results" },
+                  ...roundResults.map((r) =>
+                    h(
+                      "li",
+                      { style: `--c:${css(playerColor(player(r.id)?.color ?? 0))}` },
+                      h("span", { class: "dot" }),
+                      nameOf(r.id),
+                      h("span", { class: `delta${r.delta > 0 ? " up" : r.delta < 0 ? " down" : ""}` }, formatDelta(r.delta)),
+                    ),
+                  ),
+                )
+              : null,
+          ),
+        ];
       case "matchEnd":
         return [
           h(
@@ -535,6 +564,10 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
 function carOf(c: CarState): CarState {
   return { x: c.x, y: c.y, angle: c.angle, vx: c.vx, vy: c.vy };
+}
+
+function formatDelta(delta: number): string {
+  return delta > 0 ? `+${delta}` : String(delta);
 }
 
 function formatScore(score: number): string {

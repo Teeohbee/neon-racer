@@ -21,6 +21,10 @@
 .panel .modes { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
 .panel .big { font-size: 18px; padding: 10px 24px; margin-top: 6px; }
 .panel .hint, .online .hint { opacity: 0.6; margin: 10px 0 0; }
+.panel .results { margin: 10px 0 0; min-width: 220px; }
+.panel .results .delta { margin-left: auto; color: #d8f6ff; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.panel .results .delta.up { color: #39ff88; opacity: 1; }
+.panel .results .delta.down { color: #ff3b5c; opacity: 1; }
 .panel .problems { color: #ff3b5c; margin: 8px 0 0; padding-left: 18px; }
 .countdown { font-size: 120px; color: #ffb000; text-shadow: 0 0 30px #ffb000; margin-top: 18vh; }
 .sudden { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b; font-size: 18px; letter-spacing: 2px; }
@@ -31,7 +35,7 @@
 .hazard.ready { opacity: 1; }
 .hazard.on { box-shadow: 0 0 14px var(--c); }
 .online-toasts { position: absolute; right: 16px; bottom: 170px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
-.toast { background: #05060dd9; border: 1px solid #ff2bd6; color: #ff9cf0; padding: 6px 12px; border-radius: 6px; }
+.online-toasts .toast { position: static; transform: none; opacity: 1; font-size: inherit; text-shadow: none; background: #05060dd9; border: 1px solid #ff2bd6; color: #ff9cf0; padding: 6px 12px; border-radius: 6px; }
 .online .leave { margin-left: auto; }
 .menu input { pointer-events: auto; font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 8px 10px; outline: none; }
 .menu input:focus { border-color: #ff2bd6; box-shadow: 0 0 8px #ff2bd655; }

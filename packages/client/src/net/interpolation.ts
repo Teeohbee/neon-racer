@@ -10,6 +10,7 @@ const DRIFT_PER_MS = 0.002;
 export interface Sampled {
   snap: Snap;
   camera: Camera;
+  line: number | null;
   cars: CarSnap[];
 }
 
@@ -57,10 +58,11 @@ export class SnapshotBuffer {
     const b = this.snaps[Math.min(i + 1, n - 1)]!;
     if (a === b || a.phase !== b.phase || renderTick <= a.tick) {
       const s = renderTick <= a.tick ? a : b;
-      return { snap: s, camera: s.camera, cars: s.cars };
+      return { snap: s, camera: s.camera, line: s.line, cars: s.cars };
     }
     const t = Math.min(1, (renderTick - a.tick) / (b.tick - a.tick));
-    return { snap: b, camera: lerpCamera(a.camera, b.camera, t), cars: lerpCars(a.cars, b.cars, t) };
+    const line = a.line !== null && b.line !== null ? lerp(a.line, b.line, t) : b.line;
+    return { snap: b, camera: lerpCamera(a.camera, b.camera, t), line, cars: lerpCars(a.cars, b.cars, t) };
   }
 }
 

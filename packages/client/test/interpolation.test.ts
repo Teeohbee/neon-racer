@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { lerpAngle, SnapshotBuffer, type Snap } from "../src/net/interpolation";
 
-const snap = (tick: number, x: number, phase: Snap["phase"] = "race"): Snap => ({
-  t: "snap", tick, phase, now: tick / 60, camera: { x, y: 0, scale: 1 },
+const snap = (tick: number, x: number, phase: Snap["phase"] = "race", line: number | null = null): Snap => ({
+  t: "snap", tick, phase, now: tick / 60, camera: { x, y: 0, scale: 1 }, line,
   cars: [{ id: "a", x, y: 0, angle: 0, vx: 0, vy: 0, alive: true, ack: 0 }], hazards: [], cooldowns: {},
 });
 
@@ -16,6 +16,20 @@ describe("SnapshotBuffer", () => {
     const s = buf.sample(1150 + 1000 / 60 * 1.5 + 0)!;
     expect(s.cars[0]!.x).toBeGreaterThan(30);
     expect(s.cars[0]!.x).toBeLessThan(60);
+  });
+
+  it("moves the danger line smoothly between snapshots", () => {
+    const buf = new SnapshotBuffer();
+    [0, 3, 6, 9].forEach((tick, i) => buf.push(snap(tick, 0, "race", tick * 10), 1000 + i * 50));
+    const line = buf.sample(1150 + 1000 / 60 * 1.5)!.line!;
+    expect(line).toBeGreaterThan(30);
+    expect(line).toBeLessThan(60);
+  });
+
+  it("drops the danger line as soon as a snapshot has none", () => {
+    const buf = new SnapshotBuffer();
+    [100, 100, null, null].forEach((line, i) => buf.push(snap(i * 3, 0, "race", line), 1000 + i * 50));
+    expect(buf.sample(1150 + 1000 / 60 * 1.5)!.line).toBeNull();
   });
 
   it("does not extrapolate past the newest snapshot", () => {
