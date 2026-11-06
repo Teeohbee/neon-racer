@@ -41,6 +41,7 @@ export interface FrameView {
   aim?: AimView | null;
   dangerLine?: number | null;
   trackName?: string | null;
+  contact?: boolean;
 }
 
 export interface Renderer {

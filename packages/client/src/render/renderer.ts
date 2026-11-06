@@ -5,6 +5,7 @@ import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
+import { createContactTracker } from "./contacts";
 import { createFallLayer } from "./fall-layer";
 import type { FallStart } from "./falling";
 import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
@@ -246,6 +247,10 @@ export function createRenderer(app: Application): Renderer {
   let lastFitKey = "";
   let lastTime = performance.now();
   let jolt = calm();
+  const trackContacts = createContactTracker(HAZARD_COLORS.block);
+  const impactAt = (x: number, y: number, strength: number) => {
+    jolt = hit(jolt, strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2));
+  };
 
   const applyCamera = (fit: Fit) => {
     const zoom = fit.base / camera.scale;
@@ -526,6 +531,9 @@ export function createRenderer(app: Application): Renderer {
       drawSlipstream(slipstreamG, frame.cars, t);
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
+      const contacts = trackContacts(frame.cars, frame.hazards, frame.now, frame.contact === true, dt);
+      sparks.push(...contacts.sparks);
+      for (const c of contacts.impacts) impactAt(c.x, c.y, c.strength);
       updateSparks(dt);
       falls.update(dt);
       grid.visible = !scenery.active;
@@ -559,9 +567,7 @@ export function createRenderer(app: Application): Renderer {
       lighting.flash(x, y, color);
     },
 
-    impact(x: number, y: number, strength: number) {
-      jolt = hit(jolt, strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2));
-    },
+    impact: impactAt,
 
     fall(car: FallStart) {
       falls.add(car);

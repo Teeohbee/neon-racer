@@ -2,7 +2,7 @@ import type { Camera } from "@neon/sim";
 
 export const SHAKE ={ max: 12, decay: 1.8, freq: 23 };
 export const HIT_STOP = { threshold: 0.55, min: 0.05, max: 0.08, cooldown: 0.4 };
-export const IMPACT = { eliminated: 0.6, eliminatedYou: 0.9, block: 0.6, car: 0.55 };
+export const IMPACT = { eliminated: 0.6, eliminatedYou: 0.9, block: 0.8, car: 0.7 };
 
 export interface ImpactState {
   trauma: number;

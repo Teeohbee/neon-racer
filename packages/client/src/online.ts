@@ -402,7 +402,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
     heard = { cars, camera: sampled.camera, line: sampled.line };
-    renderer.render({ camera: sampled.camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: sampled.line });
+    renderer.render({ camera: sampled.camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: sampled.line, contact: info?.mode === "contact" });
     minimap.update(track, cars, sampled.camera, sampled.line);
   }
 
