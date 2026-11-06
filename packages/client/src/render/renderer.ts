@@ -16,6 +16,7 @@ import { createPostFx } from "./postfx";
 import { createScenery } from "./scenery";
 import { createWeather } from "./weather";
 import { createWarpGrid, WARP } from "./warp-grid";
+import { coreColor, drawCarCore, neonStroke } from "./neon";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { drawSlipstream } from "./slipstream";
 import { grainTexture } from "./textures";
@@ -50,6 +51,7 @@ interface CarTrails {
 interface CarSprite {
   root: Container;
   body: Graphics;
+  core: Graphics;
   ice: Graphics;
   tail: Graphics;
   you: Graphics;
@@ -291,18 +293,19 @@ export function createRenderer(app: Application): Renderer {
       const spriteRoot = new Container();
       const body = new Graphics();
       drawCarBody(body);
+      const core = drawCarCore(new Graphics(), CAR_LENGTH, CAR_WIDTH);
       const ice = new Graphics();
       drawIce(ice);
       const tail = new Graphics();
       drawTailLamps(tail);
       const you = new Graphics();
       drawYou(you);
-      spriteRoot.addChild(ice, body, tail, you);
+      spriteRoot.addChild(ice, body, core, tail, you);
       carsLayer.addChild(spriteRoot);
       const label = new Text({ text: car.name, style: { fontFamily: "ui-monospace, Menlo, monospace", fontSize: 15, fill: car.color, fontWeight: "600" } });
       label.anchor.set(0.5, 1);
       labelLayer.addChild(label);
-      sprite = { root: spriteRoot, body, ice, tail, you, label, color: car.color, name: car.name };
+      sprite = { root: spriteRoot, body, core, ice, tail, you, label, color: car.color, name: car.name };
       cars.set(car.id, sprite);
     }
     if (sprite.name !== car.name) {
@@ -330,6 +333,8 @@ export function createRenderer(app: Application): Renderer {
       sprite.body.rotation = car.angle;
       sprite.body.tint = car.frozen ? UI.ice : car.color;
       sprite.body.alpha = car.frozen ? 0.85 : 1;
+      sprite.core.rotation = car.angle;
+      sprite.core.tint = coreColor(car.frozen ? UI.ice : car.color);
       sprite.ice.visible = car.frozen;
       sprite.tail.visible = !car.frozen;
       sprite.tail.rotation = car.angle;
@@ -435,21 +440,21 @@ export function createRenderer(app: Application): Renderer {
         pts.push(x + Math.cos(a) * radius, y + Math.sin(a) * radius);
       }
       hazardZoneG.poly(pts, true).fill({ color, alpha: 0.45 * fade });
-      hazardG.poly(pts, true).stroke({ width: 6, color, alpha: fade, join: "round" });
+      neonStroke(hazardG, (g) => g.poly(pts, true), { width: 6, color, alpha: fade, join: "round" });
       hazardG.poly(pts.map((v, i) => (i % 2 ? y + (v - y) * 0.6 : x + (v - x) * 0.6)), true).stroke({ width: 3, color, alpha: 0.7 * fade });
       return;
     }
 
     if (h.kind === "slow") {
       hazardZoneG.circle(x, y, radius).fill({ color, alpha: 0.25 * fade });
-      hazardG.circle(x, y, radius).stroke({ width: 3, color, alpha: 0.65 * fade });
+      neonStroke(hazardG, (g) => g.circle(x, y, radius), { width: 3, color, alpha: 0.65 * fade });
       const ripple = (now * 0.8) % 1;
       hazardG.circle(x, y, radius * ripple).stroke({ width: 2, color, alpha: 0.5 * (1 - ripple) * fade });
       return;
     }
 
     hazardZoneG.circle(x, y, radius).fill({ color: UI.ice, alpha: 0.3 * fade });
-    hazardG.circle(x, y, radius).stroke({ width: 5, color, alpha: fade });
+    neonStroke(hazardG, (g) => g.circle(x, y, radius), { width: 5, color, alpha: fade });
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2 + now;
       hazardG.moveTo(x + Math.cos(a) * radius, y + Math.sin(a) * radius).lineTo(x + Math.cos(a) * (radius + 14), y + Math.sin(a) * (radius + 14));
@@ -497,7 +502,7 @@ export function createRenderer(app: Application): Renderer {
       p.vy *= drag;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      sparksG.moveTo(p.x, p.y).lineTo(p.x - p.vx * 0.04, p.y - p.vy * 0.04).stroke({ width: 3, color: p.color, alpha: p.life / p.max, cap: "round" });
+      neonStroke(sparksG, (g) => g.moveTo(p.x, p.y).lineTo(p.x - p.vx * 0.04, p.y - p.vy * 0.04), { width: 3, color: p.color, alpha: p.life / p.max, cap: "round" });
     }
   };
 

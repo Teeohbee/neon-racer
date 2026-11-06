@@ -1,6 +1,7 @@
 import { Graphics, type Texture } from "pixi.js";
 import { BOOST_LENGTH, pointAt, TRACK_WIDTH, type Track } from "@neon/sim";
 import { acrossTrack, edgeRuns, flat, offsetLoop, pick, trackPoints } from "./geometry";
+import { neonStroke } from "./neon";
 import { FEATURE, UI } from "./palette";
 
 const HALF = TRACK_WIDTH / 2;
@@ -136,7 +137,7 @@ export function drawTrackEdges(g: Graphics, track: Track, neon: readonly [number
       const color = run.drop ? FEATURE.dropEdge : neon[k]!;
       const width = run.drop ? 6 : 4;
       g.poly(line, run.closed).stroke({ width: width * 4, color, alpha: run.drop ? 0.28 : 0.16, join: "round" });
-      g.poly(line, run.closed).stroke({ width, color, join: "round" });
+      neonStroke(g, (p) => p.poly(line, run.closed), { width, color, join: "round" });
       if (!run.drop) return;
       const ins = inner[k]!;
       for (let m = 0; m + 2 < run.indices.length; m += 2) {
