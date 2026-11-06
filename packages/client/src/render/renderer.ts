@@ -8,6 +8,7 @@ import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
 import { createContactTracker } from "./contacts";
 import { createExplosions } from "./explosions";
+import { FALL_POP } from "./explosion-math";
 import { createFallLayer } from "./fall-layer";
 import type { FallStart } from "./falling";
 import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
@@ -243,7 +244,11 @@ export function createRenderer(app: Application): Renderer {
   fxLayer.addChildAt(reflections.view, 0);
   const explosions = createExplosions();
   fxLayer.addChild(explosions.view);
-  const falls = createFallLayer(drawCarBody);
+  const falls = createFallLayer(drawCarBody, (x, y, color) => {
+    explosions.explode(x, y, color, FALL_POP);
+    warp.shockwave(x, y, -FALL_POP);
+    swell.kick(FALL_POP);
+  });
   fxLayer.addChildAt(falls.view, fxLayer.getChildIndex(carsLayer));
   fxRoot.addChild(fxLayer);
   const weather = createWeather();

@@ -7,7 +7,7 @@ interface Falling {
   elapsed: number;
 }
 
-export function createFallLayer(drawBody: (g: Graphics) => void) {
+export function createFallLayer(drawBody: (g: Graphics) => void, landed?: (x: number, y: number, color: number) => void) {
   const view = new Container();
   let falls: Falling[] = [];
 
@@ -28,6 +28,7 @@ export function createFallLayer(drawBody: (g: Graphics) => void) {
         f.elapsed += dt;
         const pose = fallPose(f.start, f.elapsed);
         if (pose.done) {
+          landed?.(pose.x, pose.y, f.start.color);
           f.body.destroy();
           return false;
         }
