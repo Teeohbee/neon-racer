@@ -1,7 +1,10 @@
-import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Text, TilingSprite } from "pixi.js";
 import { AdvancedBloomFilter } from "pixi-filters";
 import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point, type Track } from "@neon/sim";
-import { HAZARD_COLORS, UI } from "./palette";
+import { flat, offsetLoop, trackPoints } from "./geometry";
+import { createLighting } from "./lighting";
+import { HAZARD_COLORS, LIGHT, UI } from "./palette";
+import { grainTexture } from "./textures";
 import type { AimView, CarView, FrameView, Renderer, SketchView } from "./types";
 
 const TRAIL_LIFE = 1.4;
@@ -11,6 +14,7 @@ const HAZARD_FADE = 0.6;
 const CAR_LENGTH = 40;
 const CAR_WIDTH = 20;
 const ICE_RING = 38;
+const GROUND_MARGIN = 3000;
 
 interface TrailPoint {
   x: number;
@@ -32,6 +36,7 @@ interface CarSprite {
   root: Container;
   body: Graphics;
   ice: Graphics;
+  tail: Graphics;
   you: Graphics;
   label: Text;
   color: number;
@@ -69,32 +74,13 @@ function fitView(app: Application): Fit {
   return { base, sw, sh, vw, vh, vx: (sw - vw) / 2, vy: (sh - vh) / 2 };
 }
 
-function flat(points: Point[]): number[] {
-  const out: number[] = [];
-  for (const [x, y] of points) out.push(x, y);
-  return out;
-}
-
-function offsetLoop(points: Point[], offset: number): number[] {
-  const n = points.length;
-  const out: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const [px, py] = points[(i - 1 + n) % n]!;
-    const [nx, ny] = points[(i + 1) % n]!;
-    const [x, y] = points[i]!;
-    const len = Math.hypot(nx - px, ny - py) || 1;
-    out.push(x - ((ny - py) / len) * offset, y + ((nx - px) / len) * offset);
-  }
-  return out;
-}
-
-function trackPoints(track: Track): Point[] {
-  return track.xs.map((x, i) => [x, track.ys[i]!]);
-}
-
-function drawRoad(g: Graphics, points: Point[], edgeWidth: number, fill: { color: number; alpha: number }, edges: [number, number], edgeAlpha = 1) {
+function drawRoadSurface(g: Graphics, points: Point[], fill: { color: number; alpha: number }) {
   if (points.length < 3) return;
   g.poly(flat(points), true).stroke({ width: TRACK_WIDTH, color: fill.color, alpha: fill.alpha, join: "round" });
+}
+
+function drawRoadEdges(g: Graphics, points: Point[], edgeWidth: number, edges: [number, number], edgeAlpha = 1) {
+  if (points.length < 3) return;
   const sides = [offsetLoop(points, -TRACK_WIDTH / 2), offsetLoop(points, TRACK_WIDTH / 2)];
   sides.forEach((side, k) => {
     const color = edges[k]!;
@@ -103,9 +89,9 @@ function drawRoad(g: Graphics, points: Point[], edgeWidth: number, fill: { color
   });
 }
 
-function drawTrack(g: Graphics, track: Track) {
+function drawTrackSurface(g: Graphics, track: Track) {
   g.clear();
-  drawRoad(g, trackPoints(track), 4, { color: UI.road, alpha: 1 }, [UI.edgeLeft, UI.edgeRight]);
+  drawRoadSurface(g, trackPoints(track), { color: UI.road, alpha: 1 });
 
   for (let s = 200; s < track.length - 100; s += 400) {
     const [x, y, a] = pointAt(track, s);
@@ -115,7 +101,7 @@ function drawTrack(g: Graphics, track: Track) {
     g.moveTo(x - c * 10 - n * 22, y - n * 10 + c * 22)
       .lineTo(tip[0], tip[1])
       .lineTo(x - c * 10 + n * 22, y - n * 10 - c * 22)
-      .stroke({ width: 3, color: UI.gridMajor, alpha: 0.9, cap: "round", join: "round" });
+      .stroke({ width: 3, color: UI.roadMark, alpha: 0.9, cap: "round", join: "round" });
   }
 
   const [sx, sy, sa] = pointAt(track, 0);
@@ -141,6 +127,7 @@ function drawTrack(g: Graphics, track: Track) {
 }
 
 function drawGrid(g: Graphics) {
+  g.rect(-GROUND_MARGIN, -GROUND_MARGIN, WORLD.width + GROUND_MARGIN * 2, WORLD.height + GROUND_MARGIN * 2).fill({ color: UI.ground });
   const minor = 100;
   for (let x = 0; x <= WORLD.width; x += minor) {
     g.moveTo(x, 0).lineTo(x, WORLD.height);
@@ -182,13 +169,19 @@ function drawIce(g: Graphics) {
   g.stroke({ width: 2, color: UI.ice, alpha: 0.8 });
 }
 
+function drawTailLamps(g: Graphics) {
+  const x = -CAR_LENGTH / 2 - 1;
+  const hw = CAR_WIDTH / 2;
+  g.roundRect(x - 2, -hw + 2, 4, 6, 1.5).roundRect(x - 2, hw - 8, 4, 6, 1.5).fill({ color: LIGHT.tail });
+}
+
 function drawYou(g: Graphics) {
   g.moveTo(-9, -10).lineTo(0, 0).lineTo(9, -10).stroke({ width: 3, color: 0xffffff, join: "round", cap: "round" });
 }
 
 export function createRenderer(app: Application): Renderer {
   const root = new Container();
-  const bgLayer = new Container();
+  const litLayer = new Container();
   const fxRoot = new Container();
   const fxLayer = new Container();
   const labelLayer = new Container();
@@ -200,18 +193,25 @@ export function createRenderer(app: Application): Renderer {
 
   const grid = new Graphics();
   drawGrid(grid);
-  bgLayer.addChild(grid);
-
-  const trackG = new Graphics();
+  const roadG = new Graphics();
+  const grainTex = grainTexture();
+  const grain = new TilingSprite({ texture: grainTex, width: WORLD.width + GROUND_MARGIN * 2, height: WORLD.height + GROUND_MARGIN * 2 });
+  grain.position.set(-GROUND_MARGIN, -GROUND_MARGIN);
+  grain.alpha = UI.grain;
   const trailsG = new Graphics();
+  const hazardZoneG = new Graphics();
+  litLayer.addChild(grid, roadG, grain, trailsG, hazardZoneG);
+  const lighting = createLighting(app);
+
+  const edgesG = new Graphics();
   const hazardG = new Graphics();
   const sketchG = new Graphics();
   const carsLayer = new Container();
   const aimG = new Graphics();
   const sparksG = new Graphics();
-  fxLayer.addChild(trackG, trailsG, hazardG, sketchG, carsLayer, aimG, sparksG);
+  fxLayer.addChild(edgesG, hazardG, sketchG, carsLayer, aimG, sparksG);
   fxRoot.addChild(fxLayer);
-  root.addChild(bgLayer, fxRoot, labelLayer, letterbox);
+  root.addChild(litLayer, lighting.view, fxRoot, labelLayer, letterbox);
   app.stage.addChild(root);
 
   const cars = new Map<string, CarSprite>();
@@ -224,7 +224,7 @@ export function createRenderer(app: Application): Renderer {
 
   const applyCamera = (fit: Fit) => {
     const zoom = fit.base / camera.scale;
-    for (const layer of [bgLayer, fxLayer, labelLayer]) {
+    for (const layer of [litLayer, fxLayer, labelLayer]) {
       layer.scale.set(zoom);
       layer.position.set(fit.sw / 2 - camera.x * zoom, fit.sh / 2 - camera.y * zoom);
     }
@@ -251,14 +251,16 @@ export function createRenderer(app: Application): Renderer {
       drawCarBody(body);
       const ice = new Graphics();
       drawIce(ice);
+      const tail = new Graphics();
+      drawTailLamps(tail);
       const you = new Graphics();
       drawYou(you);
-      spriteRoot.addChild(ice, body, you);
+      spriteRoot.addChild(ice, body, tail, you);
       carsLayer.addChild(spriteRoot);
       const label = new Text({ text: car.name, style: { fontFamily: "ui-monospace, Menlo, monospace", fontSize: 15, fill: car.color, fontWeight: "600" } });
       label.anchor.set(0.5, 1);
       labelLayer.addChild(label);
-      sprite = { root: spriteRoot, body, ice, you, label, color: car.color, name: car.name };
+      sprite = { root: spriteRoot, body, ice, tail, you, label, color: car.color, name: car.name };
       cars.set(car.id, sprite);
     }
     if (sprite.name !== car.name) {
@@ -287,6 +289,9 @@ export function createRenderer(app: Application): Renderer {
       sprite.body.tint = car.frozen ? UI.ice : car.color;
       sprite.body.alpha = car.frozen ? 0.85 : 1;
       sprite.ice.visible = car.frozen;
+      sprite.tail.visible = !car.frozen;
+      sprite.tail.rotation = car.angle;
+      sprite.tail.alpha = 0.3 + 0.7 * lighting.brakeOf(car.id);
       sprite.ice.rotation = t * 0.6;
       sprite.you.visible = car.isYou;
       sprite.you.tint = car.color;
@@ -357,14 +362,14 @@ export function createRenderer(app: Application): Renderer {
       const p = side[i]!;
       const b = bucketOf(p);
       if (b !== bucket) {
-        trailsG.stroke({ width: 4, color, alpha: (bucket / TRAIL_BUCKETS) * 0.45, cap: "round", join: "round" });
+        trailsG.stroke({ width: 4, color, alpha: (bucket / TRAIL_BUCKETS) * 0.6, cap: "round", join: "round" });
         const prev = side[i - 1]!;
         trailsG.moveTo(prev.x, prev.y);
         bucket = b;
       }
       trailsG.lineTo(p.x, p.y);
     }
-    trailsG.stroke({ width: 4, color, alpha: (bucket / TRAIL_BUCKETS) * 0.45, cap: "round", join: "round" });
+    trailsG.stroke({ width: 4, color, alpha: (bucket / TRAIL_BUCKETS) * 0.6, cap: "round", join: "round" });
   };
 
   const drawHazard = (h: Hazard, now: number, carsById: Map<string, CarView>) => {
@@ -379,7 +384,7 @@ export function createRenderer(app: Application): Renderer {
       const pulse = 0.45 + 0.4 * Math.sin(now * 14);
       dashedCircle(hazardG, x, y, radius, now * 1.5);
       hazardG.stroke({ width: 4, color, alpha: pulse, cap: "round" });
-      hazardG.circle(x, y, radius).fill({ color, alpha: 0.06 });
+      hazardZoneG.circle(x, y, radius).fill({ color, alpha: 0.1 });
       return;
     }
 
@@ -390,19 +395,22 @@ export function createRenderer(app: Application): Renderer {
         const a = (i / sides) * Math.PI * 2 + Math.PI / sides;
         pts.push(x + Math.cos(a) * radius, y + Math.sin(a) * radius);
       }
-      hazardG.poly(pts, true).fill({ color, alpha: 0.32 * fade }).stroke({ width: 6, color, alpha: fade, join: "round" });
+      hazardZoneG.poly(pts, true).fill({ color, alpha: 0.45 * fade });
+      hazardG.poly(pts, true).stroke({ width: 6, color, alpha: fade, join: "round" });
       hazardG.poly(pts.map((v, i) => (i % 2 ? y + (v - y) * 0.6 : x + (v - x) * 0.6)), true).stroke({ width: 3, color, alpha: 0.7 * fade });
       return;
     }
 
     if (h.kind === "slow") {
-      hazardG.circle(x, y, radius).fill({ color, alpha: 0.13 * fade }).stroke({ width: 3, color, alpha: 0.65 * fade });
+      hazardZoneG.circle(x, y, radius).fill({ color, alpha: 0.25 * fade });
+      hazardG.circle(x, y, radius).stroke({ width: 3, color, alpha: 0.65 * fade });
       const ripple = (now * 0.8) % 1;
       hazardG.circle(x, y, radius * ripple).stroke({ width: 2, color, alpha: 0.5 * (1 - ripple) * fade });
       return;
     }
 
-    hazardG.circle(x, y, radius).fill({ color: UI.ice, alpha: 0.2 * fade }).stroke({ width: 5, color, alpha: fade });
+    hazardZoneG.circle(x, y, radius).fill({ color: UI.ice, alpha: 0.3 * fade });
+    hazardG.circle(x, y, radius).stroke({ width: 5, color, alpha: fade });
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2 + now;
       hazardG.moveTo(x + Math.cos(a) * radius, y + Math.sin(a) * radius).lineTo(x + Math.cos(a) * (radius + 14), y + Math.sin(a) * (radius + 14));
@@ -416,7 +424,8 @@ export function createRenderer(app: Application): Renderer {
     const px = camera.scale;
     if (sketch.preview && sketch.preview.length >= 3) {
       const color = sketch.valid ? UI.valid : UI.invalid;
-      drawRoad(sketchG, sketch.preview, 3 * px, { color, alpha: 0.12 }, [color, color], 0.9);
+      drawRoadSurface(sketchG, sketch.preview, { color, alpha: 0.12 });
+      drawRoadEdges(sketchG, sketch.preview, 3 * px, [color, color], 0.9);
     }
     if (sketch.points.length >= 2) {
       const pts = flat(sketch.points);
@@ -467,12 +476,19 @@ export function createRenderer(app: Application): Renderer {
 
       if (frame.track !== currentTrack) {
         currentTrack = frame.track;
-        if (currentTrack) drawTrack(trackG, currentTrack);
-        else trackG.clear();
+        if (currentTrack) {
+          drawTrackSurface(roadG, currentTrack);
+          edgesG.clear();
+          drawRoadEdges(edgesG, trackPoints(currentTrack), 4, [UI.edgeLeft, UI.edgeRight]);
+        } else {
+          roadG.clear();
+          edgesG.clear();
+        }
       }
 
       const carsById = new Map(frame.cars.map((c) => [c.id, c]));
       hazardG.clear();
+      hazardZoneG.clear();
       for (const h of frame.hazards) drawHazard(h, frame.now, carsById);
 
       updateTrails(frame.cars, t);
@@ -480,6 +496,7 @@ export function createRenderer(app: Application): Renderer {
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
       updateSparks(dt);
+      lighting.update({ camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
     screenToWorld(px: number, py: number): Point {
@@ -495,13 +512,16 @@ export function createRenderer(app: Application): Renderer {
         const max = 0.35 + Math.random() * 0.35;
         sparks.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: max, max, color });
       }
+      lighting.flash(x, y, color);
     },
 
     destroy() {
       app.stage.removeChild(root);
       fxRoot.filters = [];
       bloom.destroy();
+      lighting.destroy();
       root.destroy({ children: true });
+      grainTex.destroy(true);
       cars.clear();
       trails.clear();
       sparks = [];

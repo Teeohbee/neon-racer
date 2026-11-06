@@ -6,10 +6,13 @@ export const playerColor = (index: number): number => PLAYER_COLORS[((index % PL
 
 export const UI = {
   background: 0x05060d,
-  grid: 0x1a2340,
-  gridMajor: 0x24305a,
-  worldFrame: 0x3a4a80,
-  road: 0x0c1022,
+  ground: 0x30313c,
+  grid: 0x464c66,
+  gridMajor: 0x5c6690,
+  worldFrame: 0x6a80c8,
+  road: 0x55576a,
+  roadMark: 0xa8b2e0,
+  grain: 0.55,
   edgeLeft: 0x00e5ff,
   edgeRight: 0xff2bd6,
   startLine: 0xffffff,
@@ -20,6 +23,15 @@ export const UI = {
   skid: 0x6b7bb8,
   letterbox: 0x000000,
   viewFrame: 0x2a3866,
+};
+
+export const LIGHT = {
+  ambient: 0x23253a,
+  ambientBright: 0x7a7c98,
+  headlight: 0xfff0d2,
+  tail: 0xff2236,
+  frozen: 0x6fd0ff,
+  startLine: 0xdde6ff,
 };
 
 export const HAZARD_COLORS: Record<HazardKind, number> = {
