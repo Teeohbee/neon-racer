@@ -1,6 +1,7 @@
 import type { Application, Ticker } from "pixi.js";
 import {
   advanceProgress,
+  boostAt,
   fellOff,
   pointAt,
   buildTrack,
@@ -12,6 +13,7 @@ import {
   speedOf,
   stepCamera,
   stepWorldCar,
+  TRACK_WIDTH,
   validateDrawing,
   VIEW,
   WORLD,
@@ -23,6 +25,7 @@ import {
   type Track,
   type TrackProblem,
 } from "@neon/sim";
+import { audio } from "./audio";
 import { createDebugPanel, loadCarParams } from "./debug-panel";
 import { createKeyboard, isTyping } from "./input";
 import { PLAYER_COLORS } from "./render/palette";
@@ -38,6 +41,7 @@ const FALL_RESPAWN_DELAY = 0.6;
 const FALL_SETBACK = 250;
 const CAR_ID = "you";
 const COLOR = PLAYER_COLORS[0];
+const TOP_SPEED = 650;
 const SKETCH_CAMERA: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 
 const SKETCHING = false;
@@ -140,6 +144,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   let preview: Point[] | null = null;
   let problems: TrackProblem[] = [];
   let fall: { at: number; s: number } | null = null;
+  let boosting = false;
 
   const reset = () => {
     const slot = gridSlots(track, 1)[0]!;
@@ -272,9 +277,14 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       prev = car;
       renderer.burst(car.x, car.y, COLOR);
       hud.flash("Fell!");
+      audio.sfx.eliminated("fell");
+      boosting = false;
       return;
     }
-    const { s } = nearestOnTrack(track, car.x, car.y);
+    const { s, dist } = nearestOnTrack(track, car.x, car.y);
+    const onBoost = dist <= TRACK_WIDTH / 2 && boostAt(track, s);
+    if (onBoost && !boosting) audio.sfx.boost();
+    boosting = onBoost;
     progress = advanceProgress(progress, s, track.length, MAX_PROGRESS_STEP);
     const lap = Math.floor(progress.progress / track.length);
     if (lap <= crossed) return;
@@ -284,6 +294,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       best = best === null ? time : Math.min(best, time);
       laps += 1;
       renderer.burst(car.x, car.y, COLOR);
+      audio.sfx.roundWin();
     }
     lapStart = now;
   };
@@ -323,6 +334,8 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
 
     renderer.render({ camera, track, cars: [carView], hazards: [], now, sketch: sketchView, aim: null, dangerLine: null });
     minimap.update(mode === "drive" ? track : null, [carView], camera);
+    audio.engines.update(mode === "drive" ? [carView] : [], camera);
+    audio.music.setIntensity(0.2 + 0.8 * Math.min(1, speedOf(car) / TOP_SPEED));
     hud.stats({ speed: speedOf(car), lap: laps, time: lapStart === null ? null : now - lapStart, best });
   };
 
@@ -340,6 +353,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   };
 
   reset();
+  audio.music.setMood("race");
   hud.help(DRIVE_HELP);
   hud.sketch(null);
   app.ticker.add(tick);
@@ -354,5 +368,6 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     hud.dispose();
     renderer.destroy();
     minimap.dispose();
+    audio.engines.stop();
   };
 }

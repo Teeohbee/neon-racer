@@ -2,6 +2,6 @@
 .audio-settings button { font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 4px 10px; cursor: pointer; min-width: 84px; }
 .audio-settings button:hover { border-color: #00f0ff; box-shadow: 0 0 8px #00f0ff66; }
 .audio-settings button.on { border-color: #00f0ff; color: #00f0ff; }
-.audio-slider { display: flex; gap: 6px; align-items: center; opacity: 0.85; }
-.audio-slider input { width: 90px; accent-color: #ff2bd6; }
+.audio-settings .audio-slider { display: flex; margin: 0; gap: 6px; align-items: center; opacity: 0.85; }
+.audio-settings .audio-slider input { width: 90px; padding: 0; border: none; background: none; box-shadow: none; accent-color: #ff2bd6; }
 .audio-settings.muted .audio-slider { opacity: 0.4; }
