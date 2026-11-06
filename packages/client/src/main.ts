@@ -6,6 +6,7 @@ import { h } from "./dom";
 import { showMenu, type MenuChoice } from "./menu";
 import { startOnline } from "./online";
 import { startPractice } from "./practice";
+import { startAttract } from "./shell/attract";
 
 const app = new Application();
 await app.init({ resizeTo: window, background: "#05060d", antialias: true });
@@ -16,8 +17,10 @@ bindAudioMuteKey();
 
 function menu(notice?: string) {
   audio.music.setMood("lobby");
+  const attract = startAttract(app);
   const close = showMenu(ui, (choice) => {
     close();
+    attract.stop();
     play(choice);
   }, notice);
 }
