@@ -31,6 +31,7 @@ import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
+import { createMinimap } from "./minimap";
 import { createSketchTool } from "./sketch";
 import { createEngineSound, sfx } from "./audio";
 import "./online.css";
@@ -58,6 +59,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const buffer = new SnapshotBuffer();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
   const engine = createEngineSound();
+  const minimap = createMinimap(ui);
 
   let you = "";
   let info: RoomMsg | null = null;
@@ -308,11 +310,13 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         ? { points: tool.points, preview: drawPreview, valid: localProblems.length === 0 }
         : { points: watched, preview: watchedPreview, valid: true };
       renderer.render({ camera: worldCamera, track: null, cars: [], hazards: [], now, sketch });
+      minimap.update(null, [], null);
       return;
     }
     const sampled = phase === "lobby" ? null : buffer.sample(performance.now());
     if (!sampled) {
       renderer.render({ camera: worldCamera, track: phase === "matchEnd" ? track : null, cars: [], hazards: [], now });
+      minimap.update(null, [], null);
       return;
     }
     const hazards = sampled.snap.hazards;
@@ -323,6 +327,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
     renderer.render({ camera: sampled.camera, track, cars, hazards, now, aim });
+    minimap.update(track, cars, sampled.camera);
   }
 
   function carView(snap: CarSnap, hazards: Extract<ServerMsg, { t: "snap" }>["hazards"], now: number): CarView {
@@ -520,6 +525,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     app.canvas.removeEventListener("pointerdown", onPointerDown);
     conn.close();
     engine.stop();
+    minimap.dispose();
     keyboard.dispose();
     tool.dispose();
     renderer.destroy();
