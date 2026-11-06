@@ -144,9 +144,6 @@ export const DISTRICTS: Record<string, District> = {
     extras: ["stalls"],
     props: { lampSpacing: 220, billboards: 10, clutter: 150, helipads: 0, blinkers: 10, pylons: false, traffic: false, boats: false, yards: 0, bridges: false, crossCables: false },
   },
-};
-
-export const PENDING_DISTRICTS: Record<string, District> = {
   Crown: {
     deck: { base: 0x2e2838, seam: 0x140f1a, tints: [0x2e2838, 0x362e42, 0x282232, 0x3c3448, 0x302a3a, 0x342c3e], clutter: 0x7a6a90 },
     wall: { top: 0x2a2038, bottom: 0x06040a, windows: 0xffd070 },

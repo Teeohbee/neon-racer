@@ -68,14 +68,14 @@ function rainTexture(size = 256, count = 70): Texture {
   return Texture.from(c);
 }
 
-function dotTexture(size = 256, count = 26): Texture {
+function dotTexture(size = 256, count = 9): Texture {
   const [c, ctx] = canvas(size);
   let s = 23;
   const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   for (let i = 0; i < count; i++) {
     const x = rand() * size;
     const y = rand() * size;
-    const r = 2 + rand() * 3;
+    const r = 1 + rand() * 1.4;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2);
     g.addColorStop(0, "rgba(255,255,255,1)");
     g.addColorStop(0.4, "rgba(255,255,255,0.5)");
@@ -112,7 +112,7 @@ export function createWeather() {
   const dotTex = dotTexture();
   const motesA = new TilingSprite({ texture: dotTex, width: 2, height: 2 });
   const motesB = new TilingSprite({ texture: dotTex, width: 2, height: 2 });
-  motesB.tileScale.set(1.6);
+  motesB.tileScale.set(1.25);
   const fireworks = new Graphics();
   let bursts: Burst[] = [];
   let nextBurst = 0;
@@ -153,13 +153,13 @@ export function createWeather() {
         if (motes.kind === "embers") {
           motesA.tilePosition.set(-camera.x * port.zoom * 1.1 + wob, -camera.y * port.zoom * 1.1 - t * 70);
           motesB.tilePosition.set(-camera.x * port.zoom * 1.2 - wob, -camera.y * port.zoom * 1.2 - t * 110);
-          motesA.alpha = 0.35 + 0.25 * Math.sin(t * 9);
-          motesB.alpha = 0.3 + 0.25 * Math.sin(t * 7 + 2);
+          motesA.alpha = 0.22 + 0.14 * Math.sin(t * 9);
+          motesB.alpha = 0.18 + 0.14 * Math.sin(t * 7 + 2);
         } else {
           motesA.tilePosition.set(-camera.x * port.zoom + wob, -camera.y * port.zoom + Math.cos(t * 0.5) * 25);
           motesB.tilePosition.set(-camera.x * port.zoom * 1.05 - wob * 0.7, -camera.y * port.zoom * 1.05 + Math.sin(t * 0.6) * 30);
-          motesA.alpha = 0.45 * Math.max(0, Math.sin(t * 1.3));
-          motesB.alpha = 0.45 * Math.max(0, Math.sin(t * 1.1 + 2));
+          motesA.alpha = 0.32 * Math.max(0, Math.sin(t * 1.3));
+          motesB.alpha = 0.32 * Math.max(0, Math.sin(t * 1.1 + 2));
         }
       }
       fireworks.clear();

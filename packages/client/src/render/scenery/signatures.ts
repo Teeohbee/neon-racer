@@ -13,6 +13,8 @@ const FLOOD_HEIGHT = 0.14;
 const BOARD_HEIGHT = 0.11;
 const STRING_HEIGHT = 0.05;
 const DECK_GLOW_CLEAR = 60;
+const OPEN_CAP = 1100;
+const CENTRE_BIAS = 0.15;
 
 export interface SceneLight {
   x: number;
@@ -375,7 +377,7 @@ function domes(kit: Kit): Parts {
   const crowns = new Graphics();
   const trim = new Graphics();
   const finials = new Graphics();
-  const spots = kit.near(14, 230, 120).map((p) => ({ ...p, r: range(kit.rng, 55, 110) }));
+  const spots = kit.near(24, 230, 120).map((p) => ({ ...p, r: range(kit.rng, 55, 110) }));
   for (const p of spots) {
     shells.circle(p.x, p.y, p.r).fill({ color: lighten(kit.district.deck.base, 18) });
     for (let k = 0; k < 8; k++) {
@@ -532,7 +534,7 @@ function canopies(kit: Kit): Parts {
     const n = Math.floor(range(kit.rng, 3, 7));
     for (let k = 0; k < n; k++) leaves.circle(p.x + range(kit.rng, -40, 40), p.y + range(kit.rng, -40, 40), range(kit.rng, 18, 40));
   }
-  leaves.fill({ color: 0x1a3a22 }).stroke({ width: 3, color: 0x2e5a36, alpha: 0.8 });
+  leaves.fill({ color: 0x24502e }).stroke({ width: 3, color: 0x3e7a48, alpha: 0.9 });
   return { deck: [leaves] };
 }
 
@@ -633,15 +635,16 @@ function stadium(kit: Kit): Parts {
   }
   const screenBars: Graphics[] = [];
   for (const a of [0, Math.PI]) {
-    const g = new Graphics();
-    g.position.set(sx + Math.cos(a) * R * 0.8, sy);
-    g.rotation = Math.PI / 2;
-    g.rect(-110, -40, 220, 80).fill({ color: 0x08080c }).stroke({ width: 4, color: 0xffffff, alpha: 0.8 });
+    const screen = new Container();
+    screen.position.set(sx + Math.cos(a) * R * 0.8, sy);
+    screen.rotation = Math.PI / 2;
+    const frame = new Graphics();
+    frame.rect(-110, -40, 220, 80).fill({ color: 0x08080c }).stroke({ width: 4, color: 0xffffff, alpha: 0.8 });
     const bars = new Graphics();
     for (let k = 0; k < 4; k++) bars.rect(-100 + k * 50, -30, 40, 60).fill({ color: kit.district.accents[1 + (k % 2)]!, alpha: 0.8 });
-    g.addChild(bars);
+    screen.addChild(frame, bars);
     screenBars.push(bars);
-    screens.addChild(g);
+    screens.addChild(screen);
   }
   const lifted = new Container();
   lifted.addChild(banks);
@@ -700,11 +703,12 @@ export function openSpots(layout: Layout, count: number, minSep: number, minClea
   const candidates: Spot[] = [];
   for (let x = 250; x < WORLD.width - 250; x += 160) {
     for (let y = 250; y < WORLD.height - 250; y += 160) {
-      const clear = layout.field.edgeDistance(x, y);
+      const clear = Math.min(layout.field.edgeDistance(x, y), Math.min(x, y, WORLD.width - x, WORLD.height - y) + 150);
       if (clear >= minClear && !layout.field.nearGap(x, y, 120)) candidates.push({ x, y, clear });
     }
   }
-  candidates.sort((a, b) => b.clear - a.clear);
+  const score = (s: Spot) => Math.min(s.clear, OPEN_CAP) - Math.hypot(s.x - WORLD.width / 2, s.y - WORLD.height / 2) * CENTRE_BIAS;
+  candidates.sort((a, b) => score(b) - score(a));
   const out: Spot[] = [];
   for (const c of candidates) {
     if (out.length >= count) break;

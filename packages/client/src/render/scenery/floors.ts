@@ -168,9 +168,9 @@ function lava(kit: FloorKit): Animate {
   for (const lane of kit.lanes) {
     const pts: number[] = [];
     for (let d = 0; d <= lane.length; d += 20) pts.push(...along(lane, d).slice(0, 2));
-    bed.poly(pts, false).stroke({ width: 90, color: 0x8a1a04, alpha: 0.7, join: "round" });
-    bed.poly(pts, false).stroke({ width: 44, color: 0xff5a10, alpha: 0.75, join: "round" });
-    bed.poly(pts, false).stroke({ width: 14, color: 0xffc060, alpha: 0.85, join: "round" });
+    bed.poly(pts, false).stroke({ width: 90, color: 0x6a1404, alpha: 0.6, join: "round" });
+    bed.poly(pts, false).stroke({ width: 44, color: 0xc84008, alpha: 0.5, join: "round" });
+    bed.poly(pts, false).stroke({ width: 12, color: 0xffa040, alpha: 0.45, join: "round" });
     for (let d = 0, k = 0; d < lane.length - 30; d += 30, k++) {
       const [x0, y0] = along(lane, d);
       const [x1, y1] = along(lane, d + 18);
@@ -182,7 +182,7 @@ function lava(kit: FloorKit): Animate {
       }
     }
   }
-  flow.forEach((g) => g.stroke({ width: 8, color: 0xfff0a0, alpha: 0.9, cap: "round" }));
+  flow.forEach((g) => g.stroke({ width: 6, color: 0xffd080, alpha: 0.55, cap: "round" }));
   crust.fill({ color: 0x2a0a04, alpha: 0.85 });
   kit.floor.addChild(bed, ...flow, crust);
   return (t) => {
