@@ -19,7 +19,7 @@ export const NOISE = "▓▒░█▚▞▙▟#%&@$/\\<>|_01";
 const clamp01 = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0);
 const noise = Array.from(NOISE);
 
-export const glitchTick = (t: number) => Math.floor(t * GLITCH_RATE) % 100000;
+export const glitchTick = (t: number) => Math.floor(t * GLITCH_RATE) % 1000;
 
 export function burstLevel(age: number, duration: number, hold = 0): number {
   if (!(age >= 0) || age >= duration) return 0;
