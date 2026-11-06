@@ -66,4 +66,15 @@ describe("gridSlots", () => {
     const keys = new Set(slots.map((s) => `${Math.round(s.x)},${Math.round(s.y)}`));
     expect(keys.size).toBe(6);
   });
+  it("can line the same grid up behind any point on the loop", () => {
+    const anchor = circle.length / 3;
+    const start = gridSlots(circle, 4);
+    const moved = gridSlots(circle, 4, anchor);
+    moved.forEach((slot, i) => {
+      expect(slot.back).toBe(start[i]!.back);
+      expect(slot.s).toBeCloseTo(anchor + slot.back);
+      expect(isOnRoad(circle, slot.x, slot.y)).toBe(true);
+      expect(nearestOnTrack(circle, slot.x, slot.y).s).toBeCloseTo(slot.s, -1);
+    });
+  });
 });

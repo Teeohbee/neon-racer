@@ -4,7 +4,7 @@ import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./ca
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
 import { LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
-import { advanceProgress, buildTrack, dropAt, gridSlots, nearestOnTrack, pointAt, TRACK_WIDTH, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
+import { advanceProgress, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { randomTrackPoints, validateDrawing } from "./validate";
 import { BOOST_FACTOR, stepWorldCar } from "./world";
@@ -22,7 +22,6 @@ export const KILL_CREDIT_WINDOW = 3;
 const MAX_PROGRESS_STEP = 200;
 const MAX_TRAVEL_SPEED = defaultCarParams.maxSpeed * BOOST_FACTOR * 1.5;
 const GRID_CLEAR_STEP = 20;
-const FALL_MARGIN = 8;
 const PLACE_POINTS = [2, 1];
 const LAST_PLACE_POINTS = -1;
 const MAX_INPUT_QUEUE = 8;
@@ -277,7 +276,7 @@ export class Room {
       const hit = touchingHazard(p.id, p.car!, this.hazards, now);
       if (hit) p.lastHit = { owner: hit.owner, at: now };
       const at = nearestOnTrack(track, p.car!.x, p.car!.y);
-      if (at.dist > TRACK_WIDTH / 2 + FALL_MARGIN && dropAt(track, at.s)) fell.add(p);
+      if (fellOffAt(track, at)) fell.add(p);
       if (at.s !== p.progress.s) {
         p.progress = advanceProgress(p.progress, at.s, track.length, MAX_PROGRESS_STEP + MAX_TRAVEL_SPEED * (now - p.movedAt));
         p.movedAt = now;
@@ -441,21 +440,19 @@ export class Room {
     const ranked = this.standings.flatMap((id) => this.players.get(id) ?? []);
     const order = [...ranked, ...[...this.players.values()].filter((p) => !ranked.includes(p))];
     const lead = ranked.find((p) => p.car);
-    const front = gridOffsets(track, 1)[0]!.back;
+    const front = gridSlots(track, 1)[0]!.back;
     const s = lead ? nearestOnTrack(track, lead.car!.x, lead.car!.y).s : 0;
     this.grid(order, s - front, (lead?.progress.progress ?? 0) - front);
   }
 
   private grid(order: Player[], anchor: number, anchorProgress: number): void {
     const track = this.track!;
-    const offsets = gridOffsets(track, order.length);
     let shift = 0;
-    while (shift < track.length && offsets.some((o) => dropAt(track, anchor + shift + o.back))) shift += GRID_CLEAR_STEP;
-    const slots = offsets.map((o) => {
-      const at = anchor + shift + o.back;
-      const [x, y, angle] = pointAt(track, at);
-      return { x: x - Math.sin(angle) * o.lateral, y: y + Math.cos(angle) * o.lateral, angle, s: ((at % track.length) + track.length) % track.length, back: o.back };
-    });
+    let slots = gridSlots(track, order.length, anchor);
+    while (shift < track.length && slots.some((slot) => dropAt(track, slot.s))) {
+      shift += GRID_CLEAR_STEP;
+      slots = gridSlots(track, order.length, anchor + shift);
+    }
     order.forEach((p, i) => {
       const slot = slots[i]!;
       p.car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
@@ -554,14 +551,6 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
     [items[i], items[j]] = [items[j]!, items[i]!];
   }
   return items;
-}
-
-function gridOffsets(track: Track, count: number): { back: number; lateral: number }[] {
-  return gridSlots(track, count).map((slot) => {
-    const at = nearestOnTrack(track, slot.x, slot.y);
-    const [cx, cy] = pointAt(track, at.s);
-    return { back: at.s > track.length / 2 ? at.s - track.length : at.s, lateral: (slot.y - cy) * at.tx - (slot.x - cx) * at.ty };
-  });
 }
 
 function parseWin(msg: Partial<Record<"kind" | "target" | "laps", unknown>>): WinCondition | null {

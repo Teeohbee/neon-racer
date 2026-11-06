@@ -139,8 +139,11 @@ export function boostAt(track: Track, s: number): boolean {
 }
 
 export function fellOff(track: Track, x: number, y: number): boolean {
-  const p = nearestOnTrack(track, x, y);
-  return p.dist > TRACK_WIDTH / 2 + FALL_MARGIN && dropAt(track, p.s);
+  return fellOffAt(track, nearestOnTrack(track, x, y));
+}
+
+export function fellOffAt(track: Track, at: Projection): boolean {
+  return at.dist > TRACK_WIDTH / 2 + FALL_MARGIN && dropAt(track, at.s);
 }
 
 export interface Projection {
@@ -207,14 +210,18 @@ export interface GridSlot {
   x: number;
   y: number;
   angle: number;
+  s: number;
+  back: number;
 }
 
-export function gridSlots(track: Track, count: number): GridSlot[] {
+export function gridSlots(track: Track, count: number, anchor = 0): GridSlot[] {
   return Array.from({ length: count }, (_, k) => {
     const row = Math.floor(k / 2);
     const side = k % 2 === 0 ? -1 : 1;
-    const [x, y, angle] = pointAt(track, track.length - 60 - row * 70 - (side > 0 ? 25 : 0));
+    const back = -60 - row * 70 - (side > 0 ? 25 : 0);
+    const s = (((anchor + back) % track.length) + track.length) % track.length;
+    const [x, y, angle] = pointAt(track, s);
     const lateral = side * TRACK_WIDTH * 0.22;
-    return { x: x - Math.sin(angle) * lateral, y: y + Math.cos(angle) * lateral, angle };
+    return { x: x - Math.sin(angle) * lateral, y: y + Math.cos(angle) * lateral, angle, s, back };
   });
 }
