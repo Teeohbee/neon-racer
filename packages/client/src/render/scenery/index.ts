@@ -1,6 +1,7 @@
 import { Container, Graphics, Sprite, type Texture } from "pixi.js";
 import type { Camera, Track } from "@neon/sim";
 import { softLightTexture } from "../textures";
+import type { WeatherConfig } from "../weather";
 import { districtFor, type District } from "./districts";
 import { buildLayout, type Billboard, type Layout } from "./layout";
 import { range, seeded } from "./rng";
@@ -17,7 +18,7 @@ const STEAM_PUFFS = 3;
 const CULL = 400;
 const CLUTTER_GLOW = 0.22;
 const CABLE_GLOW = 0.4;
-const PYLON_GLOW = 0.55;
+const PYLON_GLOW = 0.9;
 const ROOF_GLOW = 0.28;
 const SKYLIGHT_GLOW = 0.22;
 const CABLE_SAG = 0.45;
@@ -43,6 +44,7 @@ export interface Scenery {
   update(camera: Camera, t: number, dt: number): void;
   lights(): SceneLight[];
   ambient(): number | null;
+  weather(): WeatherConfig | null;
   destroy(): void;
 }
 
@@ -147,9 +149,11 @@ export function createScenery(layers: SceneryLayers): Scenery {
 
     const deck = new Container();
     const plates = new Graphics();
+    plates.rect(-2000, -2000, 10400, 8000).fill({ color: district.deck.seam });
     for (const p of layout.plates) plates.rect(p.x, p.y, p.w, p.h).fill({ color: p.tint });
     for (const p of layout.plates) plates.rect(p.x, p.y, p.w, p.h);
-    plates.stroke({ width: 6, color: district.deck.seam });
+    plates.stroke({ width: 4, color: district.deck.clutter, alpha: 0.35 });
+    for (const p of layout.plates) if (p.inner) plates.rect(p.inner.x, p.inner.y, p.inner.w, p.inner.h).fill({ color: p.inner.tint }).stroke({ width: 3, color: district.deck.clutter, alpha: 0.5 });
     const clutter = new Graphics();
     drawClutter(clutter, layout, district);
     deck.addChild(plates, clutter);
@@ -219,7 +223,14 @@ export function createScenery(layers: SceneryLayers): Scenery {
     topGlow.tint = district.accents[0]!;
     topGlow.alpha = PYLON_GLOW;
     const arcs = new Graphics();
-    pylonGlow.addChild(topGlow, arcs);
+    const insulators = new Graphics();
+    for (const p of layout.pylons) {
+      const c = Math.cos(p.angle + Math.PI / 2);
+      const s = Math.sin(p.angle + Math.PI / 2);
+      for (const off of [-40, 0, 40]) insulators.circle(p.x + c * off, p.y + s * off, 4);
+    }
+    insulators.fill({ color: district.accents[2]! });
+    pylonGlow.addChild(topGlow, insulators, arcs);
     const cables = new Graphics();
     const clutterGlow = new Graphics();
     drawClutterGlow(clutterGlow, layout, district.accents[0]!);
@@ -344,7 +355,7 @@ export function createScenery(layers: SceneryLayers): Scenery {
 
       if (b.layout.cables.length && t >= b.nextArc) {
         const rng = seeded(`${Math.floor(t * 10)}`);
-        b.nextArc = t + range(rng, 0.8, 2.2);
+        b.nextArc = t + range(rng, 0.3, 0.9);
         const [ia, ib] = b.layout.cables[Math.floor(rng() * b.layout.cables.length)]!;
         const pa = b.layout.pylons[ia]!;
         const pb = b.layout.pylons[ib]!;
@@ -353,9 +364,14 @@ export function createScenery(layers: SceneryLayers): Scenery {
         const y0 = pa.y + (pb.y - pa.y) * k0;
         b.arcs.clear();
         b.arcs.moveTo(x0, y0);
-        for (let j = 1; j <= 7; j++) b.arcs.lineTo(x0 + range(rng, -30, 30) + j * 6, y0 + range(rng, -30, 30));
-        b.arcs.stroke({ width: 2.5, color: b.district.accents[2]!, alpha: 0.95 });
-        b.arcFlash = { x: x0, y: y0, until: t + 0.12 };
+        const x1 = pa.x + (pb.x - pa.x) * Math.min(1, k0 + 0.25);
+        const y1 = pa.y + (pb.y - pa.y) * Math.min(1, k0 + 0.25);
+        const bolt: number[] = [x0, y0];
+        for (let j = 1; j < 12; j++) bolt.push(x0 + ((x1 - x0) * j) / 12 + range(rng, -36, 36), y0 + ((y1 - y0) * j) / 12 + range(rng, -36, 36));
+        bolt.push(x1, y1);
+        b.arcs.poly(bolt, false).stroke({ width: 7, color: b.district.accents[0]!, alpha: 0.45 });
+        b.arcs.poly(bolt, false).stroke({ width: 2.5, color: b.district.accents[2]!, alpha: 1 });
+        b.arcFlash = { x: x0, y: y0, until: t + 0.16 };
       }
       if (b.arcFlash && t > b.arcFlash.until) {
         b.arcs.clear();
@@ -383,7 +399,7 @@ export function createScenery(layers: SceneryLayers): Scenery {
       b.yardGlow.alpha = 0.55 + 0.45 * Math.abs(Math.sin(t * 47) * Math.sin(t * 2.3));
       if (b.layout.yards.length && t >= b.nextYardArc) {
         const rng = seeded(`yard${Math.floor(t * 20)}`);
-        b.nextYardArc = t + range(rng, 0.4, 1.4);
+        b.nextYardArc = t + range(rng, 0.2, 0.7);
         const visible = b.layout.yards.filter((y) => inView(y.x, y.y));
         const yard = visible[Math.floor(rng() * visible.length)];
         b.yardArcs.clear();
@@ -407,6 +423,10 @@ export function createScenery(layers: SceneryLayers): Scenery {
       return built?.district.ambient ?? null;
     },
 
+    weather() {
+      return built?.district.weather ?? null;
+    },
+
     lights() {
       if (!built) return [];
       const b = built;
@@ -417,7 +437,13 @@ export function createScenery(layers: SceneryLayers): Scenery {
       }
       if (b.arcFlash) {
         const [x, y] = project(b.arcFlash.x, b.arcFlash.y, scaleFor(PYLON_HEIGHT));
-        out.push({ x, y, size: 700, color: b.district.accents[2]!, alpha: 0.9 });
+        out.push({ x, y, size: 900, color: b.district.accents[2]!, alpha: 1 });
+      }
+      const sp = scaleFor(PYLON_HEIGHT);
+      for (const p of b.layout.pylons) {
+        if (!inView(p.x, p.y)) continue;
+        const [x, y] = project(p.x, p.y, sp);
+        out.push({ x, y, size: 260, color: b.district.accents[0]!, alpha: 0.45 });
       }
       for (const y of b.layout.yards) if (inView(y.x, y.y)) out.push({ x: y.x, y: y.y, size: 480, color: b.district.accents[0]!, alpha: 0.45 });
       if (b.yardFlash) out.push({ x: b.yardFlash.x, y: b.yardFlash.y, size: 600, color: b.district.accents[2]!, alpha: 1 });

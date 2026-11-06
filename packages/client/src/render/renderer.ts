@@ -5,6 +5,7 @@ import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createLighting } from "./lighting";
 import { createScenery } from "./scenery";
+import { createWeather } from "./weather";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { grainTexture } from "./textures";
 import type { AimView, CarView, FrameView, Renderer, SketchView } from "./types";
@@ -218,7 +219,8 @@ export function createRenderer(app: Application): Renderer {
   const dangerG = new Graphics();
   fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, carsLayer, aimG, sparksG);
   fxRoot.addChild(fxLayer);
-  root.addChild(litLayer, lighting.view, fxRoot, labelLayer, letterbox);
+  const weather = createWeather();
+  root.addChild(litLayer, lighting.view, fxRoot, weather.view, labelLayer, letterbox);
   app.stage.addChild(root);
 
   const cars = new Map<string, CarSprite>();
@@ -507,6 +509,7 @@ export function createRenderer(app: Application): Renderer {
       scenery.setTrack(frame.track, frame.trackName);
       grid.visible = !scenery.active;
       scenery.update(camera, t, dt);
+      weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t);
       boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
       drawDangerLine(dangerG, frame.track, frame.dangerLine, t);
       lighting.update({ ambient: scenery.ambient(), extra: scenery.lights(), dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
@@ -533,6 +536,7 @@ export function createRenderer(app: Application): Renderer {
       fxRoot.filters = [];
       bloom.destroy();
       scenery.destroy();
+      weather.destroy();
       lighting.destroy();
       root.destroy({ children: true });
       grainTex.destroy(true);

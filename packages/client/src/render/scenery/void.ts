@@ -1,6 +1,6 @@
 import { Container, Graphics, GraphicsContext, Sprite, type Texture } from "pixi.js";
 import { TRACK_WIDTH } from "@neon/sim";
-import { gapQuads, type GapSample } from "../features";
+import { gapQuads, sideDepth, type GapSample } from "../features";
 import type { District } from "./districts";
 import { range, type Rng } from "./rng";
 
@@ -9,7 +9,7 @@ export const STREET_DEPTH = 0.3;
 const SLICE_DEPTHS = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
 const PIER_DEPTH = 0.12;
 const BRIDGE_DEPTH = 0.17;
-const BRIDGE_EVERY = 26;
+const BRIDGE_EVERY = 18;
 const QUAY_EVERY = 3;
 const LANE_MIN_DEPTH = 150;
 
@@ -43,11 +43,12 @@ function laneOf(run: GapSample[], side: number): Lane[] {
   const lanes: Lane[] = [];
   let current: Lane | null = null;
   for (const p of run) {
-    if (p.depth < LANE_MIN_DEPTH) {
+    const depth = sideDepth(p, side);
+    if (depth < LANE_MIN_DEPTH) {
       current = null;
       continue;
     }
-    const off = side * (HALF + p.depth * 0.55);
+    const off = side * (HALF + depth * 0.55);
     const x = p.x + p.nx * off;
     const y = p.y + p.ny * off;
     if (!current) {
@@ -90,9 +91,9 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
 
   const footprint = new GraphicsContext();
   for (const run of gaps) {
-    for (const quad of gapQuads(run, () => HALF - 2, (d) => HALF + d)) mask.poly(quad, true);
-    for (const quad of gapQuads(run, () => -(HALF - 2), (d) => -(HALF + d))) mask.poly(quad, true);
-    for (const quad of gapQuads(run, (d) => -(HALF + d) - 1, (d) => HALF + d + 1)) footprint.poly(quad, true);
+    for (const quad of gapQuads(run, () => HALF - 2, (p) => HALF + p.depth)) mask.poly(quad, true);
+    for (const quad of gapQuads(run, () => -(HALF - 2), (p) => -(HALF + p.depth))) mask.poly(quad, true);
+    for (const quad of gapQuads(run, (p) => -(HALF + sideDepth(p, -1)) - 1, (p) => HALF + sideDepth(p, 1) + 1)) footprint.poly(quad, true);
   }
   mask.fill({ color: 0xffffff });
   footprint.fill({ color: 0xffffff });
@@ -108,9 +109,10 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
       for (const run of gaps) {
         for (let m = 0; m < run.length; m += 2) {
           const p = run[m]!;
-          if (p.depth < 60 || rng() < 0.55) continue;
+          if (rng() < 0.55) continue;
           for (const side of [-1, 1]) {
-            const off = side * (HALF + p.depth - 10);
+            if (sideDepth(p, side) < 60) continue;
+            const off = side * (HALF + sideDepth(p, side) - 10);
             windows.rect(p.x + p.nx * off - 3, p.y + p.ny * off - 3, 6, 6);
           }
         }
@@ -202,19 +204,20 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
     for (const run of gaps) {
       for (let m = 0; m < run.length; m++) {
         const p = run[m]!;
-        if (p.depth < 70) continue;
         for (const side of [-1, 1]) {
+          const d = sideDepth(p, side);
+          if (d < 70) continue;
           const tx = -p.ny;
           const ty = p.nx;
           for (let r = 0; r < 1; r++) {
-            const off = side * (HALF + range(rng, 20, p.depth - 20));
+            const off = side * (HALF + range(rng, 20, d - 20));
             const x = p.x + p.nx * off;
             const y = p.y + p.ny * off;
             const len = range(rng, 10, 26);
             ripples[Math.floor(rng() * 3)]!.moveTo(x - tx * len, y - ty * len).lineTo(x + tx * len, y + ty * len);
           }
           if (m % 3 === 0 && rng() < 0.7) {
-            const off = side * (HALF + range(rng, 30, p.depth - 30));
+            const off = side * (HALF + range(rng, 30, d - 30));
             const s = new Sprite(soft);
             s.anchor.set(0.5);
             s.position.set(p.x + p.nx * off, p.y + p.ny * off);
@@ -244,10 +247,10 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
     for (const run of gaps) {
       for (let m = 4; m < run.length - 4; m += 12) {
         const p = run[m]!;
-        if (p.depth < 200) continue;
         for (const side of [-1, 1]) {
-          if (rng() < 0.4) continue;
-          const off = side * (HALF + p.depth - 34);
+          const d = sideDepth(p, side);
+          if (d < 200 || rng() < 0.4) continue;
+          const off = side * (HALF + d - 34);
           const x = p.x + p.nx * off;
           const y = p.y + p.ny * off;
           if (docked.some(([dx, dy]) => Math.hypot(dx - x, dy - y) < 120)) continue;
@@ -266,9 +269,10 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
     for (const run of gaps) {
       for (let m = 0; m < run.length; m += QUAY_EVERY) {
         const p = run[m]!;
-        if (p.depth < 120) continue;
         for (const side of [-1, 1]) {
-          const off = side * (HALF + p.depth - 8);
+          const d = sideDepth(p, side);
+          if (d < 120) continue;
+          const off = side * (HALF + d - 8);
           const x = p.x + p.nx * off;
           const y = p.y + p.ny * off;
           const color = (m / QUAY_EVERY) % 2 ? 0xffc070 : district.accents[1]!;
@@ -291,19 +295,23 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
       const bridges = new Graphics();
       const bridgeLights = new Graphics();
       for (const run of gaps) {
-        for (let m = BRIDGE_EVERY / 2; m < run.length - 4; m += BRIDGE_EVERY) {
-          const p = run[m]!;
-          if (p.depth < 180) continue;
-          const tx = -p.ny;
-          const ty = p.nx;
-          const reach = HALF + p.depth + 4;
-          const a = [p.x - p.nx * reach, p.y - p.ny * reach];
-          const b = [p.x + p.nx * reach, p.y + p.ny * reach];
-          bridges.poly([a[0]! - tx * 17, a[1]! - ty * 17, b[0]! - tx * 17, b[1]! - ty * 17, b[0]! + tx * 17, b[1]! + ty * 17, a[0]! + tx * 17, a[1]! + ty * 17], true);
-          for (let k = 0; k <= 10; k++) {
-            const u = -reach + (2 * reach * k) / 10;
-            if (Math.abs(u) < HALF) continue;
-            for (const side of [-1, 1]) bridgeLights.circle(p.x + p.nx * u + tx * side * 15, p.y + p.ny * u + ty * side * 15, 2.5);
+        for (const side of [-1, 1]) {
+          for (let m = side > 0 ? BRIDGE_EVERY / 2 : BRIDGE_EVERY; m < run.length - 4; m += BRIDGE_EVERY) {
+            const p = run[m]!;
+            const d = sideDepth(p, side);
+            if (d < 150) continue;
+            const tx = -p.ny;
+            const ty = p.nx;
+            const span = (u: number, w: number, bow: number): [number, number] => {
+              const off = side * (HALF + 4 + u * (d + 4));
+              const lift = Math.sin(u * Math.PI) * bow;
+              return [p.x + p.nx * off + tx * (w + Math.sign(w) * lift), p.y + p.ny * off + ty * (w + Math.sign(w) * lift)];
+            };
+            const deck: number[] = [];
+            for (let k = 0; k <= 8; k++) deck.push(...span(k / 8, -15, 6));
+            for (let k = 8; k >= 0; k--) deck.push(...span(k / 8, 15, 6));
+            bridges.poly(deck, true);
+            for (let k = 1; k < 8; k++) for (const w of [-15, 15]) bridgeLights.circle(...span(k / 8, w, 6), 2.5);
           }
         }
       }
@@ -350,10 +358,10 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
     for (const run of gaps) {
       for (let m = 2; m < run.length - 2; m += 5) {
         const p = run[m]!;
-        if (p.depth < 140) continue;
         for (const side of [-1, 1]) {
-          if (rng() < 0.35) continue;
-          const off = side * (HALF + range(rng, 60, p.depth - 60));
+          const d = sideDepth(p, side);
+          if (d < 140 || rng() < 0.35) continue;
+          const off = side * (HALF + range(rng, 60, d - 60));
           const x = p.x + p.nx * off;
           const y = p.y + p.ny * off;
           const a = Math.atan2(p.ny, p.nx);

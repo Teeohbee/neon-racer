@@ -7,10 +7,11 @@ import { pickOne, range, seeded, type Rng } from "./rng";
 const HALF = TRACK_WIDTH / 2;
 const MARGIN = 900;
 const LAMP_OFFSET = 95;
-const NEAR_TRACK_SHARE = 0.7;
+const NEAR_TRACK_SHARE = 0.8;
 const ROOF_CLEAR = 70;
-const ROOF_LIT_SHARE = 0.45;
-const SKYLIGHT_SHARE = 0.35;
+const ROOF_LIT_SHARE = 0.7;
+const SKYLIGHT_SHARE = 0.55;
+const PENTHOUSE_SHARE = 0.4;
 const PYLON_OFFSET = 430;
 const PYLON_STEP = 380;
 
@@ -22,6 +23,10 @@ export interface Plate {
   w: number;
   h: number;
   tint: number;
+}
+
+export interface Building extends Plate {
+  inner: Plate | null;
 }
 
 export interface Prop {
@@ -57,7 +62,7 @@ export interface Yard {
 }
 
 export interface Layout {
-  plates: Plate[];
+  plates: Building[];
   roofLines: number[];
   skylights: Plate[];
   yards: Yard[];
@@ -71,11 +76,21 @@ export interface Layout {
   gaps: GapSample[][];
 }
 
-function plates(rng: Rng, district: District): Plate[] {
-  const out: Plate[] = [];
+function plates(rng: Rng, district: District): Building[] {
+  const out: Building[] = [];
   const split = (x: number, y: number, w: number, h: number, depth: number) => {
-    if (depth > 7 || (w < 900 && h < 900 && rng() < 0.4) || (w < 380 && h < 380)) {
-      out.push({ x, y, w, h, tint: pickOne(rng, district.deck.tints) });
+    if (depth > 9 || (w < 640 && h < 640 && rng() < 0.45) || (w < 280 && h < 280)) {
+      const inset = range(rng, 12, 34);
+      const bx = x + inset;
+      const by = y + inset;
+      const bw = w - inset * 2;
+      const bh = h - inset * 2;
+      const tint = pickOne(rng, district.deck.tints);
+      const inner =
+        rng() < PENTHOUSE_SHARE
+          ? { x: bx + bw * range(rng, 0.15, 0.4), y: by + bh * range(rng, 0.15, 0.4), w: bw * range(rng, 0.3, 0.45), h: bh * range(rng, 0.3, 0.45), tint: pickOne(rng, district.deck.tints) }
+          : null;
+      out.push({ x: bx, y: by, w: bw, h: bh, tint, inner });
       return;
     }
     if (w > h) {
@@ -98,7 +113,7 @@ function roofDetails(rng: Rng, field: Field, list: Plate[]): { roofLines: number
   const clear = (x: number, y: number) => field.edgeDistance(x, y) > ROOF_CLEAR && !field.nearGap(x, y, 30);
   for (const p of list) {
     if (rng() < ROOF_LIT_SHARE) {
-      const inset = 14;
+      const inset = 6;
       const corners: [number, number][] = [
         [p.x + inset, p.y + inset],
         [p.x + p.w - inset, p.y + inset],
@@ -118,9 +133,9 @@ function roofDetails(rng: Rng, field: Field, list: Plate[]): { roofLines: number
         }
       }
     }
-    if (rng() < SKYLIGHT_SHARE && p.w > 260 && p.h > 260) {
-      const cols = Math.floor(range(rng, 2, 5));
-      const rows = Math.floor(range(rng, 2, 4));
+    if (rng() < SKYLIGHT_SHARE && p.w > 200 && p.h > 200) {
+      const cols = Math.floor(range(rng, 2, Math.min(9, p.w / 50)));
+      const rows = Math.floor(range(rng, 2, Math.min(6, p.h / 40)));
       const cx = p.x + range(rng, 0.3, 0.7) * p.w;
       const cy = p.y + range(rng, 0.3, 0.7) * p.h;
       for (let i = 0; i < cols; i++) {

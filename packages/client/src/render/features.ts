@@ -42,31 +42,58 @@ export interface GapSample {
   nx: number;
   ny: number;
   depth: number;
+  sides: [left: number, right: number];
 }
+
+export const sideDepth = (p: GapSample, side: number) => p.sides[side < 0 ? 0 : 1];
+
+const CURVE_SPAN = 3;
+const CURVE_SMOOTH = 4;
+const APEX_CLEARANCE = 40;
 
 export function gapRuns(track: Track): GapSample[][] {
   const points = trackPoints(track);
+  const n = points.length;
   const normals = offsetLoop(points, 1).map((v, i) => v - points[i >> 1]![i & 1]!);
+  const turn = points.map((_, i) => {
+    const [ax, ay] = points[(i - CURVE_SPAN + n) % n]!;
+    const [bx, by] = points[i]!;
+    const [cx, cy] = points[(i + CURVE_SPAN) % n]!;
+    const d = Math.atan2(cy - by, cx - bx) - Math.atan2(by - ay, bx - ax);
+    return Math.atan2(Math.sin(d), Math.cos(d)) / (CURVE_SPAN * TRACK_SPACING);
+  });
+  const capFor = (i: number, side: number) => {
+    let cap = Infinity;
+    for (let k = -CURVE_SMOOTH; k <= CURVE_SMOOTH; k++) {
+      const c = turn[(i + k + n) % n]!;
+      if (Math.sign(c) === side && c !== 0) cap = Math.min(cap, 1 / Math.abs(c) - HALF - APEX_CLEARANCE);
+    }
+    return Math.max(0, cap);
+  };
   return edgeRuns(track)
     .filter((run) => run.drop)
     .map((run) =>
-      run.indices.map((i, m) => ({
-        x: points[i]![0],
-        y: points[i]![1],
-        nx: normals[i * 2]!,
-        ny: normals[i * 2 + 1]!,
-        depth: voidDepth(m, run.indices.length, run.closed),
-      })),
+      run.indices.map((i, m) => {
+        const depth = voidDepth(m, run.indices.length, run.closed);
+        return {
+          x: points[i]![0],
+          y: points[i]![1],
+          nx: normals[i * 2]!,
+          ny: normals[i * 2 + 1]!,
+          depth,
+          sides: [Math.min(depth, capFor(i, -1)), Math.min(depth, capFor(i, 1))] as [number, number],
+        };
+      }),
     );
 }
 
-export function gapQuads(run: GapSample[], near: (depth: number) => number, far: (depth: number) => number): number[][] {
+export function gapQuads(run: GapSample[], near: (p: GapSample) => number, far: (p: GapSample) => number): number[][] {
   const at = (p: GapSample, offset: number) => [p.x + p.nx * offset, p.y + p.ny * offset];
   const quads: number[][] = [];
   for (let m = 0; m + 1 < run.length; m++) {
     const a = run[m]!;
     const b = run[m + 1]!;
-    quads.push([...at(a, near(a.depth)), ...at(b, near(b.depth)), ...at(b, far(b.depth)), ...at(a, far(a.depth))]);
+    quads.push([...at(a, near(a)), ...at(b, near(b)), ...at(b, far(b)), ...at(a, far(a))]);
   }
   return quads;
 }
