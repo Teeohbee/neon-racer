@@ -43,6 +43,7 @@ import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
 import { onBoostPad } from "./render/boost-fx";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
+import { IMPACT } from "./render/impact";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap, drawTrackShape } from "./minimap";
@@ -259,6 +260,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       case "eliminated": {
         const car = buffer.latest()?.cars.find((c) => c.id === event.id);
         if (car) renderer.burst(car.x, car.y, playerColor(player(event.id)?.color ?? 0));
+        if (car) renderer.impact(car.x, car.y, event.id === you ? IMPACT.eliminatedYou : IMPACT.eliminated);
         if (event.id === you) {
           myAlive = false;
           audio.sfx.eliminated(event.reason);

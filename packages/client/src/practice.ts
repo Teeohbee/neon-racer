@@ -29,6 +29,7 @@ import { audio } from "./audio";
 import { createDebugPanel, loadCarParams } from "./debug-panel";
 import { createKeyboard, isTyping } from "./input";
 import { PLAYER_COLORS } from "./render/palette";
+import { IMPACT } from "./render/impact";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap } from "./minimap";
@@ -279,6 +280,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       car = { ...car, vx: 0, vy: 0 };
       prev = car;
       renderer.burst(car.x, car.y, COLOR);
+      renderer.impact(car.x, car.y, IMPACT.eliminatedYou);
       hud.flash("Fell!");
       audio.sfx.eliminated("fell");
       boosting = false;
