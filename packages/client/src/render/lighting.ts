@@ -36,6 +36,7 @@ export interface LightFrame {
   dt: number;
   t: number;
   dangerLine: number | null;
+  extra: readonly { x: number; y: number; size: number; color: number; alpha: number }[];
 }
 
 export interface Lighting {
@@ -204,6 +205,7 @@ export function createLighting(app: Application): Lighting {
           }
         }
       }
+      for (const l of frame.extra) light(soft, l.x, l.y, l.size, l.color, l.alpha);
       const carsById = new Map(frame.cars.map((c) => [c.id, c]));
       for (const h of frame.hazards) hazardLights(h, frame.now, carsById);
       for (const car of frame.cars) carLights(car, frame.dt);

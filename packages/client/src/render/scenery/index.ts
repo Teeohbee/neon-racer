@@ -1,0 +1,364 @@
+import { Container, Graphics, Sprite, type Texture } from "pixi.js";
+import type { Camera, Track } from "@neon/sim";
+import { softLightTexture } from "../textures";
+import { districtFor, type District } from "./districts";
+import { buildLayout, type Billboard, type Layout } from "./layout";
+import { range, seeded } from "./rng";
+import { buildVoidScene, type VoidScene } from "./void";
+
+const LAMP_HEIGHT = 0.05;
+const BLINKER_HEIGHT = 0.08;
+const BILLBOARD_HEIGHT = 0.11;
+const PYLON_HEIGHT = 0.13;
+const PYLON_BASE = 34;
+const PYLON_TOP = 20;
+const BLINK_GROUPS = 3;
+const STEAM_PUFFS = 3;
+const CULL = 400;
+const CLUTTER_GLOW = 0.22;
+const CABLE_GLOW = 0.28;
+
+export interface SceneLight {
+  x: number;
+  y: number;
+  size: number;
+  color: number;
+  alpha: number;
+}
+
+export interface SceneryLayers {
+  deck: Container;
+  tall: Container;
+  glow: Container;
+}
+
+export interface Scenery {
+  readonly active: boolean;
+  setTrack(track: Track | null, name: string | null | undefined): void;
+  update(camera: Camera, t: number, dt: number): void;
+  lights(): SceneLight[];
+  destroy(): void;
+}
+
+interface Built {
+  layout: Layout;
+  district: District;
+  groups: Container[];
+  lifted: { container: Container; height: number }[];
+  sunk: { container: Container; depth: number }[];
+  poles: Graphics;
+  steam: { sprite: Sprite; x: number; y: number; phase: number }[];
+  blinkGroups: Graphics[];
+  billboards: { view: Container; bars: Graphics[]; scan: Graphics; data: Billboard }[];
+  arcs: Graphics;
+  arcFlash: { x: number; y: number; until: number } | null;
+  nextArc: number;
+  voidScene: VoidScene;
+}
+
+function drawClutter(g: Graphics, layout: Layout, district: District) {
+  const c = district.deck.clutter;
+  for (const p of layout.clutter) {
+    const k = p.size;
+    const rot = (u: number, v: number) => [p.x + Math.cos(p.angle) * u - Math.sin(p.angle) * v, p.y + Math.sin(p.angle) * u + Math.cos(p.angle) * v];
+    const box = (w: number, h: number) => g.poly([...rot(-w / 2, -h / 2), ...rot(w / 2, -h / 2), ...rot(w / 2, h / 2), ...rot(-w / 2, h / 2)], true);
+    if (p.kind === "ac") {
+      box(60 * k, 40 * k).fill({ color: district.deck.seam }).stroke({ width: 2, color: c });
+      g.circle(p.x, p.y, 13 * k).stroke({ width: 2, color: c });
+    } else if (p.kind === "vent") {
+      box(26 * k, 26 * k).fill({ color: c, alpha: 0.6 }).stroke({ width: 2, color: c });
+    } else if (p.kind === "block") {
+      box(110 * k, 70 * k).fill({ color: district.deck.seam }).stroke({ width: 3, color: c, alpha: 0.7 });
+    } else {
+      g.circle(p.x, p.y, 22 * k).stroke({ width: 3, color: c });
+      g.moveTo(p.x, p.y).lineTo(...(rot(18 * k, 0) as [number, number])).stroke({ width: 2, color: c });
+    }
+  }
+  for (const h of layout.helipads) {
+    g.circle(h.x, h.y, 95).fill({ color: district.deck.seam }).stroke({ width: 5, color: c });
+    g.circle(h.x, h.y, 70).stroke({ width: 2, color: c, alpha: 0.6 });
+    g.moveTo(h.x - 22, h.y - 30).lineTo(h.x - 22, h.y + 30).moveTo(h.x + 22, h.y - 30).lineTo(h.x + 22, h.y + 30).moveTo(h.x - 22, h.y).lineTo(h.x + 22, h.y).stroke({ width: 7, color: c });
+  }
+}
+
+function drawClutterGlow(g: Graphics, layout: Layout, color: number) {
+  for (const p of layout.clutter) {
+    if (p.kind !== "ac" && p.kind !== "block") continue;
+    const [w, h] = p.kind === "ac" ? [60 * p.size, 40 * p.size] : [110 * p.size, 70 * p.size];
+    const rot = (u: number, v: number) => [p.x + Math.cos(p.angle) * u - Math.sin(p.angle) * v, p.y + Math.sin(p.angle) * u + Math.cos(p.angle) * v];
+    g.poly([...rot(-w / 2, -h / 2), ...rot(w / 2, -h / 2), ...rot(w / 2, h / 2), ...rot(-w / 2, h / 2)], true);
+  }
+  g.stroke({ width: 2, color, alpha: CLUTTER_GLOW });
+  for (const h of layout.helipads) g.circle(h.x, h.y, 95);
+  g.stroke({ width: 3, color, alpha: CLUTTER_GLOW * 1.4 });
+  for (const p of layout.clutter) if (p.kind === "ac") g.circle(p.x + Math.cos(p.angle) * 24 * p.size, p.y + Math.sin(p.angle) * 24 * p.size, 2.5);
+  g.fill({ color, alpha: 0.7 });
+}
+
+function buildBillboard(b: Billboard): { view: Container; bars: Graphics[]; scan: Graphics } {
+  const view = new Container();
+  view.position.set(b.x, b.y);
+  view.rotation = b.angle;
+  const frame = new Graphics();
+  frame.rect(-b.w / 2, -b.h / 2, b.w, b.h).fill({ color: b.color, alpha: 0.08 }).stroke({ width: 3, color: b.color, alpha: 0.8 });
+  view.addChild(frame);
+  const bars = [0, 1, 2, 3].map((k) => {
+    const bar = new Graphics();
+    const y = -b.h / 2 + 10 + (k * (b.h - 20)) / 4;
+    const len = (b.w - 24) * (0.4 + 0.6 * (((k * 7919 + Math.floor(b.phase * 100)) % 10) / 10));
+    bar.rect(-b.w / 2 + 12, y, len, (b.h - 20) / 4 - 5).fill({ color: b.color, alpha: 0.6 });
+    view.addChild(bar);
+    return bar;
+  });
+  const scan = new Graphics();
+  scan.rect(-2, -b.h / 2, 4, b.h).fill({ color: 0xffffff, alpha: 0.5 });
+  view.addChild(scan);
+  return { view, bars, scan };
+}
+
+export function createScenery(layers: SceneryLayers): Scenery {
+  const soft: Texture = softLightTexture(64);
+  let built: Built | null = null;
+  let currentTrack: Track | null = null;
+  let currentName: string | null = null;
+  let camera: Camera = { x: 0, y: 0, scale: 1 };
+  let time = 0;
+
+  const clear = () => {
+    if (!built) return;
+    for (const g of built.groups) g.destroy({ children: true });
+    built = null;
+  };
+
+  const build = (track: Track, name: string, district: District): Built => {
+    const layout = buildLayout(track, name, district);
+    const rng = seeded(`${name}:void`);
+
+    const deck = new Container();
+    const plates = new Graphics();
+    for (const p of layout.plates) plates.rect(p.x, p.y, p.w, p.h).fill({ color: p.tint });
+    for (const p of layout.plates) plates.rect(p.x, p.y, p.w, p.h);
+    plates.stroke({ width: 6, color: district.deck.seam });
+    const clutter = new Graphics();
+    drawClutter(clutter, layout, district);
+    deck.addChild(plates, clutter);
+    layers.deck.addChild(deck);
+
+    const tall = new Container();
+    const poles = new Graphics();
+    const pylonTops = new Container();
+    const tops = new Graphics();
+    for (const p of layout.pylons) {
+      tops.rect(p.x - PYLON_TOP, p.y - PYLON_TOP, PYLON_TOP * 2, PYLON_TOP * 2).moveTo(p.x - PYLON_TOP, p.y - PYLON_TOP).lineTo(p.x + PYLON_TOP, p.y + PYLON_TOP).moveTo(p.x + PYLON_TOP, p.y - PYLON_TOP).lineTo(p.x - PYLON_TOP, p.y + PYLON_TOP);
+      const c = Math.cos(p.angle + Math.PI / 2);
+      const s = Math.sin(p.angle + Math.PI / 2);
+      tops.moveTo(p.x - c * 46, p.y - s * 46).lineTo(p.x + c * 46, p.y + s * 46);
+    }
+    tops.stroke({ width: 3, color: district.deck.clutter });
+    for (const [a, b] of layout.cables) {
+      const pa = layout.pylons[a]!;
+      const pb = layout.pylons[b]!;
+      for (const off of [-40, 0, 40]) {
+        const c = Math.cos(pa.angle + Math.PI / 2) * off;
+        const s = Math.sin(pa.angle + Math.PI / 2) * off;
+        tops.moveTo(pa.x + c, pa.y + s).lineTo(pb.x + c, pb.y + s);
+      }
+    }
+    tops.stroke({ width: 1.5, color: district.deck.clutter, alpha: 0.7 });
+    pylonTops.addChild(tops);
+    const steam: Built["steam"] = [];
+    const steamLayer = new Container();
+    for (const v of layout.clutter.filter((c) => c.kind === "vent")) {
+      for (let k = 0; k < STEAM_PUFFS; k++) {
+        const sprite = new Sprite(soft);
+        sprite.anchor.set(0.5);
+        sprite.tint = 0x9aa0b8;
+        steamLayer.addChild(sprite);
+        steam.push({ sprite, x: v.x, y: v.y, phase: v.phase + k / STEAM_PUFFS });
+      }
+    }
+    tall.addChild(poles, steamLayer, pylonTops);
+    layers.tall.addChild(tall);
+
+    const glow = new Container();
+    const voidScene = buildVoidScene(layout.gaps, district, rng, soft);
+    glow.addChild(voidScene.root);
+    const lamps = new Container();
+    const heads = new Graphics();
+    for (const l of layout.lamps) heads.circle(l.x, l.y, 7).fill({ color: l.color, alpha: 0.8 });
+    lamps.addChild(heads);
+    const blinkers = new Container();
+    const blinkGroups = Array.from({ length: BLINK_GROUPS }, () => new Graphics());
+    layout.blinkers.forEach((b, k) => blinkGroups[k % BLINK_GROUPS]!.circle(b.x, b.y, 5));
+    for (const p of layout.pylons) blinkGroups[0]!.circle(p.x, p.y, 4);
+    blinkGroups.forEach((g) => g.fill({ color: district.blinker }));
+    blinkers.addChild(...blinkGroups);
+    const boards = new Container();
+    const billboards = layout.billboards.map((data) => {
+      const b = buildBillboard(data);
+      boards.addChild(b.view);
+      return { ...b, data };
+    });
+    const pylonGlow = new Container();
+    const cableGlow = new Graphics();
+    for (const [a, b] of layout.cables) {
+      const pa = layout.pylons[a]!;
+      const pb = layout.pylons[b]!;
+      for (const off of [-40, 40]) {
+        const c = Math.cos(pa.angle + Math.PI / 2) * off;
+        const s = Math.sin(pa.angle + Math.PI / 2) * off;
+        cableGlow.moveTo(pa.x + c, pa.y + s).lineTo(pb.x + c, pb.y + s);
+      }
+    }
+    cableGlow.stroke({ width: 1.5, color: district.accents[0]!, alpha: CABLE_GLOW });
+    const arcs = new Graphics();
+    pylonGlow.addChild(cableGlow, arcs);
+    const clutterGlow = new Graphics();
+    drawClutterGlow(clutterGlow, layout, district.accents[0]!);
+    glow.addChild(clutterGlow);
+    glow.addChild(lamps, blinkers, boards, pylonGlow);
+    layers.glow.addChild(glow);
+
+    return {
+      layout,
+      district,
+      groups: [deck, tall, glow],
+      lifted: [
+        { container: lamps, height: LAMP_HEIGHT },
+        { container: blinkers, height: BLINKER_HEIGHT },
+        { container: boards, height: BILLBOARD_HEIGHT },
+        { container: pylonTops, height: PYLON_HEIGHT },
+        { container: pylonGlow, height: PYLON_HEIGHT },
+      ],
+      sunk: voidScene.layers,
+      poles,
+      steam,
+      blinkGroups,
+      billboards,
+      arcs,
+      arcFlash: null,
+      nextArc: 0,
+      voidScene,
+    };
+  };
+
+  const scaleFor = (offset: number) => 1 / (1 - offset / camera.scale);
+
+  const place = (c: Container, s: number) => {
+    c.scale.set(s);
+    c.position.set(camera.x * (1 - s), camera.y * (1 - s));
+  };
+
+  const project = (x: number, y: number, s: number): [number, number] => [camera.x + (x - camera.x) * s, camera.y + (y - camera.y) * s];
+
+  const inView = (x: number, y: number) => {
+    const hw = 800 * camera.scale + CULL;
+    const hh = 500 * camera.scale + CULL;
+    return Math.abs(x - camera.x) < hw && Math.abs(y - camera.y) < hh;
+  };
+
+  return {
+    get active() {
+      return built !== null;
+    },
+
+    setTrack(track, name) {
+      const key = name ?? null;
+      if (track === currentTrack && key === currentName) return;
+      currentTrack = track;
+      currentName = key;
+      clear();
+      const district = districtFor(key);
+      if (track && key && district) built = build(track, key, district);
+    },
+
+    update(cam, t, dt) {
+      if (!built) return;
+      camera = cam;
+      time = t;
+      const b = built;
+      for (const { container, height } of b.lifted) place(container, scaleFor(height));
+      for (const { container, depth } of b.sunk) place(container, scaleFor(-depth));
+
+      b.poles.clear();
+      const sl = scaleFor(LAMP_HEIGHT);
+      for (const l of b.layout.lamps) {
+        if (!inView(l.x, l.y)) continue;
+        const [hx, hy] = project(l.x, l.y, sl);
+        b.poles.moveTo(l.x, l.y).lineTo(hx, hy);
+      }
+      const sb = scaleFor(BILLBOARD_HEIGHT);
+      for (const bb of b.layout.billboards) {
+        if (!inView(bb.x, bb.y)) continue;
+        const [hx, hy] = project(bb.x, bb.y, sb);
+        b.poles.moveTo(bb.x, bb.y).lineTo(hx, hy);
+      }
+      b.poles.stroke({ width: 4, color: b.district.deck.clutter, alpha: 0.9 });
+      const sp = scaleFor(PYLON_HEIGHT);
+      for (const p of b.layout.pylons) {
+        if (!inView(p.x, p.y)) continue;
+        for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+          const [tx, ty] = project(p.x + u * PYLON_TOP, p.y + v * PYLON_TOP, sp);
+          b.poles.moveTo(p.x + u * PYLON_BASE, p.y + v * PYLON_BASE).lineTo(tx, ty);
+        }
+      }
+      b.poles.stroke({ width: 2.5, color: b.district.deck.clutter, alpha: 0.85 });
+
+      for (const s of b.steam) {
+        const u = (t * 0.22 + s.phase) % 1;
+        s.sprite.position.set(s.x + u * 70, s.y - u * 40);
+        s.sprite.scale.set((30 + u * 70) / soft.width);
+        s.sprite.alpha = Math.sin(u * Math.PI) * 0.22;
+      }
+      b.blinkGroups.forEach((g, k) => (g.alpha = Math.sin(t * 2.4 + k * 2.1) > 0.55 ? 0.9 : 0.12));
+      for (const bb of b.billboards) {
+        const flicker = Math.sin(t * 37 + bb.data.phase * 50) > 0.97 ? 0.3 : 1;
+        bb.view.alpha = 0.6 * flicker;
+        bb.bars.forEach((bar, k) => (bar.alpha = 0.35 + 0.65 * Math.max(0, Math.sin(t * 2 + k * 0.9 + bb.data.phase * 6))));
+        bb.scan.x = (((t * 0.6 + bb.data.phase) % 1) - 0.5) * bb.data.w;
+      }
+
+      if (b.layout.cables.length && t >= b.nextArc) {
+        const rng = seeded(`${Math.floor(t * 10)}`);
+        b.nextArc = t + range(rng, 0.8, 2.2);
+        const [ia, ib] = b.layout.cables[Math.floor(rng() * b.layout.cables.length)]!;
+        const pa = b.layout.pylons[ia]!;
+        const pb = b.layout.pylons[ib]!;
+        const k0 = range(rng, 0.2, 0.7);
+        const x0 = pa.x + (pb.x - pa.x) * k0;
+        const y0 = pa.y + (pb.y - pa.y) * k0;
+        b.arcs.clear();
+        b.arcs.moveTo(x0, y0);
+        for (let j = 1; j <= 7; j++) b.arcs.lineTo(x0 + range(rng, -30, 30) + j * 6, y0 + range(rng, -30, 30));
+        b.arcs.stroke({ width: 2.5, color: b.district.accents[2]!, alpha: 0.95 });
+        b.arcFlash = { x: x0, y: y0, until: t + 0.12 };
+      }
+      if (b.arcFlash && t > b.arcFlash.until) {
+        b.arcs.clear();
+        b.arcFlash = null;
+      }
+      b.voidScene.update(t, dt);
+    },
+
+    lights() {
+      if (!built) return [];
+      const b = built;
+      const out: SceneLight[] = [];
+      for (const l of b.layout.lamps) if (inView(l.x, l.y)) out.push({ x: l.x + Math.cos(l.angle) * 30, y: l.y + Math.sin(l.angle) * 30, size: 300, color: l.color, alpha: 0.42 });
+      for (const bb of b.billboards) {
+        if (inView(bb.data.x, bb.data.y)) out.push({ x: bb.data.x, y: bb.data.y, size: 560, color: bb.data.color, alpha: 0.4 * bb.view.alpha });
+      }
+      if (b.arcFlash) {
+        const [x, y] = project(b.arcFlash.x, b.arcFlash.y, scaleFor(PYLON_HEIGHT));
+        out.push({ x, y, size: 700, color: b.district.accents[2]!, alpha: 0.9 });
+      }
+      for (const v of b.layout.clutter) if (v.kind === "ac" && inView(v.x, v.y) && v.phase < 0.3) out.push({ x: v.x, y: v.y, size: 120, color: b.district.accents[0]!, alpha: 0.25 + 0.1 * Math.sin(time * 3 + v.phase * 9) });
+      return out;
+    },
+
+    destroy() {
+      clear();
+      soft.destroy(true);
+    },
+  };
+}

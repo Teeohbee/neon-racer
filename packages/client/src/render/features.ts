@@ -36,6 +36,41 @@ function voidDepth(m: number, count: number, closed: boolean): number {
   return VOID_DEPTH * ramp * ramp * (3 - 2 * ramp);
 }
 
+export interface GapSample {
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+  depth: number;
+}
+
+export function gapRuns(track: Track): GapSample[][] {
+  const points = trackPoints(track);
+  const normals = offsetLoop(points, 1).map((v, i) => v - points[i >> 1]![i & 1]!);
+  return edgeRuns(track)
+    .filter((run) => run.drop)
+    .map((run) =>
+      run.indices.map((i, m) => ({
+        x: points[i]![0],
+        y: points[i]![1],
+        nx: normals[i * 2]!,
+        ny: normals[i * 2 + 1]!,
+        depth: voidDepth(m, run.indices.length, run.closed),
+      })),
+    );
+}
+
+export function gapQuads(run: GapSample[], near: (depth: number) => number, far: (depth: number) => number): number[][] {
+  const at = (p: GapSample, offset: number) => [p.x + p.nx * offset, p.y + p.ny * offset];
+  const quads: number[][] = [];
+  for (let m = 0; m + 1 < run.length; m++) {
+    const a = run[m]!;
+    const b = run[m + 1]!;
+    quads.push([...at(a, near(a.depth)), ...at(b, near(b.depth)), ...at(b, far(b.depth)), ...at(a, far(a.depth))]);
+  }
+  return quads;
+}
+
 export function drawVoid(g: Graphics, track: Track) {
   g.clear();
   const points = trackPoints(track);

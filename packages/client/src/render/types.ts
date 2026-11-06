@@ -37,6 +37,7 @@ export interface FrameView {
   sketch?: SketchView;
   aim?: AimView | null;
   dangerLine?: number | null;
+  trackName?: string | null;
 }
 
 export interface Renderer {

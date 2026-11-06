@@ -4,6 +4,7 @@ import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point
 import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createLighting } from "./lighting";
+import { createScenery } from "./scenery";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { grainTexture } from "./textures";
 import type { AimView, CarView, FrameView, Renderer, SketchView } from "./types";
@@ -200,7 +201,11 @@ export function createRenderer(app: Application): Renderer {
   const hazardZoneG = new Graphics();
   grainTex.source.addressMode = "repeat";
   const voidG = new Graphics();
-  litLayer.addChild(grid, grain, voidG, roadG, trailsG, hazardZoneG);
+  const sceneryDeck = new Container();
+  const sceneryTall = new Container();
+  const sceneryGlow = new Container();
+  const scenery = createScenery({ deck: sceneryDeck, tall: sceneryTall, glow: sceneryGlow });
+  litLayer.addChild(grid, sceneryDeck, grain, voidG, sceneryTall, roadG, trailsG, hazardZoneG);
   const lighting = createLighting(app);
 
   const edgesG = new Graphics();
@@ -211,7 +216,7 @@ export function createRenderer(app: Application): Renderer {
   const sparksG = new Graphics();
   const boostLayers = Array.from({ length: CHEVRONS }, () => new Graphics());
   const dangerG = new Graphics();
-  fxLayer.addChild(edgesG, ...boostLayers, dangerG, hazardG, sketchG, carsLayer, aimG, sparksG);
+  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, carsLayer, aimG, sparksG);
   fxRoot.addChild(fxLayer);
   root.addChild(litLayer, lighting.view, fxRoot, labelLayer, letterbox);
   app.stage.addChild(root);
@@ -499,9 +504,12 @@ export function createRenderer(app: Application): Renderer {
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
       updateSparks(dt);
+      scenery.setTrack(frame.track, frame.trackName);
+      grid.visible = !scenery.active;
+      scenery.update(camera, t, dt);
       boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
       drawDangerLine(dangerG, frame.track, frame.dangerLine, t);
-      lighting.update({ dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      lighting.update({ extra: scenery.lights(), dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
     screenToWorld(px: number, py: number): Point {
@@ -524,6 +532,7 @@ export function createRenderer(app: Application): Renderer {
       app.stage.removeChild(root);
       fxRoot.filters = [];
       bloom.destroy();
+      scenery.destroy();
       lighting.destroy();
       root.destroy({ children: true });
       grainTex.destroy(true);

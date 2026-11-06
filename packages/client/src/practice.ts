@@ -128,6 +128,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
 
   let presetIndex = 0;
   let track: Track = buildTrack(PRESET_TRACKS[presetIndex]!.points, PRESET_TRACKS[presetIndex]!.features);
+  let trackName: string | null = PRESET_TRACKS[presetIndex]!.name;
   let car: CarState = { x: 0, y: 0, angle: 0, vx: 0, vy: 0 };
   let prev = car;
   let input: CarInput = keyboard.read();
@@ -218,6 +219,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
         const preset = PRESET_TRACKS[presetIndex]!;
         if (mode === "sketch") exitSketch();
         useTrack(buildTrack(preset.points, preset.features));
+        trackName = preset.name;
         hud.flash(`${presetIndex + 1}/${PRESET_TRACKS.length} ${preset.name}`);
         break;
       }
@@ -230,6 +232,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
         }
         {
           const next = buildTrack(sketch.points);
+          trackName = null;
           exitSketch();
           useTrack(next);
         }
@@ -332,7 +335,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       isYou: true,
     };
 
-    renderer.render({ camera, track, cars: [carView], hazards: [], now, sketch: sketchView, aim: null, dangerLine: null });
+    renderer.render({ camera, track, cars: [carView], hazards: [], now, sketch: sketchView, aim: null, dangerLine: null, trackName });
     minimap.update(mode === "drive" ? track : null, [carView], camera);
     audio.engines.update(mode === "drive" ? [carView] : [], camera);
     audio.music.setIntensity(0.2 + 0.8 * Math.min(1, speedOf(car) / TOP_SPEED));
