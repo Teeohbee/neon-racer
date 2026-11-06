@@ -36,6 +36,7 @@ export interface LightFrame {
   dt: number;
   t: number;
   dangerLine: number | null;
+  ambient: number | null;
   extra: readonly { x: number; y: number; size: number; color: number; alpha: number }[];
 }
 
@@ -220,7 +221,7 @@ export function createLighting(app: Application): Lighting {
       }
       for (let i = used; i < pool.length; i++) pool[i]!.visible = false;
 
-      const amb = frame.bright ? bright : ambient;
+      const amb = frame.bright ? bright : frame.ambient !== null ? toRgb(frame.ambient) : ambient;
       clearColor[0] = amb[0];
       clearColor[1] = amb[1];
       clearColor[2] = amb[2];

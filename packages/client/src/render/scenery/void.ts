@@ -8,6 +8,9 @@ const HALF = TRACK_WIDTH / 2;
 export const STREET_DEPTH = 0.3;
 const SLICE_DEPTHS = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
 const PIER_DEPTH = 0.12;
+const BRIDGE_DEPTH = 0.17;
+const BRIDGE_EVERY = 26;
+const QUAY_EVERY = 3;
 const LANE_MIN_DEPTH = 150;
 
 interface Lane {
@@ -258,6 +261,58 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
     moored.fill({ color: 0x1c2a34 }).stroke({ width: 2, color: 0x3a5a66 });
     boatLights.fill({ color: 0xffd090, alpha: 0.9 });
     floor.addChild(moored, boatLights);
+
+    const quay = new Graphics();
+    for (const run of gaps) {
+      for (let m = 0; m < run.length; m += QUAY_EVERY) {
+        const p = run[m]!;
+        if (p.depth < 120) continue;
+        for (const side of [-1, 1]) {
+          const off = side * (HALF + p.depth - 8);
+          const x = p.x + p.nx * off;
+          const y = p.y + p.ny * off;
+          const color = (m / QUAY_EVERY) % 2 ? 0xffc070 : district.accents[1]!;
+          quay.circle(x, y, 3).fill({ color });
+          const r = new Sprite(soft);
+          r.anchor.set(0.5);
+          r.position.set(x - p.nx * side * 34, y - p.ny * side * 34);
+          r.rotation = Math.atan2(p.ny, p.nx);
+          r.scale.set(70 / soft.width, 9 / soft.width);
+          r.tint = color;
+          reflections.push(r);
+          floor.addChild(r);
+        }
+      }
+    }
+    floor.addChild(quay);
+
+    if (district.props.bridges) {
+      const bridgeLayer = new Container();
+      const bridges = new Graphics();
+      const bridgeLights = new Graphics();
+      for (const run of gaps) {
+        for (let m = BRIDGE_EVERY / 2; m < run.length - 4; m += BRIDGE_EVERY) {
+          const p = run[m]!;
+          if (p.depth < 180) continue;
+          const tx = -p.ny;
+          const ty = p.nx;
+          const reach = HALF + p.depth + 4;
+          const a = [p.x - p.nx * reach, p.y - p.ny * reach];
+          const b = [p.x + p.nx * reach, p.y + p.ny * reach];
+          bridges.poly([a[0]! - tx * 17, a[1]! - ty * 17, b[0]! - tx * 17, b[1]! - ty * 17, b[0]! + tx * 17, b[1]! + ty * 17, a[0]! + tx * 17, a[1]! + ty * 17], true);
+          for (let k = 0; k <= 10; k++) {
+            const u = -reach + (2 * reach * k) / 10;
+            if (Math.abs(u) < HALF) continue;
+            for (const side of [-1, 1]) bridgeLights.circle(p.x + p.nx * u + tx * side * 15, p.y + p.ny * u + ty * side * 15, 2.5);
+          }
+        }
+      }
+      bridges.fill({ color: 0x18161f }).stroke({ width: 3, color: 0x352f40 });
+      bridgeLights.fill({ color: 0xffd4a0, alpha: 0.95 });
+      bridgeLayer.addChild(bridges, bridgeLights);
+      scene.addChild(bridgeLayer);
+      layers.push({ container: bridgeLayer, depth: BRIDGE_DEPTH });
+    }
 
     for (const lane of lanes) {
       if (rng() < 0.35) continue;

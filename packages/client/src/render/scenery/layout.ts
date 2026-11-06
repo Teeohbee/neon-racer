@@ -8,8 +8,11 @@ const HALF = TRACK_WIDTH / 2;
 const MARGIN = 900;
 const LAMP_OFFSET = 95;
 const NEAR_TRACK_SHARE = 0.7;
-const PYLON_OFFSET = 300;
-const PYLON_STEP = 460;
+const ROOF_CLEAR = 70;
+const ROOF_LIT_SHARE = 0.45;
+const SKYLIGHT_SHARE = 0.35;
+const PYLON_OFFSET = 430;
+const PYLON_STEP = 380;
 
 export type ClutterKind = "ac" | "vent" | "block" | "dish";
 
@@ -43,8 +46,21 @@ export interface Lamp extends Prop {
   color: number;
 }
 
+export interface Yard {
+  x: number;
+  y: number;
+  angle: number;
+  w: number;
+  h: number;
+  boxes: [number, number][];
+  nodes: [number, number][];
+}
+
 export interface Layout {
   plates: Plate[];
+  roofLines: number[];
+  skylights: Plate[];
+  yards: Yard[];
   lamps: Lamp[];
   billboards: Billboard[];
   clutter: Clutter[];
@@ -76,6 +92,72 @@ function plates(rng: Rng, district: District): Plate[] {
   return out;
 }
 
+function roofDetails(rng: Rng, field: Field, list: Plate[]): { roofLines: number[]; skylights: Plate[] } {
+  const roofLines: number[] = [];
+  const skylights: Plate[] = [];
+  const clear = (x: number, y: number) => field.edgeDistance(x, y) > ROOF_CLEAR && !field.nearGap(x, y, 30);
+  for (const p of list) {
+    if (rng() < ROOF_LIT_SHARE) {
+      const inset = 14;
+      const corners: [number, number][] = [
+        [p.x + inset, p.y + inset],
+        [p.x + p.w - inset, p.y + inset],
+        [p.x + p.w - inset, p.y + p.h - inset],
+        [p.x + inset, p.y + p.h - inset],
+      ];
+      for (let k = 0; k < 4; k++) {
+        const [ax, ay] = corners[k]!;
+        const [bx, by] = corners[(k + 1) % 4]!;
+        const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 60));
+        for (let j = 0; j < steps; j++) {
+          const x0 = ax + ((bx - ax) * j) / steps;
+          const y0 = ay + ((by - ay) * j) / steps;
+          const x1 = ax + ((bx - ax) * (j + 1)) / steps;
+          const y1 = ay + ((by - ay) * (j + 1)) / steps;
+          if (clear(x0, y0) && clear(x1, y1)) roofLines.push(x0, y0, x1, y1);
+        }
+      }
+    }
+    if (rng() < SKYLIGHT_SHARE && p.w > 260 && p.h > 260) {
+      const cols = Math.floor(range(rng, 2, 5));
+      const rows = Math.floor(range(rng, 2, 4));
+      const cx = p.x + range(rng, 0.3, 0.7) * p.w;
+      const cy = p.y + range(rng, 0.3, 0.7) * p.h;
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          const x = cx + (i - cols / 2) * 36;
+          const y = cy + (j - rows / 2) * 26;
+          if (rng() < 0.35) continue;
+          if (clear(x, y) && clear(x + 26, y + 16)) skylights.push({ x, y, w: 26, h: 16, tint: rng() });
+        }
+      }
+    }
+  }
+  return { roofLines, skylights };
+}
+
+function yards(rng: Rng, track: Track, field: Field, count: number): Yard[] {
+  return scatter(rng, track, field, count, 230, 140).map((p) => {
+    const w = range(rng, 220, 320);
+    const h = range(rng, 140, 200);
+    const c = Math.cos(p.angle);
+    const s = Math.sin(p.angle);
+    const at = (u: number, v: number): [number, number] => [p.x + c * u - s * v, p.y + s * u + c * v];
+    const boxes: [number, number][] = [];
+    const nodes: [number, number][] = [];
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 2; j++) {
+        if (rng() < 0.2) continue;
+        const u = (i - 1) * (w / 3.2);
+        const v = (j - 0.5) * (h / 2.2);
+        boxes.push(at(u, v));
+        for (let f = -1; f <= 1; f++) nodes.push(at(u + f * 12, v - 24));
+      }
+    }
+    return { x: p.x, y: p.y, angle: p.angle, w, h, boxes, nodes };
+  });
+}
+
 function scatter(rng: Rng, track: Track, field: Field, count: number, clearance: number, gapMargin: number, tries = count * 12): Prop[] {
   const out: Prop[] = [];
   for (let k = 0; k < tries && out.length < count; k++) {
@@ -96,9 +178,9 @@ function scatter(rng: Rng, track: Track, field: Field, count: number, clearance:
 
 function lamps(track: Track, field: Field, district: District): Lamp[] {
   const out: Lamp[] = [];
-  let side = 1;
-  for (let s = 0; s < track.length; s += district.props.lampSpacing) {
-    side = -side;
+  let k = 0;
+  for (let s = 0; s < track.length; s += district.props.lampSpacing / 2) {
+    const side = k++ % 2 ? 1 : -1;
     const [x, y, a] = pointAt(track, s);
     const lx = x - Math.sin(a) * side * (HALF + LAMP_OFFSET);
     const ly = y + Math.cos(a) * side * (HALF + LAMP_OFFSET);
@@ -108,10 +190,11 @@ function lamps(track: Track, field: Field, district: District): Lamp[] {
   return out;
 }
 
-function pylonLine(track: Track, field: Field): { pylons: Prop[]; cables: [number, number][] } {
+function pylonLine(track: Track, field: Field, crossing: boolean): { pylons: Prop[]; cables: [number, number][] } {
   const pylons: Prop[] = [];
   const cables: [number, number][] = [];
   const clearOfRoad = (ax: number, ay: number, bx: number, by: number) => {
+    if (crossing) return Math.hypot(bx - ax, by - ay) < PYLON_STEP * 2.2;
     for (let t = 0; t <= 1; t += 0.05) if (field.edgeDistance(ax + (bx - ax) * t, ay + (by - ay) * t) < 110) return false;
     return true;
   };
@@ -122,7 +205,7 @@ function pylonLine(track: Track, field: Field): { pylons: Prop[]; cables: [numbe
       const [cx, cy, a] = pointAt(track, s);
       const x = cx - Math.sin(a) * side * (HALF + PYLON_OFFSET);
       const y = cy + Math.cos(a) * side * (HALF + PYLON_OFFSET);
-      if (field.edgeDistance(x, y) < PYLON_OFFSET - 20 || field.nearGap(x, y, 160)) {
+      if (field.edgeDistance(x, y) < PYLON_OFFSET - 20 || field.nearGap(x, y, 60)) {
         prev = -1;
         continue;
       }
@@ -141,14 +224,32 @@ export function buildLayout(track: Track, name: string, district: District): Lay
   const rng = seeded(name);
   const field = buildField(track);
   const clutterKinds: ClutterKind[] = ["ac", "ac", "vent", "vent", "block", "dish"];
-  const { pylons, cables } = district.props.pylons ? pylonLine(track, field) : { pylons: [], cables: [] };
+  const { pylons, cables } = district.props.pylons ? pylonLine(track, field, district.props.crossCables) : { pylons: [], cables: [] };
+  const plateList = plates(rng, district);
+  if (district.props.crossCables) {
+    for (let k = 0; k < pylons.length; k++) {
+      const a = pylons[k]!;
+      let best = -1;
+      let bestD = Infinity;
+      pylons.forEach((b, j) => {
+        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        if (j !== k && d > 500 && d < 1300 && d < bestD && field.edgeDistance((a.x + b.x) / 2, (a.y + b.y) / 2) < 60) {
+          best = j;
+          bestD = d;
+        }
+      });
+      if (best > k && rng() < 0.6) cables.push([k, best]);
+    }
+  }
   return {
-    plates: plates(rng, district),
+    plates: plateList,
+    ...roofDetails(rng, field, plateList),
+    yards: yards(rng, track, field, district.props.yards),
     lamps: lamps(track, field, district),
     billboards: scatter(rng, track, field, district.props.billboards, 300, 160).map((p) => ({
       ...p,
-      w: range(rng, 180, 260),
-      h: range(rng, 60, 90),
+      w: range(rng, 240, 340),
+      h: range(rng, 80, 120),
       color: pickOne(rng, district.accents),
     })),
     clutter: scatter(rng, track, field, district.props.clutter, 150, 60).map((p) => ({

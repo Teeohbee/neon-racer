@@ -509,7 +509,7 @@ export function createRenderer(app: Application): Renderer {
       scenery.update(camera, t, dt);
       boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
       drawDangerLine(dangerG, frame.track, frame.dangerLine, t);
-      lighting.update({ extra: scenery.lights(), dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      lighting.update({ ambient: scenery.ambient(), extra: scenery.lights(), dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
     screenToWorld(px: number, py: number): Point {

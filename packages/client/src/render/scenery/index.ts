@@ -16,7 +16,12 @@ const BLINK_GROUPS = 3;
 const STEAM_PUFFS = 3;
 const CULL = 400;
 const CLUTTER_GLOW = 0.22;
-const CABLE_GLOW = 0.28;
+const CABLE_GLOW = 0.4;
+const PYLON_GLOW = 0.55;
+const ROOF_GLOW = 0.28;
+const SKYLIGHT_GLOW = 0.22;
+const CABLE_SAG = 0.45;
+const CABLE_STEPS = 10;
 
 export interface SceneLight {
   x: number;
@@ -37,6 +42,7 @@ export interface Scenery {
   setTrack(track: Track | null, name: string | null | undefined): void;
   update(camera: Camera, t: number, dt: number): void;
   lights(): SceneLight[];
+  ambient(): number | null;
   destroy(): void;
 }
 
@@ -53,6 +59,11 @@ interface Built {
   arcs: Graphics;
   arcFlash: { x: number; y: number; until: number } | null;
   nextArc: number;
+  cables: Graphics;
+  yardGlow: Graphics;
+  yardArcs: Graphics;
+  yardFlash: { x: number; y: number; until: number } | null;
+  nextYardArc: number;
   voidScene: VoidScene;
 }
 
@@ -100,13 +111,13 @@ function buildBillboard(b: Billboard): { view: Container; bars: Graphics[]; scan
   view.position.set(b.x, b.y);
   view.rotation = b.angle;
   const frame = new Graphics();
-  frame.rect(-b.w / 2, -b.h / 2, b.w, b.h).fill({ color: b.color, alpha: 0.08 }).stroke({ width: 3, color: b.color, alpha: 0.8 });
+  frame.rect(-b.w / 2, -b.h / 2, b.w, b.h).fill({ color: b.color, alpha: 0.16 }).stroke({ width: 4, color: b.color, alpha: 0.9 });
   view.addChild(frame);
   const bars = [0, 1, 2, 3].map((k) => {
     const bar = new Graphics();
     const y = -b.h / 2 + 10 + (k * (b.h - 20)) / 4;
     const len = (b.w - 24) * (0.4 + 0.6 * (((k * 7919 + Math.floor(b.phase * 100)) % 10) / 10));
-    bar.rect(-b.w / 2 + 12, y, len, (b.h - 20) / 4 - 5).fill({ color: b.color, alpha: 0.6 });
+    bar.rect(-b.w / 2 + 12, y, len, (b.h - 20) / 4 - 5).fill({ color: b.color, alpha: 0.75 });
     view.addChild(bar);
     return bar;
   });
@@ -155,17 +166,21 @@ export function createScenery(layers: SceneryLayers): Scenery {
       tops.moveTo(p.x - c * 46, p.y - s * 46).lineTo(p.x + c * 46, p.y + s * 46);
     }
     tops.stroke({ width: 3, color: district.deck.clutter });
-    for (const [a, b] of layout.cables) {
-      const pa = layout.pylons[a]!;
-      const pb = layout.pylons[b]!;
-      for (const off of [-40, 0, 40]) {
-        const c = Math.cos(pa.angle + Math.PI / 2) * off;
-        const s = Math.sin(pa.angle + Math.PI / 2) * off;
-        tops.moveTo(pa.x + c, pa.y + s).lineTo(pb.x + c, pb.y + s);
+    pylonTops.addChild(tops);
+    const yardLit = new Graphics();
+    for (const y of layout.yards) {
+      const c = Math.cos(y.angle);
+      const s = Math.sin(y.angle);
+      const at = (u: number, v: number) => [y.x + c * u - s * v, y.y + s * u + c * v];
+      yardLit.poly([...at(-y.w / 2, -y.h / 2), ...at(y.w / 2, -y.h / 2), ...at(y.w / 2, y.h / 2), ...at(-y.w / 2, y.h / 2)], true).fill({ color: district.deck.seam }).stroke({ width: 3, color: district.deck.clutter });
+      for (const [bx, by] of y.boxes) {
+        const bat = (u: number, v: number): [number, number] => [bx + c * u - s * v, by + s * u + c * v];
+        yardLit.poly([...bat(-22, -16), ...bat(22, -16), ...bat(22, 16), ...bat(-22, 16)], true).fill({ color: district.deck.clutter, alpha: 0.7 }).stroke({ width: 2, color: district.deck.clutter });
+        for (let f = -2; f <= 2; f++) yardLit.moveTo(...bat(f * 8, -16)).lineTo(...bat(f * 8, 16));
+        yardLit.stroke({ width: 1, color: district.deck.seam });
       }
     }
-    tops.stroke({ width: 1.5, color: district.deck.clutter, alpha: 0.7 });
-    pylonTops.addChild(tops);
+    deck.addChild(yardLit);
     const steam: Built["steam"] = [];
     const steamLayer = new Container();
     for (const v of layout.clutter.filter((c) => c.kind === "vent")) {
@@ -200,22 +215,26 @@ export function createScenery(layers: SceneryLayers): Scenery {
       return { ...b, data };
     });
     const pylonGlow = new Container();
-    const cableGlow = new Graphics();
-    for (const [a, b] of layout.cables) {
-      const pa = layout.pylons[a]!;
-      const pb = layout.pylons[b]!;
-      for (const off of [-40, 40]) {
-        const c = Math.cos(pa.angle + Math.PI / 2) * off;
-        const s = Math.sin(pa.angle + Math.PI / 2) * off;
-        cableGlow.moveTo(pa.x + c, pa.y + s).lineTo(pb.x + c, pb.y + s);
-      }
-    }
-    cableGlow.stroke({ width: 1.5, color: district.accents[0]!, alpha: CABLE_GLOW });
+    const topGlow = new Graphics(tops.context);
+    topGlow.tint = district.accents[0]!;
+    topGlow.alpha = PYLON_GLOW;
     const arcs = new Graphics();
-    pylonGlow.addChild(cableGlow, arcs);
+    pylonGlow.addChild(topGlow, arcs);
+    const cables = new Graphics();
     const clutterGlow = new Graphics();
     drawClutterGlow(clutterGlow, layout, district.accents[0]!);
-    glow.addChild(clutterGlow);
+    const roof = new Graphics();
+    for (let k = 0; k < layout.roofLines.length; k += 4) roof.moveTo(layout.roofLines[k]!, layout.roofLines[k + 1]!).lineTo(layout.roofLines[k + 2]!, layout.roofLines[k + 3]!);
+    roof.stroke({ width: 3, color: district.roofLight, alpha: ROOF_GLOW });
+    for (const w of layout.skylights) roof.rect(w.x, w.y, w.w, w.h);
+    roof.fill({ color: district.lamp, alpha: SKYLIGHT_GLOW });
+    for (const w of layout.skylights) if (w.tint < 0.3) roof.rect(w.x, w.y, w.w, w.h);
+    roof.fill({ color: district.accents[1]!, alpha: SKYLIGHT_GLOW });
+    const yardGlow = new Graphics();
+    for (const y of layout.yards) for (const [nx, ny] of y.nodes) yardGlow.circle(nx, ny, 3.5);
+    yardGlow.fill({ color: district.accents[0]! });
+    const yardArcs = new Graphics();
+    glow.addChild(roof, clutterGlow, yardGlow, yardArcs, cables);
     glow.addChild(lamps, blinkers, boards, pylonGlow);
     layers.glow.addChild(glow);
 
@@ -238,6 +257,11 @@ export function createScenery(layers: SceneryLayers): Scenery {
       arcs,
       arcFlash: null,
       nextArc: 0,
+      cables,
+      yardGlow,
+      yardArcs,
+      yardFlash: null,
+      nextYardArc: 0,
       voidScene,
     };
   };
@@ -313,7 +337,7 @@ export function createScenery(layers: SceneryLayers): Scenery {
       b.blinkGroups.forEach((g, k) => (g.alpha = Math.sin(t * 2.4 + k * 2.1) > 0.55 ? 0.9 : 0.12));
       for (const bb of b.billboards) {
         const flicker = Math.sin(t * 37 + bb.data.phase * 50) > 0.97 ? 0.3 : 1;
-        bb.view.alpha = 0.6 * flicker;
+        bb.view.alpha = 0.65 * flicker;
         bb.bars.forEach((bar, k) => (bar.alpha = 0.35 + 0.65 * Math.max(0, Math.sin(t * 2 + k * 0.9 + bb.data.phase * 6))));
         bb.scan.x = (((t * 0.6 + bb.data.phase) % 1) - 0.5) * bb.data.w;
       }
@@ -337,21 +361,66 @@ export function createScenery(layers: SceneryLayers): Scenery {
         b.arcs.clear();
         b.arcFlash = null;
       }
+      b.cables.clear();
+      for (const [ia, ib] of b.layout.cables) {
+        const pa = b.layout.pylons[ia]!;
+        const pb = b.layout.pylons[ib]!;
+        if (!inView(pa.x, pa.y) && !inView(pb.x, pb.y) && !inView((pa.x + pb.x) / 2, (pa.y + pb.y) / 2)) continue;
+        for (const off of [-40, 40]) {
+          const ox = Math.cos(pa.angle + Math.PI / 2) * off;
+          const oy = Math.sin(pa.angle + Math.PI / 2) * off;
+          for (let j = 0; j <= CABLE_STEPS; j++) {
+            const u = j / CABLE_STEPS;
+            const h = PYLON_HEIGHT * (1 - CABLE_SAG * 4 * u * (1 - u));
+            const [x, y] = project(pa.x + (pb.x - pa.x) * u + ox, pa.y + (pb.y - pa.y) * u + oy, scaleFor(h));
+            if (j === 0) b.cables.moveTo(x, y);
+            else b.cables.lineTo(x, y);
+          }
+        }
+      }
+      b.cables.stroke({ width: 1.6, color: b.district.accents[0]!, alpha: CABLE_GLOW });
+
+      b.yardGlow.alpha = 0.55 + 0.45 * Math.abs(Math.sin(t * 47) * Math.sin(t * 2.3));
+      if (b.layout.yards.length && t >= b.nextYardArc) {
+        const rng = seeded(`yard${Math.floor(t * 20)}`);
+        b.nextYardArc = t + range(rng, 0.4, 1.4);
+        const visible = b.layout.yards.filter((y) => inView(y.x, y.y));
+        const yard = visible[Math.floor(rng() * visible.length)];
+        b.yardArcs.clear();
+        if (yard && yard.nodes.length > 1) {
+          const a = yard.nodes[Math.floor(rng() * yard.nodes.length)]!;
+          const z = yard.nodes[Math.floor(rng() * yard.nodes.length)]!;
+          b.yardArcs.moveTo(a[0], a[1]);
+          for (let j = 1; j < 8; j++) b.yardArcs.lineTo(a[0] + ((z[0] - a[0]) * j) / 8 + range(rng, -10, 10), a[1] + ((z[1] - a[1]) * j) / 8 + range(rng, -10, 10));
+          b.yardArcs.lineTo(z[0], z[1]).stroke({ width: 2.5, color: b.district.accents[2]!, alpha: 0.95 });
+          b.yardFlash = { x: (a[0] + z[0]) / 2, y: (a[1] + z[1]) / 2, until: t + 0.1 };
+        }
+      }
+      if (b.yardFlash && t > b.yardFlash.until) {
+        b.yardArcs.clear();
+        b.yardFlash = null;
+      }
       b.voidScene.update(t, dt);
+    },
+
+    ambient() {
+      return built?.district.ambient ?? null;
     },
 
     lights() {
       if (!built) return [];
       const b = built;
       const out: SceneLight[] = [];
-      for (const l of b.layout.lamps) if (inView(l.x, l.y)) out.push({ x: l.x + Math.cos(l.angle) * 30, y: l.y + Math.sin(l.angle) * 30, size: 300, color: l.color, alpha: 0.42 });
+      for (const l of b.layout.lamps) if (inView(l.x, l.y)) out.push({ x: l.x + Math.cos(l.angle) * 30, y: l.y + Math.sin(l.angle) * 30, size: 400, color: l.color, alpha: 0.62 });
       for (const bb of b.billboards) {
-        if (inView(bb.data.x, bb.data.y)) out.push({ x: bb.data.x, y: bb.data.y, size: 560, color: bb.data.color, alpha: 0.4 * bb.view.alpha });
+        if (inView(bb.data.x, bb.data.y)) out.push({ x: bb.data.x, y: bb.data.y, size: 700, color: bb.data.color, alpha: 0.75 * bb.view.alpha });
       }
       if (b.arcFlash) {
         const [x, y] = project(b.arcFlash.x, b.arcFlash.y, scaleFor(PYLON_HEIGHT));
         out.push({ x, y, size: 700, color: b.district.accents[2]!, alpha: 0.9 });
       }
+      for (const y of b.layout.yards) if (inView(y.x, y.y)) out.push({ x: y.x, y: y.y, size: 480, color: b.district.accents[0]!, alpha: 0.45 });
+      if (b.yardFlash) out.push({ x: b.yardFlash.x, y: b.yardFlash.y, size: 600, color: b.district.accents[2]!, alpha: 1 });
       for (const v of b.layout.clutter) if (v.kind === "ac" && inView(v.x, v.y) && v.phase < 0.3) out.push({ x: v.x, y: v.y, size: 120, color: b.district.accents[0]!, alpha: 0.25 + 0.1 * Math.sin(time * 3 + v.phase * 9) });
       return out;
     },
