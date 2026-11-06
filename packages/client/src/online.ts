@@ -271,7 +271,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         const car = buffer.latest()?.cars.find((c) => c.id === event.id);
         const color = playerColor(player(event.id)?.color ?? 0);
         if (car && event.reason === "fell") renderer.fall({ ...car, color });
-        else if (car) renderer.burst(car.x, car.y, color);
+        else if (car) renderer.explode(car.x, car.y, color);
         if (car) renderer.impact(car.x, car.y, event.id === you ? IMPACT.eliminatedYou : IMPACT.eliminated);
         if (event.id === you) {
           myAlive = false;

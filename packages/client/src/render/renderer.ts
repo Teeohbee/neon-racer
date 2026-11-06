@@ -7,6 +7,7 @@ import { createBloomSwell, impactSwell } from "./bloom-swell";
 import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
 import { createContactTracker } from "./contacts";
+import { createExplosions } from "./explosions";
 import { createFallLayer } from "./fall-layer";
 import type { FallStart } from "./falling";
 import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
@@ -240,6 +241,8 @@ export function createRenderer(app: Application): Renderer {
   fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, glitch.marks, sketchG, slipstreamG, boostFx.view, carsLayer, aimG, sparksG);
   const reflections = createReflections();
   fxLayer.addChildAt(reflections.view, 0);
+  const explosions = createExplosions();
+  fxLayer.addChild(explosions.view);
   const falls = createFallLayer(drawCarBody);
   fxLayer.addChildAt(falls.view, fxLayer.getChildIndex(carsLayer));
   fxRoot.addChild(fxLayer);
@@ -561,6 +564,7 @@ export function createRenderer(app: Application): Renderer {
       sparks.push(...contacts.sparks);
       for (const c of contacts.impacts) impactAt(c.x, c.y, c.strength);
       updateSparks(dt);
+      explosions.update(dt);
       falls.update(dt);
       grid.visible = !scenery.active;
       warp.update(camera, frame.cars, dt);
@@ -592,6 +596,13 @@ export function createRenderer(app: Application): Renderer {
         const max = 0.35 + Math.random() * 0.35;
         sparks.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: max, max, color });
       }
+      lighting.flash(x, y, color);
+    },
+
+    explode(x: number, y: number, color: number) {
+      explosions.explode(x, y, color);
+      warp.shockwave(x, y, 1);
+      swell.kick(1);
       lighting.flash(x, y, color);
     },
 
@@ -637,6 +648,7 @@ export function createRenderer(app: Application): Renderer {
       reflections.destroy();
       boostFx.destroy();
       warp.destroy();
+      explosions.destroy();
       root.destroy({ children: true });
       grainTex.destroy(true);
       cars.clear();
