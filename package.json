@@ -1,0 +1,17 @@
+{
+  "name": "neon-racer",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --filter '@neon/server' --filter '@neon/client' dev",
+    "build": "bun run --filter '@neon/client' build",
+    "start": "bun run --filter '@neon/server' start",
+    "test": "vitest run",
+    "check": "tsc -p packages/sim && tsc -p packages/client && tsc -p packages/server"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@neon/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "NODE_ENV=production bun src/index.ts"
+  },
+  "dependencies": {
+    "@neon/sim": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4"
+  }
+}
