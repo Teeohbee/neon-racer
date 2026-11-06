@@ -1,7 +1,7 @@
 .podium-layer { position: absolute; inset: 56px 0 0 0; display: flex; justify-content: center; align-items: flex-start; pointer-events: none; z-index: 2; }
 .podium { box-sizing: border-box; background: linear-gradient(180deg, #0a0d1ee6, #05060dcc); border: 1px solid var(--nr-line); border-radius: var(--nr-radius-lg); box-shadow: 0 0 28px #ff2bd633, inset 0 0 40px #00f0ff11; backdrop-filter: blur(3px); text-align: center; animation: podium-in 0.35s ease-out both; }
 .podium.round { margin-top: 4vh; padding: 14px 28px 0; min-width: 360px; }
-.podium.match { pointer-events: auto; width: calc(100vw - 32px); max-width: 860px; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--nr-line) transparent; padding: var(--nr-space-5) var(--nr-space-6); }
+.podium.match { pointer-events: auto; width: calc(var(--view-w, 100vw) - 32px); max-width: 860px; max-height: calc(var(--view-h, 100vh) - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--nr-line) transparent; padding: var(--nr-space-5) var(--nr-space-6); }
 .podium h1 { margin: 0; font-size: var(--nr-text-2xl); color: var(--nr-pink); text-shadow: 0 0 14px var(--nr-pink), 0 0 40px #ff2bd666; letter-spacing: var(--nr-tracking); overflow-wrap: anywhere; }
 .podium .hint { margin: 6px 0 0; font-size: var(--nr-text-sm); color: var(--nr-text-dim); }
 .podium-title { font-size: 20px; letter-spacing: 0.1em; color: var(--nr-amber); text-shadow: 0 0 10px var(--nr-amber); overflow-wrap: anywhere; }

@@ -23,6 +23,7 @@ import { coreColor, drawCarCore, neonStroke } from "./neon";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { drawSlipstream } from "./slipstream";
 import { grainTexture } from "./textures";
+import { viewRect } from "../view-rect";
 import type { AimView, CarView, FrameView, Renderer, SketchView } from "./types";
 
 const TRAIL_LIFE = 1.4;
@@ -88,10 +89,8 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 function fitView(app: Application): Fit {
   const sw = app.screen.width;
   const sh = app.screen.height;
-  const base = Math.min(sw / VIEW.width, sh / VIEW.height);
-  const vw = VIEW.width * base;
-  const vh = VIEW.height * base;
-  return { base, sw, sh, vw, vh, vx: (sw - vw) / 2, vy: (sh - vh) / 2 };
+  const r = viewRect(sw, sh);
+  return { base: r.base, sw, sh, vw: r.w, vh: r.h, vx: r.x, vy: r.y };
 }
 
 function drawRoadSurface(g: Graphics, points: Point[], fill: { color: number; alpha: number }) {

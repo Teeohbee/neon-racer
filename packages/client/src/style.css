@@ -1,7 +1,7 @@
 html, body { margin: 0; height: 100%; background: #05060d; color: #d8f6ff; font-family: ui-monospace, Menlo, monospace; overflow: hidden; }
 #stage { position: fixed; inset: 0; }
 #stage canvas { display: block; touch-action: none; }
-#ui { position: fixed; inset: 0; pointer-events: none; }
+#ui { position: fixed; left: var(--view-x, 0); top: var(--view-y, 0); width: var(--view-w, 100vw); height: var(--view-h, 100vh); pointer-events: none; }
 
 .hud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 22px; padding: 8px 18px; border: 1px solid #1f2b55; border-radius: 8px; background: rgba(5, 6, 13, 0.7); }
 .hud-cell { display: flex; flex-direction: column; align-items: center; min-width: 64px; }
@@ -24,6 +24,6 @@ html, body { margin: 0; height: 100%; background: #05060d; color: #d8f6ff; font-
 .debug-row input { width: 100%; accent-color: #00f0ff; }
 .debug-row output { text-align: right; color: #00f0ff; font-variant-numeric: tabular-nums; }
 .debug-panel button { margin-top: 8px; width: 100%; padding: 4px; font: inherit; color: #d8f6ff; background: #121a38; border: 1px solid #2a3866; border-radius: 4px; cursor: pointer; }
-.practice-bar { position: fixed; top: 10px; left: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: auto; }
+.practice-bar { position: absolute; top: 10px; left: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: auto; }
 .practice-bar .audio-settings, .practice-bar .audio-sliders { flex-direction: column; align-items: flex-start; gap: 6px; }
 .practice-bar .audio-settings { padding: var(--nr-space-2) var(--nr-space-3); background: var(--nr-bg-panel); border: 1px solid var(--nr-line-dim); border-radius: var(--nr-radius-lg); }

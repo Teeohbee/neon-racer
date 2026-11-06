@@ -1,4 +1,4 @@
-.online { position: fixed; inset: 0; pointer-events: none; font-size: 14px; }
+.online { position: absolute; inset: 0; pointer-events: none; font-size: 14px; }
 .online-bottom button { pointer-events: auto; font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
 .online-bottom button:hover:not(:disabled) { border-color: #00f0ff; box-shadow: 0 0 8px #00f0ff66; }
 .online-bottom button:disabled { opacity: 0.5; cursor: default; }
@@ -32,7 +32,7 @@
 .online-top .score.out { opacity: 0.35; text-decoration: line-through; }
 .online-center { position: absolute; inset: 60px 0 auto 0; display: flex; justify-content: center; }
 .panel { padding: var(--nr-space-4) var(--nr-space-5); max-width: 560px; }
-.panel.lobby { width: calc(100vw - 32px); max-width: 920px; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--nr-line) transparent; }
+.panel.lobby { width: calc(var(--view-w, 100vw) - 32px); max-width: 920px; max-height: calc(var(--view-h, 100vh) - 72px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--nr-line) transparent; }
 .lobby-head { display: flex; align-items: center; gap: var(--nr-space-4); margin-bottom: var(--nr-space-2); padding-bottom: var(--nr-space-3); border-bottom: 1px solid var(--nr-line-dim); }
 .lobby-head h1 { margin: 0; }
 .lobby-head .link { margin-left: auto; font-size: var(--nr-text-sm); }
@@ -79,4 +79,4 @@
 .online-toasts .toast { position: static; transform: none; opacity: 1; font-size: inherit; text-shadow: none; background: #05060dd9; border: 1px solid #ff2bd6; color: #ff9cf0; padding: 6px 12px; border-radius: 6px; }
 .online .leave { margin-left: auto; }
 .panel .players .remove { padding: 0 8px; margin-left: 8px; line-height: 1.4; }
-.minimap { position: fixed; right: 14px; bottom: 14px; background: #05060dcc; border: 1px solid #2a3866; border-radius: 8px; box-shadow: 0 0 16px #00f0ff22; pointer-events: none; }
+.minimap { position: absolute; right: 14px; bottom: 14px; background: #05060dcc; border: 1px solid #2a3866; border-radius: 8px; box-shadow: 0 0 16px #00f0ff22; pointer-events: none; }

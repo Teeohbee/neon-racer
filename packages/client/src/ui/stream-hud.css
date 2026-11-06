@@ -16,7 +16,7 @@
 .online.streaming .online-top .score .pts { color: #fff; font-variant-numeric: tabular-nums; }
 .online.streaming .online-top .score.out { border-left-style: dashed; }
 
-.stream-chat { position: absolute; left: 14px; bottom: 76px; width: min(300px, 28vw); flex-direction: column; align-items: flex-start; gap: 4px; font-size: 12px; line-height: 1.35; }
+.stream-chat { position: absolute; left: 14px; bottom: 76px; width: min(300px, calc(var(--view-w, 100vw) * 0.28)); flex-direction: column; align-items: flex-start; gap: 4px; font-size: 12px; line-height: 1.35; }
 .chat-line { max-width: 100%; padding: 3px 8px; color: #d8f6ff; background: #05060dbf; border-left: 2px solid #1f2b55; border-radius: 3px; overflow-wrap: anywhere; animation: chat-in 0.25s ease-out, chat-out 0.6s 8.3s forwards; }
 .chat-user { color: var(--u); font-weight: 700; }
 .chat-line.hype { border-left-color: #ff2bd6; color: #fff; }
@@ -30,7 +30,7 @@
 .stream-rec i { background: #ff1f4b; }
 .stream-bitrate.dip { color: #ff3b5c; }
 
-.stream-alert { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 48px); padding: 10px 22px; font-size: 20px; letter-spacing: 1px; text-align: center; color: #fff; background: #05060de6; border: 1px solid #ff2bd6; border-radius: 6px; box-shadow: 0 0 24px #ff2bd666; text-shadow: 0 0 10px #ff2bd6; opacity: 0; visibility: hidden; z-index: 4; }
+.stream-alert { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); max-width: calc(var(--view-w, 100vw) - 48px); padding: 10px 22px; font-size: 20px; letter-spacing: 1px; text-align: center; color: #fff; background: #05060de6; border: 1px solid #ff2bd6; border-radius: 6px; box-shadow: 0 0 24px #ff2bd666; text-shadow: 0 0 10px #ff2bd6; opacity: 0; visibility: hidden; z-index: 4; }
 .stream-alert.show { visibility: visible; animation: stream-alert 4.5s ease-out forwards; }
 
 @keyframes stream-pulse { 50% { opacity: 0.25; } }
