@@ -12,6 +12,24 @@ export function click(o: Out, t: number) {
   tone(o, t, { freq: 3000, peak: 0.04, decay: 0.02 });
 }
 
+export function hover(o: Out, t: number) {
+  tone(o, t, { type: "triangle", freq: 2600, to: 2300, peak: 0.045, decay: 0.025 });
+}
+
+export function confirm(o: Out, t: number) {
+  tone(o, t, { type: "square", freq: midiToFreq(81), peak: 0.07, decay: 0.06, filter: { type: "lowpass", freq: 3800 } });
+  tone(o, t + 0.06, { type: "square", freq: midiToFreq(88), peak: 0.08, decay: 0.12, filter: { type: "lowpass", freq: 4200 } });
+  tone(o, t + 0.06, { type: "triangle", freq: midiToFreq(100), peak: 0.04, decay: 0.18 });
+}
+
+export function reveal(o: Out, t: number) {
+  noise(o, t, { attack: 0.05, peak: 0.1, decay: 0.25, filter: { type: "bandpass", freq: 1500, to: 7000, q: 1.2 } });
+  [84, 88, 91, 96].forEach((midi, i) => {
+    tone(o, t + 0.12 + i * 0.045, { type: "triangle", freq: midiToFreq(midi), peak: 0.07, decay: 0.3 });
+  });
+  tone(o, t + 0.12, { freq: 220, to: 110, peak: 0.25, decay: 0.2 });
+}
+
 export function countdownTick(o: Out, t: number) {
   tone(o, t, { type: "triangle", freq: midiToFreq(76), peak: 0.32, decay: 0.2 });
   tone(o, t, { type: "square", freq: midiToFreq(76), peak: 0.06, decay: 0.12, filter: { type: "lowpass", freq: 2200 } });

@@ -20,6 +20,9 @@ export function createSfx(out: () => Out | null, now: () => number) {
   };
   return {
     click: () => play(fx.click),
+    hover: () => play(fx.hover),
+    confirm: () => play(fx.confirm),
+    reveal: () => play(fx.reveal),
     countdownTick: () => play(fx.countdownTick),
     go: () => play(fx.go),
     boost: () => play(fx.boost),
