@@ -4,6 +4,7 @@ const FOCUSABLE = "button:not(:disabled), input:not(:disabled)";
 
 export interface KeyNavOptions {
   enabled?: () => boolean;
+  start?: string;
   onBack?: () => void;
   onMove?: () => void;
 }
@@ -31,7 +32,9 @@ export function createKeyNav(root: HTMLElement, opts: KeyNavOptions = {}): () =>
     if (!dir) return;
     if (active instanceof HTMLInputElement && (dir === "left" || dir === "right")) return;
     const list = items();
-    const next = list[nextFocus(list.map(box), list.indexOf(active as HTMLElement), dir)];
+    const from = list.indexOf(active as HTMLElement);
+    const preferred = from < 0 && opts.start ? root.querySelector<HTMLElement>(opts.start) : null;
+    const next = preferred && list.includes(preferred) ? preferred : list[nextFocus(list.map(box), from, dir)];
     e.preventDefault();
     if (!next || next === active) return;
     next.focus();

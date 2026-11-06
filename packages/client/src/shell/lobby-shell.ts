@@ -25,7 +25,7 @@ export function bindLobbyShell(root: HTMLElement, opts: LobbyShellOptions): () =
     asking = false;
     if (leave) opts.leave();
   };
-  const unbindNav = createKeyNav(root, { enabled: opts.active, onBack: () => void confirmLeave(), onMove: audio.sfx.hover });
+  const unbindNav = createKeyNav(root, { enabled: opts.active, start: ".lobby-players .big, .podium-actions button", onBack: () => void confirmLeave(), onMove: audio.sfx.hover });
   const unbindHover = bindHoverSound(root, audio.sfx.hover, opts.active);
   return () => {
     unbindNav();
