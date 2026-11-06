@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOOST_TAIL, boostLevel, flicker, hash01, seedOf } from "../src/render/fx-math";
+import { BOOST_TAIL, boostLevel, flicker, glitchDensity, hash01, rowTear, seedOf } from "../src/render/fx-math";
 
 const run = (level: number, on: boolean, seconds: number, dt = 1 / 60) => {
   for (let t = 0; t < seconds; t += dt) level = boostLevel(level, on, dt);
@@ -56,5 +56,24 @@ describe("flicker", () => {
 
   it("differs between cars", () => {
     expect(flicker(0.5, seedOf("a"))).not.toBe(flicker(0.5, seedOf("b")));
+  });
+});
+
+describe("glitchDensity", () => {
+  it("keeps the front of the wall dense and thins out the wake", () => {
+    expect(glitchDensity(0, 10)).toBeGreaterThan(0.85);
+    expect(glitchDensity(1, 10)).toBeGreaterThan(0.85);
+    for (let row = 2; row < 10; row++) expect(glitchDensity(row + 1, 10)).toBeLessThan(glitchDensity(row, 10));
+    expect(glitchDensity(10, 10)).toBe(0);
+  });
+});
+
+describe("rowTear", () => {
+  it("tears only some rows, by at most two cells either way", () => {
+    const tears = Array.from({ length: 400 }, (_, i) => rowTear(i % 10, Math.floor(i / 10), 14));
+    const torn = tears.filter((v) => v !== 0);
+    expect(torn.length).toBeGreaterThan(40);
+    expect(torn.length).toBeLessThan(160);
+    for (const v of tears) expect(Math.abs(v)).toBeLessThanOrEqual(28);
   });
 });

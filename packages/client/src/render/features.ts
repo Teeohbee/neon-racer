@@ -10,9 +10,6 @@ const TRACK_SPACING = 20;
 const STRIPE_DEPTH = 14;
 export const CHEVRONS = 4;
 const CHEVRON_STEP = BOOST_LENGTH / CHEVRONS;
-const DANGER_OVERHANG = 70;
-const WAKE_STEPS = 6;
-const WAKE_STEP = 45;
 
 export function drawTrackSurface(g: Graphics, track: Track, grain: Texture, grainAlpha: number) {
   g.clear();
@@ -174,32 +171,5 @@ export function chevronAlpha(k: number, t: number): number {
   return 0.3 + 0.7 * (1 - phase) * (1 - phase);
 }
 
-export function drawDangerLine(g: Graphics, track: Track | null, s: number | null | undefined, t: number) {
-  g.clear();
-  if (!track || s === null || s === undefined) return;
-  const pulse = 0.75 + 0.25 * Math.sin(t * 9);
-  for (let k = 0; k < WAKE_STEPS; k++) {
-    const s0 = s - k * WAKE_STEP;
-    const s1 = s0 - WAKE_STEP;
-    const w = HALF + 20;
-    g.poly([...acrossTrack(track, s0, -w), ...acrossTrack(track, s0, w), ...acrossTrack(track, s1, w), ...acrossTrack(track, s1, -w)], true).fill({
-      color: FEATURE.danger,
-      alpha: 0.2 * (1 - k / WAKE_STEPS) * pulse,
-    });
-  }
-  const half = HALF + DANGER_OVERHANG;
-  const [ax, ay] = acrossTrack(track, s, -half);
-  const [bx, by] = acrossTrack(track, s, half);
-  g.moveTo(ax, ay).lineTo(bx, by).stroke({ width: 26, color: FEATURE.danger, alpha: 0.25 * pulse, cap: "round" });
-  g.moveTo(ax, ay).lineTo(bx, by).stroke({ width: 8, color: FEATURE.danger, cap: "round" });
-  g.moveTo(ax, ay).lineTo(bx, by).stroke({ width: 2.5, color: FEATURE.dangerCore, alpha: pulse });
-  for (let i = 0; i < 3; i++) {
-    const u = (t * 0.9 + i / 3) % 1;
-    const x = ax + (bx - ax) * u;
-    const y = ay + (by - ay) * u;
-    g.circle(x, y, 5).fill({ color: FEATURE.dangerCore, alpha: Math.sin(u * Math.PI) });
-  }
-  for (const [x, y] of [[ax, ay], [bx, by]] as const) {
-    g.circle(x, y, 10).fill({ color: FEATURE.danger }).stroke({ width: 2.5, color: FEATURE.dangerCore });
-  }
-}
+
+export { drawDangerLine } from "./glitch-line";

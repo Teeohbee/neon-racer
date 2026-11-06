@@ -28,3 +28,12 @@ export function flicker(t: number, seed: number, rate = 30): number {
   const b = hash01(step + 1, seed);
   return a + (b - a) * f * f * (3 - 2 * f);
 }
+
+export function glitchDensity(row: number, rows: number): number {
+  const fade = clamp01(1 - row / rows);
+  return row < 2 ? 0.9 : 0.8 * fade * fade;
+}
+
+export function rowTear(row: number, tick: number, cell: number): number {
+  return hash01(row, tick, 11) < 0.22 ? (hash01(row, tick, 12) - 0.5) * 4 * cell : 0;
+}
