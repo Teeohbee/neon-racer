@@ -22,8 +22,9 @@ describe("buildTrack", () => {
 
 describe("nearestOnTrack", () => {
   it("measures distance from the centre line", () => {
-    expect(nearestOnTrack(circle, 1000, 0).dist).toBeLessThan(2);
-    expect(nearestOnTrack(circle, 1050, 0).dist).toBeCloseTo(50, -1);
+    const [x, y] = pointAt(circle, 0);
+    expect(nearestOnTrack(circle, x, y).dist).toBeLessThan(1);
+    expect(nearestOnTrack(circle, x + 50, y).dist).toBeCloseTo(50, -1);
   });
 
   it("reports arc position increasing along the drawing direction", () => {
@@ -36,8 +37,9 @@ describe("nearestOnTrack", () => {
 
 describe("isOnRoad", () => {
   it("is true within half the track width", () => {
-    expect(isOnRoad(circle, 1000 + TRACK_WIDTH / 2 - 5, 0)).toBe(true);
-    expect(isOnRoad(circle, 1000 + TRACK_WIDTH / 2 + 5, 0)).toBe(false);
+    const [x, y] = pointAt(circle, 0);
+    expect(isOnRoad(circle, x + TRACK_WIDTH / 2 - 5, y)).toBe(true);
+    expect(isOnRoad(circle, x + TRACK_WIDTH / 2 + 5, y)).toBe(false);
   });
 });
 

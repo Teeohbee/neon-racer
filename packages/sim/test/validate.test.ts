@@ -51,9 +51,9 @@ describe("validateDrawing", () => {
     expect(validateDrawing(hairpinLoop)).toContain("overlapping");
   });
 
-  it("rejects sharp corners as too tight", () => {
+  it("rounds off the corners of a big hand-drawn rectangle", () => {
     const square = polyline([[800, 800], [4800, 800], [4800, 3200], [800, 3200]]);
-    expect(validateDrawing(square)).toEqual(["too-tight"]);
+    expect(validateDrawing(square)).toEqual([]);
   });
 
   it("rejects a zigzag as too tight", () => {
@@ -102,5 +102,21 @@ describe("randomTrackPoints", () => {
 
   it("varies between seeds", () => {
     expect(randomTrackPoints(mulberry32(1))).not.toEqual(randomTrackPoints(mulberry32(2)));
+  });
+});
+
+describe("human-drawn closures", () => {
+  const loop = (n: number, from: number, to: number, offset = 0): [number, number][] =>
+    Array.from({ length: n }, (_, i) => {
+      const t = from + ((to - from) * i) / (n - 1);
+      return [3200 + Math.cos(t) * (2000 + (i === 0 ? offset : 0)), 2000 + Math.sin(t) * 1200];
+    });
+
+  it("accepts a loop drawn past its starting point", () => {
+    expect(validateDrawing(loop(140, 0, Math.PI * 2.25))).toEqual([]);
+  });
+
+  it("accepts a loop whose ends don't quite meet", () => {
+    expect(validateDrawing(loop(120, 0.05, Math.PI * 2 - 0.05, 120))).toEqual([]);
   });
 });

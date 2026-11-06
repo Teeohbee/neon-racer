@@ -60,10 +60,40 @@ function resampleClosed(points: Point[], spacing: number): Point[] {
   return out;
 }
 
+function trimOvershoot(points: Point[]): Point[] {
+  if (points.length < 10) return points;
+  const [sx, sy] = points[0]!;
+  let best = points.length - 1;
+  let bestDist = Infinity;
+  for (let i = Math.floor(points.length * 0.6); i < points.length; i++) {
+    const d = Math.hypot(points[i]![0] - sx, points[i]![1] - sy);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  }
+  return bestDist < TRACK_WIDTH * 1.5 ? points.slice(0, best + 1) : points;
+}
+
+function averageClosed(points: Point[], radius: number): Point[] {
+  const n = points.length;
+  return points.map((_, i) => {
+    let x = 0;
+    let y = 0;
+    for (let k = -radius; k <= radius; k++) {
+      const p = points[(i + k + n) % n]!;
+      x += p[0];
+      y += p[1];
+    }
+    return [x / (radius * 2 + 1), y / (radius * 2 + 1)];
+  });
+}
+
 export function smoothLoop(raw: Point[]): Point[] {
-  let points = dedupe(raw, 6);
+  let points = trimOvershoot(dedupe(raw, 6));
   if (points.length < 3) return points;
   points = resampleClosed(points, SPACING * 2);
+  if (points.length >= 12) for (let i = 0; i < 2; i++) points = averageClosed(points, 2);
   for (let i = 0; i < 3; i++) points = chaikinClosed(points);
   return resampleClosed(points, SPACING);
 }
