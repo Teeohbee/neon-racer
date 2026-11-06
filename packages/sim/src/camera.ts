@@ -3,7 +3,8 @@ import { CAR_RADIUS } from "./car";
 export const VIEW = { width: 1600, height: 1000 };
 export const SUDDEN_DEATH_AT = 90;
 const SUDDEN_DEATH_SPAN = 30;
-const MIN_SCALE = 0.5;
+export const LINE_GAP = 1200;
+const MIN_LINE_GAP = 350;
 const LOOK_AHEAD = 0.35;
 const FOLLOW = 4;
 
@@ -31,7 +32,7 @@ export function isOutsideView(cam: Camera, x: number, y: number, margin = CAR_RA
   return x < b.left - margin || x > b.right + margin || y < b.top - margin || y > b.bottom + margin;
 }
 
-export function suddenDeathScale(raceTime: number): number {
+export function lineGap(raceTime: number): number {
   const t = Math.max(0, Math.min(1, (raceTime - SUDDEN_DEATH_AT) / SUDDEN_DEATH_SPAN));
-  return 1 - (1 - MIN_SCALE) * t;
+  return LINE_GAP - (LINE_GAP - MIN_LINE_GAP) * t;
 }

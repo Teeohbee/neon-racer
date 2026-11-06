@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
 import { emptyInput } from "../src/car";
 import type { ClientMsg, GameEvent, ServerMsg } from "../src/protocol";
-import { COUNTDOWN_SECONDS, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, TICK_RATE } from "../src/room";
-import { buildTrack, nearestOnTrack, ovalPoints, type Point } from "../src/track";
-import { PRESET_TRACKS } from "../src/tracks";
+import { COUNTDOWN_SECONDS, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, TARGET_SCORE, TICK_RATE } from "../src/room";
+import { buildTrack, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point } from "../src/track";
+import { PRESET_TRACKS, type PresetTrack } from "../src/tracks";
 
 const DT = 1 / TICK_RATE;
 const loop: Point[] = ovalPoints(3200, 2000, 2200, 1300);
@@ -42,7 +43,26 @@ function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
     const c = car(id);
     run(ELIMINATION_GRACE + 0.1, () => send(id, { t: "state", seq: 1, car: { ...c, x: c.x - 5000 } }));
   };
-  return { room, sent, run, last, events, send, readyAll, drawer, toRace, car, gridOrder, knockOut };
+  const driveForward = (ids: string[], distance: number) => {
+    const from = Object.fromEntries(ids.map((id) => [id, nearestOnTrack(track, car(id).x, car(id).y).s]));
+    let seq = 0;
+    run(distance / 40 / TICK_RATE, () => {
+      seq++;
+      for (const id of ids) {
+        const [x, y, angle] = pointAt(track, from[id]! + seq * 40);
+        send(id, { t: "state", seq, car: { x, y, angle, vx: 0, vy: 0 } });
+      }
+    });
+  };
+  const score = (id: string) => last("room")!.players.find((p) => p.id === id)!.score;
+  const finish = (...outFirstToLast: string[]) => outFirstToLast.forEach(knockOut);
+  const nextRace = () => {
+    run(ROUND_END_SECONDS + DT);
+    send(drawer(), { t: "sketch", points: loop, reset: true });
+    send(drawer(), { t: "submit" });
+    run(COUNTDOWN_SECONDS + DT);
+  };
+  return { room, sent, run, last, events, send, readyAll, drawer, toRace, car, gridOrder, knockOut, score, finish, nextRace, driveForward, track };
 }
 
 describe("lobby", () => {
@@ -129,14 +149,53 @@ describe("racing in ghost mode", () => {
     expect(g.car("ann").ack).toBe(4);
   });
 
-  it("eliminates a car that leaves the shot and scores the survivor", () => {
+  it("eliminates a car that leaves the shot", () => {
     const g = setup();
     g.toRace();
     const [front, back] = g.gridOrder();
     g.knockOut(back!);
-    expect(g.events()).toContainEqual({ kind: "eliminated", id: back });
+    expect(g.events()).toContainEqual({ kind: "eliminated", id: back, reason: "screen" });
     expect(g.events()).toContainEqual({ kind: "roundWon", id: front });
-    expect(g.last("room")!.players.find((p) => p.id === front)!.score).toBe(1);
+  });
+
+  it("eliminates a car that falls behind the line once sudden death pulls it in", () => {
+    const g = setup();
+    g.toRace();
+    g.run(SUDDEN_DEATH_AT + 30);
+    expect(g.room.phase).toBe("race");
+    const [, back] = g.gridOrder();
+    const start = nearestOnTrack(g.track, g.car(back!).x, g.car(back!).y).s;
+    let seq = 0;
+    g.run(0.25, () => {
+      const [x, y, angle] = pointAt(g.track, start - ++seq * 40);
+      g.send(back!, { t: "state", seq, car: { x, y, angle, vx: 0, vy: 0 } });
+    });
+    expect(g.events()).toContainEqual({ kind: "eliminated", id: back, reason: "line" });
+  });
+
+  it("only sends the line while racing", () => {
+    const g = setup();
+    g.readyAll();
+    g.send(g.drawer(), { t: "sketch", points: loop, reset: true });
+    g.send(g.drawer(), { t: "submit" });
+    g.run(DT * 3);
+    expect(g.last("snap")!.line).toBeNull();
+    g.run(COUNTDOWN_SECONDS);
+    const [front] = g.gridOrder();
+    const leader = nearestOnTrack(g.track, g.car(front!).x, g.car(front!).y).s - g.track.length;
+    expect(g.last("snap")!.line).toBeCloseTo(leader - LINE_GAP);
+    g.knockOut(g.gridOrder()[1]!);
+    g.run(DT * 3);
+    expect(g.room.phase).toBe("roundEnd");
+    expect(g.last("snap")!.line).toBeNull();
+  });
+
+  it("tells everyone when a racer leaves mid-race", () => {
+    const g = setup(["ann", "bob", "cat"]);
+    g.toRace();
+    g.room.leave("cat");
+    expect(g.events()).toContainEqual({ kind: "eliminated", id: "cat", reason: "left" });
+    expect(g.room.phase).toBe("race");
   });
 
   it("hands the next sketch to the first player out", () => {
@@ -173,17 +232,78 @@ describe("hazards", () => {
     expect(g.last("snap")!.hazards).toHaveLength(1);
   });
 
-  it("credits half a point when a hazard leads to an elimination", () => {
-    const g = setup(["ann", "bob", "cat"]);
+  it("credits half a point straight away when a hazard leads to an elimination", () => {
+    const g = setup(["ann", "bob", "cat", "dan"]);
     g.toRace();
-    const [, middle, back] = g.gridOrder();
+    const [, , middle, back] = g.gridOrder();
     g.knockOut(back!);
     const victim = g.car(middle!);
     g.send(back!, { t: "hazard", kind: "slow", x: victim.x, y: victim.y });
     g.run(1);
     g.knockOut(middle!);
     expect(g.events()).toContainEqual({ kind: "hazardKill", by: back, victim: middle });
-    expect(g.last("room")!.players.find((p) => p.id === back)!.score).toBe(0.5);
+    expect(g.room.phase).toBe("race");
+    expect(g.score(back!)).toBe(0.5);
+  });
+});
+
+describe("falling off", () => {
+  const plain = buildTrack(loop);
+  const [sx, sy] = pointAt(plain, 0);
+  const dropTrack: PresetTrack = { name: "Drop Test", points: loop, features: [{ kind: "drop", at: [sx, sy], span: 600 }] };
+  let saved: PresetTrack[] = [];
+  afterEach(() => void PRESET_TRACKS.splice(0, PRESET_TRACKS.length, ...saved));
+
+  it("eliminates a car that leaves the road over a drop", () => {
+    saved = PRESET_TRACKS.splice(0, PRESET_TRACKS.length, dropTrack);
+    const g = setup(["ann", "bob"], 1, false);
+    g.readyAll();
+    expect(g.last("track")!.features).toEqual(dropTrack.features);
+    g.run(COUNTDOWN_SECONDS + ELIMINATION_GRACE + DT);
+    const c = g.car("ann");
+    g.send("ann", { t: "state", seq: 1, car: { ...c, x: c.x + TRACK_WIDTH } });
+    g.run(DT * 3);
+    expect(g.events()).toContainEqual({ kind: "eliminated", id: "ann", reason: "fell" });
+  });
+});
+
+describe("scoring", () => {
+  const deltas = (g: ReturnType<typeof setup>) => (g.events().filter((e) => e.kind === "roundScored").at(-1) as Extract<GameEvent, { kind: "roundScored" }>).results;
+
+  it("gives 2 to the winner, 1 to second, nothing in between and takes 1 from last", () => {
+    const g = setup(["ann", "bob", "cat", "dan"]);
+    g.toRace();
+    const [first, second, third, last] = g.gridOrder();
+    g.finish(last!, third!, second!);
+    expect(deltas(g)).toEqual([
+      { id: first, delta: 2 },
+      { id: second, delta: 1 },
+      { id: third, delta: 0 },
+      { id: last, delta: -1 },
+    ]);
+    expect([first, second, third, last].map((id) => g.score(id!))).toEqual([2, 1, 0, 0]);
+  });
+
+  it("takes a point back from a last place finisher who has one", () => {
+    const g = setup(["ann", "bob", "cat"]);
+    g.toRace();
+    const [winner, second, last] = g.gridOrder();
+    g.finish(last!, second!);
+    g.nextRace();
+    g.driveForward([second!, last!], 400);
+    g.finish(winner!, second!);
+    expect([winner, second, last].map((id) => g.score(id!))).toEqual([1, 2, 2]);
+  });
+
+  it("does not punish the loser of a two-player round", () => {
+    const g = setup();
+    g.toRace();
+    const [front, back] = g.gridOrder();
+    g.finish(back!);
+    expect(deltas(g)).toEqual([
+      { id: front, delta: 2 },
+      { id: back, delta: 1 },
+    ]);
   });
 });
 
@@ -214,7 +334,9 @@ describe("match flow", () => {
     }
     expect(g.room.phase).toBe("matchEnd");
     const winner = g.events().find((e) => e.kind === "matchWon");
-    expect(g.last("room")!.players.find((p) => p.id === (winner as { id: string }).id)!.score).toBe(5);
+    const scores = g.last("room")!.players.map((p) => p.score);
+    expect(g.score((winner as { id: string }).id)).toBeGreaterThanOrEqual(TARGET_SCORE);
+    expect(scores.filter((s) => s >= TARGET_SCORE)).toHaveLength(1);
     const host = g.last("room")!.hostId!;
     g.send(host === "ann" ? "bob" : "ann", { t: "again" });
     expect(g.room.phase).toBe("matchEnd");

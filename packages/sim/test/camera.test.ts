@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOutsideView, stepCamera, suddenDeathScale, VIEW } from "../src/camera";
+import { isOutsideView, LINE_GAP, lineGap, stepCamera, VIEW } from "../src/camera";
 
 describe("camera", () => {
   it("drifts toward the leader", () => {
@@ -21,9 +21,10 @@ describe("camera", () => {
     expect(isOutsideView({ ...cam, scale: 0.5 }, VIEW.width / 4 + 50, 0)).toBe(true);
   });
 
-  it("shrinks the view in sudden death", () => {
-    expect(suddenDeathScale(30)).toBe(1);
-    expect(suddenDeathScale(105)).toBeLessThan(1);
-    expect(suddenDeathScale(500)).toBeCloseTo(0.5);
+  it("pulls the elimination line in during sudden death", () => {
+    expect(lineGap(30)).toBe(LINE_GAP);
+    expect(lineGap(105)).toBeLessThan(LINE_GAP);
+    expect(lineGap(500)).toBe(lineGap(1000));
+    expect(lineGap(500)).toBeLessThan(LINE_GAP / 2);
   });
 });

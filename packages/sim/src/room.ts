@@ -1,10 +1,10 @@
 import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
-import { isOutsideView, stepCamera, suddenDeathScale, type Camera } from "./camera";
+import { isOutsideView, lineGap, stepCamera, type Camera } from "./camera";
 import { emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
-import type { ClientMsg, GameEvent, Mode, Phase, ServerMsg } from "./protocol";
-import { advanceProgress, buildTrack, gridSlots, nearestOnTrack, pointAt, type Point, type ProgressState, type Track } from "./track";
+import type { ClientMsg, EliminationReason, GameEvent, Mode, Phase, ServerMsg } from "./protocol";
+import { advanceProgress, buildTrack, dropAt, gridSlots, nearestOnTrack, pointAt, TRACK_WIDTH, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { randomTrackPoints, validateDrawing } from "./validate";
 import { stepWorldCar } from "./world";
@@ -12,13 +12,16 @@ import { stepWorldCar } from "./world";
 export const TICK_RATE = 60;
 export const SNAP_EVERY = 3;
 export const MAX_PLAYERS = 6;
-export const TARGET_SCORE = 5;
+export const TARGET_SCORE = 8;
 export const SKETCH_SECONDS = 30;
 export const COUNTDOWN_SECONDS = 3;
 export const ROUND_END_SECONDS = 4;
 export const ELIMINATION_GRACE = 1;
 export const KILL_CREDIT_WINDOW = 3;
 const MAX_PROGRESS_STEP = 200;
+const FALL_MARGIN = 8;
+const PLACE_POINTS = [2, 1];
+const LAST_PLACE_POINTS = -1;
 const MAX_INPUT_QUEUE = 8;
 const MAX_SKETCH_POINTS = 4000;
 const BOT_NAMES = ["Bolt", "Glitch", "Nova", "Pixel", "Sprocket", "Turbo"];
@@ -58,6 +61,8 @@ export class Room {
   private drawing: Point[] = [];
   private raw: Point[] | null = null;
   private trackName = "";
+  private features: FeatureSpec[] = [];
+  private line: number | null = null;
   private track: Track | null = null;
   private hazards: Hazard[] = [];
   private hazardSeq = 0;
@@ -110,13 +115,16 @@ export class Room {
     if (!bot) this.hostId ??= id;
     this.io.send(id, { t: "welcome", you: id, code: this.code });
     if (this.phase === "sketch" && this.drawerId) this.io.send(id, { t: "sketch", drawerId: this.drawerId, points: this.drawing, reset: true });
-    if (this.raw && this.phase !== "sketch") this.io.send(id, { t: "track", raw: this.raw, name: this.trackName });
+    if (this.raw && this.phase !== "sketch") this.io.send(id, { t: "track", raw: this.raw, name: this.trackName, features: this.features });
     this.broadcastRoom();
     return true;
   }
 
   leave(id: string): void {
-    if (!this.players.delete(id)) return;
+    const p = this.players.get(id);
+    if (!p) return;
+    this.players.delete(id);
+    if (this.phase === "race" && p.alive) this.emit({ kind: "eliminated", id, reason: "left" });
     if (this.hostId === id) this.hostId = [...this.players.values()].find((p) => !p.bot)?.id ?? null;
     if (this.phase !== "lobby" && this.players.size < 2) {
       this.toLobby();
@@ -239,20 +247,28 @@ export class Room {
       racers.forEach((p, i) => (p.car = resolved[i]!));
     }
 
+    const fell = new Set<Player>();
     for (const p of racers) {
       const hit = touchingHazard(p.id, p.car!, this.hazards, now);
       if (hit) p.lastHit = { owner: hit.owner, at: now };
-      p.progress = advanceProgress(p.progress, nearestOnTrack(track, p.car!.x, p.car!.y).s, track.length, MAX_PROGRESS_STEP);
+      const at = nearestOnTrack(track, p.car!.x, p.car!.y);
+      if (at.dist > TRACK_WIDTH / 2 + FALL_MARGIN && dropAt(track, at.s)) fell.add(p);
+      p.progress = advanceProgress(p.progress, at.s, track.length, MAX_PROGRESS_STEP);
     }
 
     const leader = racers.reduce<Player | null>((best, p) => (!best || p.progress.progress > best.progress.progress ? p : best), null);
     if (leader) {
-      this.camera = stepCamera(this.camera, leader.car!, dt, suddenDeathScale(now));
+      this.camera = stepCamera(this.camera, leader.car!, dt, 1);
+      this.line = leader.progress.progress - lineGap(now);
       this.botHazards(leader, now);
     }
 
     if (now > ELIMINATION_GRACE) {
-      for (const p of racers) if (isOutsideView(this.camera, p.car!.x, p.car!.y)) this.eliminate(p, now);
+      for (const p of racers) {
+        if (fell.has(p)) this.eliminate(p, now, "fell");
+        else if (this.line !== null && p.progress.progress < this.line) this.eliminate(p, now, "line");
+        else if (isOutsideView(this.camera, p.car!.x, p.car!.y)) this.eliminate(p, now, "screen");
+      }
     }
 
     const alive = [...this.players.values()].filter((p) => p.alive);
@@ -272,22 +288,32 @@ export class Room {
     }
   }
 
-  private eliminate(p: Player, now: number): void {
+  private eliminate(p: Player, now: number, reason: EliminationReason): void {
     p.alive = false;
     p.nextBotHazardAt = now + 1.5;
     this.eliminationOrder.push(p.id);
-    this.emit({ kind: "eliminated", id: p.id });
+    this.emit({ kind: "eliminated", id: p.id, reason });
     const credit = p.lastHit && now - p.lastHit.at <= KILL_CREDIT_WINDOW ? this.players.get(p.lastHit.owner) : undefined;
     if (credit && credit.id !== p.id) {
       credit.score += 0.5;
       this.emit({ kind: "hazardKill", by: credit.id, victim: p.id });
+      this.broadcastRoom();
     }
   }
 
   private endRound(winner: Player | null): void {
-    if (winner) winner.score += 1;
-    this.emit({ kind: "roundWon", id: winner?.id ?? null });
+    const ranked = [...(winner ? [winner.id] : []), ...[...this.eliminationOrder].reverse()]
+      .map((id) => this.players.get(id))
+      .filter((p): p is Player => !!p);
+    const results = ranked.map((p, rank) => {
+      const delta = PLACE_POINTS[rank] ?? (ranked.length >= 3 && rank === ranked.length - 1 ? LAST_PLACE_POINTS : 0);
+      p.score = Math.max(0, p.score + delta);
+      return { id: p.id, delta };
+    });
+    this.emit({ kind: "roundScored", results });
+    this.emit({ kind: "roundWon", id: ranked[0]?.id ?? null });
     this.nextDrawerId = this.eliminationOrder.find((id) => this.players.has(id)) ?? null;
+    this.line = null;
     this.setPhase("roundEnd");
   }
 
@@ -309,7 +335,7 @@ export class Room {
     this.round++;
     this.drawerId = null;
     const preset = PRESET_TRACKS[this.nextPreset()]!;
-    this.startCountdown(preset.points, preset.name);
+    this.startCountdown(preset.points, preset.name, preset.features);
   }
 
   private nextPreset(): number {
@@ -361,11 +387,13 @@ export class Room {
     this.startCountdown(valid ? this.drawing : randomTrackPoints(this.rng), valid ? `${this.players.get(this.drawerId ?? "")?.name ?? "Someone"}'s track` : "Random track");
   }
 
-  private startCountdown(raw: Point[], name: string): void {
+  private startCountdown(raw: Point[], name: string, features: FeatureSpec[] = []): void {
     this.raw = raw.map(([x, y]) => [x, y] as Point);
     this.trackName = name;
-    this.track = buildTrack(this.raw);
-    this.io.broadcast({ t: "track", raw: this.raw, name });
+    this.features = features;
+    this.track = buildTrack(this.raw, features);
+    this.line = null;
+    this.io.broadcast({ t: "track", raw: this.raw, name, features });
 
     const others = shuffle([...this.players.values()].filter((p) => p.id !== this.drawerId), this.rng);
     const drawer = this.drawerId ? this.players.get(this.drawerId) : undefined;
@@ -437,6 +465,7 @@ export class Room {
       phase: this.phase,
       now: this.phaseTime,
       camera: this.camera,
+      line: this.phase === "race" ? this.line : null,
       cars: players.filter((p) => p.car).map((p) => ({ id: p.id, ...p.car!, alive: p.alive, ack: p.ack })),
       hazards: this.hazards,
       cooldowns: Object.fromEntries(players.map((p) => [p.id, p.cooldowns])),
