@@ -39,4 +39,15 @@ describe("botInput", () => {
     expect(distances[0]).toBeLessThan(distances[1]!);
     expect(distances[1]).toBeLessThan(distances[2]!);
   });
+
+  it("holds the throttle for longer in a slipstream", () => {
+    const { points, features } = PRESET_TRACKS[0]!;
+    const track = buildTrack(points, features);
+    const slot = gridSlots(track, 1)[0]!;
+    const at = (speed: number) => ({ x: slot.x, y: slot.y, angle: slot.angle, vx: speed * Math.cos(slot.angle), vy: speed * Math.sin(slot.angle) });
+    const steady = () => 0.5;
+    let speed = 0;
+    while (botInput(at(speed), track, "hard", steady).throttle) speed += 5;
+    expect(botInput(at(speed), track, "hard", steady, 1).throttle).toBe(true);
+  });
 });

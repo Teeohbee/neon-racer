@@ -1,5 +1,6 @@
 import { defaultCarParams, emptyInput, speedOf, type CarInput, type CarState } from "./car";
 import { boostAt, dropAt, nearestOnTrack, pointAt, type Track } from "./track";
+import { draftFactor } from "./slipstream";
 import { BOOST_FACTOR } from "./world";
 
 export type BotSkill = "easy" | "medium" | "hard";
@@ -16,7 +17,7 @@ const DROP_CAUTION = 0.95;
 
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function botInput(car: CarState, track: Track, skill: BotSkill, rng: () => number): CarInput {
+export function botInput(car: CarState, track: Track, skill: BotSkill, rng: () => number, draft = 0): CarInput {
   const tune = TUNING[skill];
   const speed = speedOf(car);
   const { s } = nearestOnTrack(track, car.x, car.y);
@@ -32,7 +33,7 @@ export function botInput(car: CarState, track: Track, skill: BotSkill, rng: () =
     const [, , b] = pointAt(track, s + d + 100);
     bend = Math.max(bend, Math.abs(wrapAngle(b - a)));
   }
-  const surface = (boostAt(track, s) ? BOOST_FACTOR : 1) * (nearDrop ? DROP_CAUTION : 1);
+  const surface = (boostAt(track, s) ? BOOST_FACTOR : 1) * (nearDrop ? DROP_CAUTION : 1) * draftFactor(draft);
   const target = defaultCarParams.maxSpeed * tune.pace * surface * Math.max(0.3, 1 - (bend * 1.6) / tune.cornering);
 
   return {
