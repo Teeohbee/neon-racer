@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
 import { emptyInput } from "../src/car";
-import type { ClientMsg, GameEvent, ServerMsg, WinCondition } from "../src/protocol";
+import type { ClientMsg, GameEvent, Mode, ServerMsg, WinCondition } from "../src/protocol";
 import { COUNTDOWN_SECONDS, DEFAULT_WIN, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, SNAP_EVERY, TICK_RATE } from "../src/room";
 import { buildTrack, dropAt, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point, type Track } from "../src/track";
 import { PRESET_TRACKS, type PresetTrack } from "../src/tracks";
@@ -21,12 +21,13 @@ afterEach(() => {
   savedPresets = null;
 });
 
-function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
+function setup(names = ["ann", "bob"], seed = 1, sketching = true, mode: Mode = "ghost") {
   const sent: { to: string | "*"; msg: ServerMsg }[] = [];
   let s = seed;
   const rng = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   const room = new Room("ABCD", { send: (to, msg) => sent.push({ to, msg }), broadcast: (msg) => sent.push({ to: "*", msg }) }, { rng, sketching });
   names.forEach((n) => room.join(n, n));
+  room.handle(names[0]!, { t: "mode", mode });
   const run = (seconds: number, each?: () => void) => {
     for (let i = 0; i < Math.round(seconds * TICK_RATE); i++) {
       each?.();
@@ -113,6 +114,10 @@ describe("lobby", () => {
     const g = setup(["ann"]);
     g.readyAll();
     expect(g.room.phase).toBe("lobby");
+  });
+
+  it("starts in contact mode", () => {
+    expect(new Room("ABCD", { send: () => {}, broadcast: () => {} }).mode).toBe("contact");
   });
 
   it("only lets the host pick the mode", () => {

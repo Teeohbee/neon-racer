@@ -56,7 +56,7 @@ const freshCooldowns = (): Record<HazardKind, number> => ({ block: 0, slow: 0, f
 
 export class Room {
   phase: Phase = "lobby";
-  mode: Mode = "ghost";
+  mode: Mode = "contact";
   private players = new Map<string, Player>();
   private hostId: string | null = null;
   private drawerId: string | null = null;

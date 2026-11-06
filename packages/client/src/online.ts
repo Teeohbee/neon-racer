@@ -555,7 +555,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                   h(
                     "span",
                     { class: "seg" },
-                    ...(["ghost", "contact"] as const).map((mode) =>
+                    ...(["contact", "ghost"] as const).map((mode) =>
                       h(
                         "button",
                         { class: i.mode === mode ? "on" : "", disabled: !isHost, onclick: () => conn.send({ t: "mode", mode }) },
