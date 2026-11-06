@@ -1,5 +1,6 @@
 import { defaultCarParams, stepCar, type CarInput, type CarParams, type CarState } from "./car";
 import { freezeOn, hazardSpeedFactor, pushOutOfBlocks, slowZoneAt, type Hazard } from "./hazards";
+import { DRAFT_ACCEL, draftFactor } from "./slipstream";
 import { boostAt, nearestOnTrack, TRACK_WIDTH, type Track } from "./track";
 
 export const OFFROAD_FACTOR = 0.45;
@@ -12,6 +13,7 @@ export interface StepContext {
   now: number;
   params?: CarParams;
   carId?: string;
+  draft?: number;
 }
 
 export function stepWorldCar(car: CarState, input: CarInput, dt: number, ctx: StepContext): { car: CarState; hazardHit: Hazard | null } {
@@ -22,12 +24,14 @@ export function stepWorldCar(car: CarState, input: CarInput, dt: number, ctx: St
   const onRoad = !at || at.dist <= TRACK_WIDTH / 2;
   const boosting = !!at && onRoad && boostAt(ctx.track!, at.s);
   const surface = onRoad ? (boosting ? BOOST_FACTOR : 1) : OFFROAD_FACTOR;
-  const factor = surface * hazardSpeedFactor(ctx.hazards, car.x, car.y, ctx.now);
+  const draft = ctx.draft ?? 0;
+  const factor = surface * draftFactor(draft) * hazardSpeedFactor(ctx.hazards, car.x, car.y, ctx.now);
   let moved = stepCar(car, input, dt, ctx.params ?? defaultCarParams, factor);
-  if (boosting) {
+  const push = (boosting ? BOOST_ACCEL : 0) + (input.throttle ? DRAFT_ACCEL * draft : 0);
+  if (push > 0) {
     const fx = Math.cos(moved.angle);
     const fy = Math.sin(moved.angle);
-    moved = { ...moved, vx: moved.vx + fx * BOOST_ACCEL * dt, vy: moved.vy + fy * BOOST_ACCEL * dt };
+    moved = { ...moved, vx: moved.vx + fx * push * dt, vy: moved.vy + fy * push * dt };
   }
   const { car: pushed, hit } = pushOutOfBlocks(moved, ctx.hazards, ctx.now);
   return { car: pushed, hazardHit: hit ?? slowZoneAt(ctx.hazards, pushed.x, pushed.y, ctx.now) ?? null };

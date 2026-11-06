@@ -3,6 +3,7 @@ export * from "./track";
 export * from "./hazards";
 export * from "./camera";
 export * from "./world";
+export * from "./slipstream";
 export * from "./validate";
 export * from "./collision";
 export * from "./protocol";
