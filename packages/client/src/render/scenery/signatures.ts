@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, type Texture } from "pixi.js";
-import { TRACK_WIDTH, WORLD, type Track } from "@neon/sim";
+import { pointAt, TRACK_WIDTH, WORLD, type Track } from "@neon/sim";
 import { sideDepth } from "../features";
 import type { District, SignatureKind } from "./districts";
 import type { Layout, Prop } from "./layout";
@@ -10,6 +10,9 @@ const CRANE_HEIGHT = 0.14;
 const SPIRE_HEIGHT = 0.18;
 const STACK_HEIGHT = 0.16;
 const FLOOD_HEIGHT = 0.14;
+const FLOOD_SPACING = 520;
+const OVAL_PULL = 1800;
+const FLOOD_OFFSET = 230;
 const BOARD_HEIGHT = 0.11;
 const STRING_HEIGHT = 0.05;
 const DECK_GLOW_CLEAR = 60;
@@ -41,6 +44,7 @@ export interface Parts {
   deck?: Container[];
   glow?: Container[];
   live?: Container[];
+  reserve?(x: number, y: number): boolean;
   lifted?: { container: Container; height: number; layer: "tall" | "glow" }[];
   towers?: Tower[];
   update?(v: View): void;
@@ -347,6 +351,7 @@ function plazas(kit: Kit): Parts {
   tiles.forEach((g, k) => g.fill({ color: kit.district.accents[k % 2]!, alpha: 0.26 }));
   const lanterns = strings(kit, pairs, STRING_HEIGHT);
   return {
+    reserve: (x, y) => spots.some((s) => Math.hypot(x - s.x, y - s.y) < s.r + 60),
     deck: [paving],
     glow: tiles,
     live: [fountains],
@@ -572,6 +577,7 @@ function pond(kit: Kit): Parts {
     water.fill({ color: 0x1e5a2a });
   }
   return {
+    reserve: (x, y) => spots.some((s) => Math.hypot(x - s.x, y - s.y) < s.r + 40),
     deck: [water],
     live: [ripples],
     update: (v) => {
@@ -587,95 +593,181 @@ function pond(kit: Kit): Parts {
   };
 }
 
+interface Oval {
+  x: number;
+  y: number;
+  angle: number;
+  rx: number;
+  ry: number;
+}
+
+function fitOval(kit: Kit, margin: number, maxRx: number): Oval | null {
+  const field = kit.layout.field;
+  const fits = (o: Oval) => {
+    for (let k = 0; k < 28; k++) {
+      const a = (k / 28) * Math.PI * 2;
+      const [x, y] = local(o.x, o.y, o.angle, Math.cos(a) * o.rx, Math.sin(a) * o.ry);
+      if (x < 100 || y < 100 || x > WORLD.width - 100 || y > WORLD.height - 100) return false;
+      if (field.edgeDistance(x, y) < margin || field.nearGap(x, y, 60)) return false;
+    }
+    return true;
+  };
+  const n = kit.track.xs.length;
+  const cx = kit.track.xs.reduce((a, b) => a + b, 0) / n;
+  const cy = kit.track.ys.reduce((a, b) => a + b, 0) / n;
+  const score = (o: Oval) => o.rx * o.ry * Math.exp(-Math.hypot(o.x - cx, o.y - cy) / OVAL_PULL);
+  let best: Oval | null = null;
+  for (const c of kit.open(60, 0, margin + 150)) {
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI;
+      for (const ratio of [1.3, 1.7, 2.2, 2.8]) {
+        let lo = 0;
+        let hi = maxRx / ratio;
+        for (let k = 0; k < 9; k++) {
+          const mid = (lo + hi) / 2;
+          if (fits({ x: c.x, y: c.y, angle, rx: mid * ratio, ry: mid })) lo = mid;
+          else hi = mid;
+        }
+        const o = { x: c.x, y: c.y, angle, rx: lo * ratio, ry: lo };
+        if (lo > 200 && (!best || score(o) > score(best))) best = o;
+      }
+    }
+  }
+  return best;
+}
+
 function stadium(kit: Kit): Parts {
-  const spot = kit.open(1, 0, 650)[0];
-  if (!spot) return {};
-  const R = Math.min(spot.clear - 260, 900);
-  const sx = spot.x;
-  const sy = spot.y;
-  const ry = 0.72;
+  const oval = fitOval(kit, 170, 1500);
+  if (!oval || oval.ry < 220) return {};
+  const { x: sx, y: sy, angle, rx, ry } = oval;
+  const at = (u: number, v: number) => local(sx, sy, angle, u, v);
+  const placed = () => {
+    const c = new Container();
+    c.position.set(sx, sy);
+    c.rotation = angle;
+    return c;
+  };
   const bowl = new Graphics();
-  const pitch = new Graphics();
+  bowl.ellipse(0, 0, rx, ry).fill({ color: 0x24262e }).stroke({ width: 10, color: kit.district.deck.clutter });
+  for (const f of [0.93, 0.86, 0.79, 0.72]) bowl.ellipse(0, 0, rx * f, ry * f).stroke({ width: 2, color: kit.district.deck.clutter, alpha: 0.6 });
+  bowl.ellipse(0, 0, rx * 0.66, ry * 0.66).fill({ color: 0x12301a });
+  const pw = rx * 0.95;
+  const ph = ry * 0.85;
+  bowl.rect(-pw / 2, -ph / 2, pw, ph).fill({ color: 0x18401f });
+  const lines = new Graphics();
+  lines.rect(-pw / 2, -ph / 2, pw, ph).moveTo(0, -ph / 2).lineTo(0, ph / 2).stroke({ width: 4, color: 0xe8ffe8, alpha: 0.5 });
+  lines.circle(0, 0, ph * 0.2).stroke({ width: 4, color: 0xe8ffe8, alpha: 0.5 });
+  for (const side of [-1, 1]) lines.rect(side > 0 ? pw / 2 - pw * 0.14 : -pw / 2, -ph * 0.28, pw * 0.14, ph * 0.56).stroke({ width: 4, color: 0xe8ffe8, alpha: 0.5 });
   const crowd = groupsOf(4);
-  const segments = new Graphics();
-  const flashes = new Graphics();
-  bowl.ellipse(sx, sy, R, R * ry).fill({ color: 0x24262e }).stroke({ width: 8, color: kit.district.deck.clutter });
-  for (const f of [0.92, 0.84, 0.76, 0.68]) bowl.ellipse(sx, sy, R * f, R * f * ry).stroke({ width: 2, color: kit.district.deck.clutter, alpha: 0.6 });
-  pitch.ellipse(sx, sy, R * 0.6, R * 0.6 * ry).fill({ color: 0x12301a });
-  const pw = R * 0.8;
-  const ph = R * 0.5;
-  pitch.rect(sx - pw / 2, sy - ph / 2, pw, ph).fill({ color: 0x18401f }).stroke({ width: 3, color: 0xe8ffe8, alpha: 0.45 });
-  pitch.moveTo(sx, sy - ph / 2).lineTo(sx, sy + ph / 2).stroke({ width: 3, color: 0xe8ffe8, alpha: 0.45 });
-  pitch.circle(sx, sy, ph * 0.22).stroke({ width: 3, color: 0xe8ffe8, alpha: 0.45 });
-  for (let k = 0; k < 900; k++) {
+  const count = Math.round((rx * ry) / 260);
+  for (let k = 0; k < count; k++) {
     const a = kit.rng() * Math.PI * 2;
-    const f = range(kit.rng, 0.64, 0.97);
-    crowd[k % 4]!.circle(sx + Math.cos(a) * R * f, sy + Math.sin(a) * R * f * ry, 1.8);
+    const f = range(kit.rng, 0.7, 0.97);
+    crowd[k % 4]!.circle(Math.cos(a) * rx * f, Math.sin(a) * ry * f, 2);
   }
   crowd.forEach((g, k) => g.fill({ color: [0xffffff, kit.district.accents[1]!, kit.district.accents[2]!, 0xffe0a0][k]!, alpha: 0.7 }));
-  for (let k = 0; k < 16; k++) {
-    const a0 = (k / 16) * Math.PI * 2;
-    const a1 = ((k + 0.9) / 16) * Math.PI * 2;
+  const rim = new Graphics();
+  for (let k = 0; k < 24; k++) {
     const pts: number[] = [];
     for (let j = 0; j <= 6; j++) {
-      const a = a0 + ((a1 - a0) * j) / 6;
-      pts.push(sx + Math.cos(a) * R * 1.0, sy + Math.sin(a) * R * ry);
+      const a = ((k + (j / 6) * 0.9) / 24) * Math.PI * 2;
+      pts.push(Math.cos(a) * rx, Math.sin(a) * ry);
     }
-    segments.poly(pts, false).stroke({ width: 6, color: kit.district.accents[1 + (k % 2)]!, alpha: 0.6 });
+    rim.poly(pts, false).stroke({ width: 8, color: kit.district.accents[1 + (k % 2)]!, alpha: 0.6 });
   }
+  const deck = placed();
+  deck.addChild(bowl);
+  const glow = placed();
+  glow.addChild(lines, rim, ...crowd);
+  const flashes = new Graphics();
+  const live = placed();
+  live.addChild(flashes);
+
   const towers: Tower[] = [];
   const banks = new Graphics();
-  const screens = new Container();
-  const floods: [number, number, number, number][] = [];
-  for (let k = 0; k < 4; k++) {
-    const a = Math.PI / 4 + (k * Math.PI) / 2;
-    const tx = sx + Math.cos(a) * (R + 40);
-    const ty = sy + Math.sin(a) * (R + 40) * ry;
+  const pools: [number, number][] = [];
+  for (const a of [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4, 0, Math.PI]) {
+    const [tx, ty] = at(Math.cos(a) * (rx + 30), Math.sin(a) * (ry + 30));
     towers.push({ x: tx, y: ty, height: FLOOD_HEIGHT });
-    rect(banks, tx, ty, a + Math.PI / 2, 46, 16).fill({ color: 0xffffff });
-    floods.push([tx, ty, sx + (tx - sx) * 0.35, sy + (ty - sy) * 0.35]);
+    rect(banks, tx, ty, Math.atan2(sy - ty, sx - tx) + Math.PI / 2, 56, 18).fill({ color: 0xffffff });
+    pools.push(at(Math.cos(a) * rx * 0.4, Math.sin(a) * ry * 0.4));
   }
+  const bankLayer = new Container();
+  bankLayer.addChild(banks);
+  const screens = new Container();
   const screenBars: Graphics[] = [];
-  for (const a of [0, Math.PI]) {
+  for (const side of [-1, 1]) {
+    const [x, y] = at(side * rx * 0.83, 0);
     const screen = new Container();
-    screen.position.set(sx + Math.cos(a) * R * 0.8, sy);
-    screen.rotation = Math.PI / 2;
+    screen.position.set(x, y);
+    screen.rotation = angle + Math.PI / 2;
     const frame = new Graphics();
-    frame.rect(-110, -40, 220, 80).fill({ color: 0x08080c }).stroke({ width: 4, color: 0xffffff, alpha: 0.8 });
+    frame.rect(-140, -45, 280, 90).fill({ color: 0x08080c }).stroke({ width: 5, color: 0xffffff, alpha: 0.85 });
     const bars = new Graphics();
-    for (let k = 0; k < 4; k++) bars.rect(-100 + k * 50, -30, 40, 60).fill({ color: kit.district.accents[1 + (k % 2)]!, alpha: 0.8 });
+    for (let k = 0; k < 5; k++) bars.rect(-130 + k * 52, -34, 44, 68).fill({ color: kit.district.accents[1 + (k % 2)]!, alpha: 0.8 });
     screen.addChild(frame, bars);
     screenBars.push(bars);
     screens.addChild(screen);
   }
-  const lifted = new Container();
-  lifted.addChild(banks);
+  const view = (v: View) => v.inView(sx, sy) || v.inView(...at(rx, 0)) || v.inView(...at(-rx, 0));
+  const ca = Math.cos(angle);
+  const sa = Math.sin(angle);
   return {
-    deck: [bowl, pitch],
-    glow: [segments, ...crowd],
-    live: [flashes],
+    reserve: (x, y) => {
+      const u = (x - sx) * ca + (y - sy) * sa;
+      const v = -(x - sx) * sa + (y - sy) * ca;
+      return (u / (rx + 90)) ** 2 + (v / (ry + 90)) ** 2 < 1;
+    },
+    deck: [deck],
+    glow: [glow],
+    live: [live],
     towers,
     lifted: [
-      { container: lifted, height: FLOOD_HEIGHT, layer: "glow" },
+      { container: bankLayer, height: FLOOD_HEIGHT, layer: "glow" },
       { container: screens, height: 0.08, layer: "glow" },
     ],
     update: (v) => {
       crowd.forEach((g, k) => (g.alpha = 0.4 + 0.6 * Math.max(0, Math.sin(v.t * 4 + k * 1.6))));
-      screenBars.forEach((b, k) => (b.x = (((v.t * 40 + k * 60) % 50) - 25)));
+      screenBars.forEach((b, k) => (b.x = ((v.t * 40 + k * 60) % 52) - 26));
       flashes.clear();
-      if (v.inView(sx, sy)) {
-        for (let k = 0; k < 6; k++) {
-          const a = Math.random() * Math.PI * 2;
-          const f = range(Math.random, 0.66, 0.96);
-          flashes.circle(sx + Math.cos(a) * R * f, sy + Math.sin(a) * R * f * ry, 4);
-        }
-        flashes.fill({ color: 0xffffff });
+      if (!view(v)) return;
+      for (let k = 0; k < 8; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const f = 0.72 + Math.random() * 0.24;
+        flashes.circle(Math.cos(a) * rx * f, Math.sin(a) * ry * f, 4);
       }
+      flashes.fill({ color: 0xffffff });
     },
     lights: (out, v) => {
-      if (!v.inView(sx, sy)) return;
-      for (const [, , px, py] of floods) out.push({ x: px, y: py, size: R * 1.5, color: 0xf4f8ff, alpha: 0.55 });
+      if (!view(v)) return;
+      for (const [x, y] of pools) out.push({ x, y, size: Math.max(rx, ry) * 1.3, color: 0xf4f8ff, alpha: 0.5 });
     },
+  };
+}
+
+function floodlights(kit: Kit): Parts {
+  const towers: Tower[] = [];
+  const banks = new Graphics();
+  const pools: [number, number][] = [];
+  let side = 1;
+  for (let s = 0; s < kit.track.length; s += FLOOD_SPACING) {
+    side = -side;
+    const [cx, cy, a] = pointAt(kit.track, s);
+    const nx = -Math.sin(a) * side;
+    const ny = Math.cos(a) * side;
+    const x = cx + nx * (HALF + FLOOD_OFFSET);
+    const y = cy + ny * (HALF + FLOOD_OFFSET);
+    if (kit.layout.field.edgeDistance(x, y) < FLOOD_OFFSET - 10 || kit.layout.field.nearGap(x, y, 80)) continue;
+    towers.push({ x, y, height: FLOOD_HEIGHT });
+    rect(banks, x, y, a, 50, 16).fill({ color: 0xffffff });
+    pools.push([cx + nx * 30, cy + ny * 30]);
+  }
+  const layer = new Container();
+  layer.addChild(banks);
+  return {
+    towers,
+    lifted: [{ container: layer, height: FLOOD_HEIGHT, layer: "glow" }],
+    lights: (out, v) => pools.forEach(([x, y]) => v.inView(x, y) && out.push({ x, y, size: 760, color: 0xf4f8ff, alpha: 0.42 })),
   };
 }
 
@@ -700,6 +792,7 @@ export const SIGNATURES: Record<SignatureKind, (kit: Kit) => Parts> = {
   greenhouses,
   pond,
   stadium,
+  floodlights,
 };
 
 export function openSpots(layout: Layout, count: number, minSep: number, minClear: number): Spot[] {

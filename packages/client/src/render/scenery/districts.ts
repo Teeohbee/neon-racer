@@ -22,7 +22,8 @@ export type SignatureKind =
   | "canopies"
   | "greenhouses"
   | "pond"
-  | "stadium";
+  | "stadium"
+  | "floodlights";
 
 export type FloorExtra = "ships" | "buoys" | "tiles" | "crowd" | "stalls" | "lava" | "paths" | "trees" | "kiosks" | "gardens";
 
@@ -38,6 +39,7 @@ export interface District {
   roofLight: number;
   weather: WeatherConfig | null;
   edges?: readonly [number, number];
+  roofLights?: number[];
   block?: { leaf: number; min: number; stop: number; inset: [number, number] };
   signatures?: SignatureKind[];
   extras?: FloorExtra[];
@@ -211,7 +213,8 @@ export const DISTRICTS: Record<string, District> = {
     roofLight: 0xf0f4ff,
     weather: null,
     edges: [0x2a7aff, 0xf0f4ff],
-    signatures: ["stadium"],
+    signatures: ["stadium", "floodlights"],
+    roofLights: [0xff2a4a, 0x2a7aff, 0xf0f4ff],
     extras: ["crowd", "kiosks"],
     props: { lampSpacing: 240, billboards: 10, clutter: 60, helipads: 2, blinkers: 20, pylons: false, traffic: false, boats: false, yards: 0, bridges: false, crossCables: false },
   },

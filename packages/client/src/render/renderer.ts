@@ -513,7 +513,7 @@ export function createRenderer(app: Application): Renderer {
       updateSparks(dt);
       grid.visible = !scenery.active;
       scenery.update(camera, t, dt);
-      const skyFlashes = weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t);
+      const skyFlashes = weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t, { seed: frame.trackName ?? "", now: frame.now });
       boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
       drawDangerLine(dangerG, frame.track, frame.dangerLine, t);
       const extraLights = scenery.lights();

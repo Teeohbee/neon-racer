@@ -21,6 +21,7 @@ const CLUTTER_GLOW = 0.22;
 const CABLE_GLOW = 0.4;
 const PYLON_GLOW = 0.9;
 const ROOF_GLOW = 0.28;
+const ROOF_RUN = 8;
 const SKYLIGHT_GLOW = 0.22;
 const CABLE_SAG = 0.45;
 const CABLE_STEPS = 10;
@@ -98,6 +99,14 @@ function drawClutter(g: Graphics, layout: Layout, district: District) {
   }
 }
 
+function segmentsOutside(lines: number[], free: (x: number, y: number) => boolean): number[] {
+  const out: number[] = [];
+  for (let k = 0; k < lines.length; k += 4) {
+    if (free(lines[k]!, lines[k + 1]!) && free(lines[k + 2]!, lines[k + 3]!)) out.push(lines[k]!, lines[k + 1]!, lines[k + 2]!, lines[k + 3]!);
+  }
+  return out;
+}
+
 function drawClutterGlow(g: Graphics, layout: Layout, color: number) {
   for (const p of layout.clutter) {
     if (p.kind !== "ac" && p.kind !== "block") continue;
@@ -148,7 +157,30 @@ export function createScenery(layers: SceneryLayers): Scenery {
   };
 
   const build = (track: Track, name: string, district: District): Built => {
-    const layout = buildLayout(track, name, district);
+    const base = buildLayout(track, name, district);
+    const sigRng = seeded(`${name}:signature`);
+    const kit = {
+      track,
+      layout: base,
+      district,
+      rng: sigRng,
+      soft,
+      near: (count: number, clearance: number, gapMargin: number) => scatter(sigRng, track, base.field, count, clearance, gapMargin),
+      open: (count: number, minSep: number, minClear: number) => openSpots(base, count, minSep, minClear),
+      clear: (x: number, y: number, margin: number) => base.field.edgeDistance(x, y) > margin && !base.field.nearGap(x, y, 20),
+    };
+    const signatures = (district.signatures ?? []).map((kind) => SIGNATURES[kind](kit));
+    const free = (x: number, y: number) => !signatures.some((parts) => parts.reserve?.(x, y));
+    const layout: Layout = {
+      ...base,
+      billboards: base.billboards.filter((p) => free(p.x, p.y)),
+      clutter: base.clutter.filter((p) => free(p.x, p.y)),
+      helipads: base.helipads.filter((p) => free(p.x, p.y)),
+      blinkers: base.blinkers.filter((p) => free(p.x, p.y)),
+      skylights: base.skylights.filter((p) => free(p.x, p.y)),
+      yards: base.yards.filter((p) => free(p.x, p.y)),
+      roofLines: segmentsOutside(base.roofLines, free),
+    };
     const rng = seeded(`${name}:void`);
 
     const deck = new Container();
@@ -244,8 +276,14 @@ export function createScenery(layers: SceneryLayers): Scenery {
     const clutterGlow = new Graphics();
     drawClutterGlow(clutterGlow, layout, district.accents[0]!);
     const roof = new Graphics();
-    for (let k = 0; k < layout.roofLines.length; k += 4) roof.moveTo(layout.roofLines[k]!, layout.roofLines[k + 1]!).lineTo(layout.roofLines[k + 2]!, layout.roofLines[k + 3]!);
-    roof.stroke({ width: 3, color: district.roofLight, alpha: ROOF_GLOW });
+    const roofColors = district.roofLights ?? [district.roofLight];
+    roofColors.forEach((color, c) => {
+      for (let k = 0; k < layout.roofLines.length; k += 4) {
+        if (Math.floor(k / (4 * ROOF_RUN)) % roofColors.length !== c) continue;
+        roof.moveTo(layout.roofLines[k]!, layout.roofLines[k + 1]!).lineTo(layout.roofLines[k + 2]!, layout.roofLines[k + 3]!);
+      }
+      roof.stroke({ width: 3, color, alpha: ROOF_GLOW });
+    });
     for (const w of layout.skylights) roof.rect(w.x, w.y, w.w, w.h);
     roof.fill({ color: district.lamp, alpha: SKYLIGHT_GLOW });
     for (const w of layout.skylights) if (w.tint < 0.3) roof.rect(w.x, w.y, w.w, w.h);
@@ -261,18 +299,6 @@ export function createScenery(layers: SceneryLayers): Scenery {
     glow.addChild(lamps, blinkers, boards, pylonGlow);
     layers.glow.addChild(glow);
 
-    const sigRng = seeded(`${name}:signature`);
-    const kit = {
-      track,
-      layout,
-      district,
-      rng: sigRng,
-      soft,
-      near: (count: number, clearance: number, gapMargin: number) => scatter(sigRng, track, layout.field, count, clearance, gapMargin),
-      open: (count: number, minSep: number, minClear: number) => openSpots(layout, count, minSep, minClear),
-      clear: (x: number, y: number, margin: number) => layout.field.edgeDistance(x, y) > margin && !layout.field.nearGap(x, y, 20),
-    };
-    const signatures = (district.signatures ?? []).map((kind) => SIGNATURES[kind](kit));
     const sigLifted: { container: Container; height: number }[] = [];
     for (const parts of signatures) {
       for (const c of parts.deck ?? []) deck.addChild(c);

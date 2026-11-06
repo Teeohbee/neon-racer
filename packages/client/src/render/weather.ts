@@ -1,5 +1,6 @@
 import { Container, Graphics, Texture, TilingSprite } from "pixi.js";
 import type { Camera } from "@neon/sim";
+import { seeded } from "./scenery/rng";
 
 export interface WeatherConfig {
   rain?: boolean;
@@ -18,13 +19,6 @@ export interface Flash {
   alpha: number;
 }
 
-interface Burst {
-  x: number;
-  y: number;
-  age: number;
-  color: number;
-  rays: number;
-}
 
 export interface Viewport {
   x: number;
@@ -39,6 +33,8 @@ const RAIN_SPEED = 900;
 const RAIN_DRIFT = 140;
 const FIREWORK_LIFE = 1.6;
 const FIREWORK_RADIUS = 220;
+const FIREWORK_BUCKET = 1.8;
+const FIREWORK_CHANCE = 0.45;
 
 function canvas(size: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement("canvas");
@@ -114,9 +110,6 @@ export function createWeather() {
   const motesB = new TilingSprite({ texture: dotTex, width: 2, height: 2 });
   motesB.tileScale.set(1.25);
   const fireworks = new Graphics();
-  let bursts: Burst[] = [];
-  let nextBurst = 0;
-  let lastT = 0;
   const haze = new TilingSprite({ texture: hazeTex, width: 2, height: 2 });
   const far = new TilingSprite({ texture: rainTex, width: 2, height: 2 });
   const near = new TilingSprite({ texture: rainTex, width: 2, height: 2 });
@@ -128,10 +121,8 @@ export function createWeather() {
 
   return {
     view,
-    update(config: WeatherConfig | null, port: Viewport, camera: Camera, t: number): Flash[] {
+    update(config: WeatherConfig | null, port: Viewport, camera: Camera, t: number, clock: { seed: string; now: number }): Flash[] {
       view.visible = config !== null;
-      const dt = Math.min(0.1, Math.max(0, t - lastT));
-      lastT = t;
       if (!config) return [];
       for (const s of [haze, far, near, motesA, motesB]) {
         s.position.set(port.x, port.y);
@@ -162,31 +153,40 @@ export function createWeather() {
           motesB.alpha = 0.32 * Math.max(0, Math.sin(t * 1.1 + 2));
         }
       }
-      fireworks.clear();
-      const flashes: Flash[] = [];
-      if (config.fireworks?.length) {
-        if (t >= nextBurst) {
-          nextBurst = t + 1.2 + Math.random() * 2.8;
-          bursts.push({ x: port.x + port.w * (0.1 + Math.random() * 0.8), y: port.y + port.h * (0.1 + Math.random() * 0.6), age: 0, color: config.fireworks[Math.floor(Math.random() * config.fireworks.length)]!, rays: 22 + Math.floor(Math.random() * 12) });
-        }
-        bursts = bursts.filter((b) => (b.age += dt) < FIREWORK_LIFE);
-        for (const b of bursts) {
-          const k = b.age / FIREWORK_LIFE;
-          const r = FIREWORK_RADIUS * port.zoom * (1 - Math.exp(-b.age * 3.5));
-          const drop = b.age * b.age * 40 * port.zoom;
-          for (let i = 0; i < b.rays; i++) {
-            const a = (i / b.rays) * Math.PI * 2;
-            fireworks.circle(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r + drop, 2.2);
-          }
-          fireworks.fill({ color: b.color, alpha: 1 - k });
-          if (b.age < 0.35) flashes.push({ x: b.x, y: b.y, color: b.color, alpha: 1 - b.age / 0.35 });
-        }
-      }
-      return flashes;
       far.alpha = RAIN_ALPHA * 0.6;
       near.alpha = RAIN_ALPHA;
       far.tilePosition.set(-camera.x * port.zoom * 1.05 + t * RAIN_DRIFT * 0.6, -camera.y * port.zoom * 1.05 + t * RAIN_SPEED * 0.6);
       near.tilePosition.set(-camera.x * port.zoom * 1.15 + t * RAIN_DRIFT, -camera.y * port.zoom * 1.15 + t * RAIN_SPEED);
+      fireworks.clear();
+      const flashes: Flash[] = [];
+      const colors = config.fireworks;
+      if (colors?.length) {
+        const bucket = Math.floor(clock.now / FIREWORK_BUCKET);
+        for (let b = bucket - 1; b <= bucket; b++) {
+          const rng = seeded(`${clock.seed}:fireworks:${b}`);
+          for (let n = 0; n < 2; n++) {
+            if (rng() > FIREWORK_CHANCE) continue;
+            const age = clock.now - (b + rng()) * FIREWORK_BUCKET;
+            const fx = 0.1 + rng() * 0.8;
+            const fy = 0.1 + rng() * 0.6;
+            const color = colors[Math.floor(rng() * colors.length)]!;
+            const rays = 22 + Math.floor(rng() * 12);
+            if (age < 0 || age >= FIREWORK_LIFE) continue;
+            const x = port.x + port.w * fx;
+            const y = port.y + port.h * fy;
+            const k = age / FIREWORK_LIFE;
+            const r = FIREWORK_RADIUS * port.zoom * (1 - Math.exp(-age * 3.5));
+            const drop = age * age * 40 * port.zoom;
+            for (let i = 0; i < rays; i++) {
+              const a = (i / rays) * Math.PI * 2;
+              fireworks.circle(x + Math.cos(a) * r, y + Math.sin(a) * r + drop, 2.2);
+            }
+            fireworks.fill({ color, alpha: 1 - k });
+            if (age < 0.35) flashes.push({ x, y, color, alpha: 1 - age / 0.35 });
+          }
+        }
+      }
+      return flashes;
     },
     destroy() {
       view.destroy({ children: true });
