@@ -15,6 +15,7 @@ import { createGlitchFx } from "./glitch";
 import { createPostFx } from "./postfx";
 import { createScenery } from "./scenery";
 import { createWeather } from "./weather";
+import { createWarpGrid, WARP } from "./warp-grid";
 import { HAZARD_COLORS, LIGHT, UI } from "./palette";
 import { drawSlipstream } from "./slipstream";
 import { grainTexture } from "./textures";
@@ -217,7 +218,8 @@ export function createRenderer(app: Application): Renderer {
   const sceneryTall = new Container();
   const sceneryGlow = new Container();
   const scenery = createScenery({ deck: sceneryDeck, tall: sceneryTall, glow: sceneryGlow });
-  litLayer.addChild(grid, sceneryDeck, grain, voidG, sceneryTall, roadG, trailsG, hazardZoneG);
+  const warp = createWarpGrid();
+  litLayer.addChild(grid, sceneryDeck, grain, warp.view, voidG, sceneryTall, roadG, trailsG, hazardZoneG);
   const lighting = createLighting(app);
 
   const edgesG = new Graphics();
@@ -259,6 +261,7 @@ export function createRenderer(app: Application): Renderer {
     const felt = strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2);
     jolt = hit(jolt, felt);
     postfx.pulse(felt * 0.6);
+    warp.shockwave(x, y, strength * WARP.impact);
   };
 
   const applyCamera = (fit: Fit) => {
@@ -551,6 +554,7 @@ export function createRenderer(app: Application): Renderer {
       updateSparks(dt);
       falls.update(dt);
       grid.visible = !scenery.active;
+      warp.update(camera, frame.cars, dt);
       scenery.update(camera, t, dt);
       const skyFlashes = weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t, { seed: frame.trackName ?? "", now: frame.now });
       boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
@@ -583,6 +587,10 @@ export function createRenderer(app: Application): Renderer {
     },
 
     impact: impactAt,
+
+    shockwave(x: number, y: number, strength: number) {
+      warp.shockwave(x, y, strength);
+    },
 
     fall(car: FallStart) {
       falls.add(car);
@@ -619,6 +627,7 @@ export function createRenderer(app: Application): Renderer {
       lighting.destroy();
       reflections.destroy();
       boostFx.destroy();
+      warp.destroy();
       root.destroy({ children: true });
       grainTex.destroy(true);
       cars.clear();

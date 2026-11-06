@@ -49,6 +49,7 @@ export interface Renderer {
   screenToWorld(px: number, py: number): Point;
   burst(x: number, y: number, color: number): void;
   impact(x: number, y: number, strength: number): void;
+  shockwave(x: number, y: number, strength: number): void;
   fall(car: FallStart): void;
   pulse(strength: number): void;
   danger(level: number): void;
