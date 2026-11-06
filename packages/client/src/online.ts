@@ -137,6 +137,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         break;
       case "track":
         track = buildTrack(msg.raw);
+        toast(`Track: ${msg.name}`);
         buffer.clear();
         resetFromSnap = true;
         break;

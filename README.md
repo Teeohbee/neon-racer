@@ -1,6 +1,6 @@
 # neon-racer
 
-Top-down party racer for team game time. Players take turns sketching the track, the camera follows the leader, and anyone who falls off screen is out. Eliminated players drop hazards on the ones still racing.
+Top-down party racer for team game time. Each round runs on one of ten built-in tracks, the camera follows the leader, and anyone who falls off screen is out. Eliminated players drop hazards on the ones still racing. Track sketching is built but switched off (`sketching` room option, `SKETCHING` in practice).
 
 ## Run
 
@@ -40,6 +40,5 @@ Hosting is undecided; a new platform only needs another adapter like `packages/s
 |--------|------|
 | Drive | WASD / arrows |
 | Handbrake | Shift |
-| Sketch | Drag a loop, or click, move, click. Enter to submit, C to clear |
 | Hazards (when out) | 1 Block, 2 Slow, 3 Freeze, click to place |
-| Practice | R reset, T draw, N random track, ` tuning panel |
+| Practice | R reset, N next track, ` tuning panel |

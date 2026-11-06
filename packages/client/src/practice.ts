@@ -5,8 +5,7 @@ import {
   describeProblem,
   gridSlots,
   nearestOnTrack,
-  ovalPoints,
-  randomTrackPoints,
+  PRESET_TRACKS,
   smoothLoop,
   speedOf,
   stepCamera,
@@ -36,7 +35,8 @@ const CAR_ID = "you";
 const COLOR = PLAYER_COLORS[0];
 const SKETCH_CAMERA: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 
-const DRIVE_HELP = "WASD / arrows drive · Shift handbrake · R reset · T draw track · N random track · ` tuning";
+const SKETCHING = false;
+const DRIVE_HELP = "WASD / arrows drive · Shift handbrake · R reset · N next track · ` tuning";
 const SKETCH_HELP = "Drag to draw a loop, or click once and move, click again to finish · Enter accept · Esc cancel · T restart";
 
 const formatTime = (seconds: number | null) => {
@@ -116,7 +116,8 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   const sketch = createSketchTool(app.canvas, renderer.screenToWorld);
   const hud = createHud(ui);
 
-  let track: Track = buildTrack(ovalPoints(WORLD.width / 2, WORLD.height / 2, 2200, 1300));
+  let presetIndex = 0;
+  let track: Track = buildTrack(PRESET_TRACKS[presetIndex]!.points);
   let car: CarState = { x: 0, y: 0, angle: 0, vx: 0, vy: 0 };
   let prev = car;
   let input: CarInput = keyboard.read();
@@ -194,18 +195,17 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
         if (mode === "drive") reset();
         break;
       case "KeyT":
+        if (!SKETCHING) break;
         enterSketch();
         sketchDirty = true;
         draw(0);
         break;
       case "KeyN": {
-        const points = randomTrackPoints(Math.random);
-        if (points.length < 3) {
-          hud.flash("random tracks not available yet");
-          break;
-        }
+        presetIndex = (presetIndex + 1) % PRESET_TRACKS.length;
+        const preset = PRESET_TRACKS[presetIndex]!;
         if (mode === "sketch") exitSketch();
-        useTrack(buildTrack(points));
+        useTrack(buildTrack(preset.points));
+        hud.flash(`${presetIndex + 1}/${PRESET_TRACKS.length} ${preset.name}`);
         break;
       }
       case "Enter":
