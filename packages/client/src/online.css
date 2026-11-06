@@ -1,0 +1,39 @@
+.online { position: fixed; inset: 0; pointer-events: none; font-size: 14px; }
+.online button { pointer-events: auto; font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.online button:hover:not(:disabled) { border-color: #00f0ff; box-shadow: 0 0 8px #00f0ff66; }
+.online button:disabled { opacity: 0.5; cursor: default; }
+.online button.on { border-color: #00f0ff; color: #00f0ff; box-shadow: 0 0 10px #00f0ff55; }
+.online-top { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; gap: 16px; align-items: center; text-shadow: 0 0 6px #00f0ff88; }
+.online-top .code { color: #00f0ff; letter-spacing: 2px; }
+.online-top .round { opacity: 0.7; }
+.online-top .scores { display: flex; gap: 12px; flex: 1; justify-content: center; }
+.online-top .score { color: var(--c); text-shadow: 0 0 6px var(--c); }
+.online-top .score.out { opacity: 0.35; text-decoration: line-through; }
+.online-center { position: absolute; inset: 60px 0 auto 0; display: flex; justify-content: center; }
+.panel { pointer-events: auto; background: #05060dd9; border: 1px solid #2a3866; border-radius: 10px; padding: 18px 24px; box-shadow: 0 0 24px #00f0ff22; max-width: 560px; }
+.panel.slim { padding: 10px 16px; }
+.panel h1 { margin: 0 0 12px; font-size: 28px; color: #ff2bd6; text-shadow: 0 0 12px #ff2bd6; letter-spacing: 3px; }
+.panel .players { list-style: none; padding: 0; margin: 14px 0; }
+.panel .players li { display: flex; align-items: center; gap: 10px; padding: 4px 0; color: var(--c); }
+.panel .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.panel .ready { margin-left: auto; opacity: 0.5; color: #d8f6ff; }
+.panel .ready.yes { opacity: 1; color: #39ff88; }
+.panel .modes { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
+.panel .big { font-size: 18px; padding: 10px 24px; margin-top: 6px; }
+.panel .hint, .online .hint { opacity: 0.6; margin: 10px 0 0; }
+.panel .problems { color: #ff3b5c; margin: 8px 0 0; padding-left: 18px; }
+.countdown { font-size: 120px; color: #ffb000; text-shadow: 0 0 30px #ffb000; margin-top: 18vh; }
+.sudden { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b; font-size: 18px; letter-spacing: 2px; }
+.online-bottom { position: absolute; bottom: 18px; left: 0; right: 0; display: flex; justify-content: center; }
+.hazards { display: flex; gap: 10px; align-items: center; }
+.hazard { position: relative; overflow: hidden; color: var(--c) !important; border-color: var(--c) !important; opacity: 0.6; }
+.hazard::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--charge, 1) * 100%); background: var(--c); }
+.hazard.ready { opacity: 1; }
+.hazard.on { box-shadow: 0 0 14px var(--c); }
+.online-toasts { position: absolute; right: 16px; bottom: 70px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.toast { background: #05060dd9; border: 1px solid #ff2bd6; color: #ff9cf0; padding: 6px 12px; border-radius: 6px; }
+.online .leave { margin-left: auto; }
+.menu input { pointer-events: auto; font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 8px 10px; outline: none; }
+.menu input:focus { border-color: #ff2bd6; box-shadow: 0 0 8px #ff2bd655; }
+.menu .code-input { width: 70px; text-transform: uppercase; letter-spacing: 3px; }
+.menu label { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
