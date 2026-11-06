@@ -38,3 +38,5 @@ export function vignetteAlpha({ level, phase }: VignetteState): number {
   const beat = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
   return VIGNETTE_MAX * level * (0.55 + 0.45 * beat);
 }
+
+export const crtFlicker = (t: number) => 0.985 + 0.01 * Math.sin(t * 61) + 0.005 * Math.sin(t * 17.3);
