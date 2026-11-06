@@ -354,14 +354,14 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       const sketch: SketchView = isDrawer()
         ? { points: tool.points, preview: drawPreview, valid: localProblems.length === 0 }
         : { points: watched, preview: watchedPreview, valid: true };
-      renderer.render({ camera: worldCamera, track: null, cars: [], hazards: [], now, sketch });
+      renderer.render({ camera: worldCamera, track: null, trackName: null, cars: [], hazards: [], now, sketch });
       minimap.update(null, [], null);
       return;
     }
     const sampled = phase === "lobby" ? null : buffer.sample(performance.now());
     if (!sampled) {
       heard = null;
-      renderer.render({ camera: worldCamera, track: phase === "matchEnd" ? track : null, cars: [], hazards: [], now });
+      renderer.render({ camera: worldCamera, track: phase === "matchEnd" ? track : null, trackName: phase === "matchEnd" && track ? trackName : null, cars: [], hazards: [], now });
       minimap.update(null, [], null);
       return;
     }
@@ -373,7 +373,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
     heard = { cars, camera: sampled.camera, line: sampled.line };
-    renderer.render({ camera: sampled.camera, track, cars, hazards, now, aim, dangerLine: sampled.line });
+    renderer.render({ camera: sampled.camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: sampled.line });
     minimap.update(track, cars, sampled.camera, sampled.line);
   }
 
