@@ -1,5 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { BOOST_TAIL, boostLevel, flicker, glitchDensity, hash01, rowTear, seedOf } from "../src/render/fx-math";
+import { BOOST_TAIL, boostLevel, chordHalfWidth, flicker, glitchDensity, hash01, HOLOGRAM_MAX, hologramAlpha, hologramProgress, rowTear, seedOf } from "../src/render/fx-math";
+
+const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+
+describe("hologramProgress", () => {
+  it("runs from 0 when dropped to 1 when armed", () => {
+    expect(hologramProgress(10, 10.6, 0.6)).toBeCloseTo(0);
+    expect(hologramProgress(10.3, 10.6, 0.6)).toBeCloseTo(0.5);
+    expect(hologramProgress(10.6, 10.6, 0.6)).toBe(1);
+    expect(hologramProgress(11, 10.6, 0.6)).toBe(1);
+    expect(hologramProgress(9, 10.6, 0.6)).toBe(0);
+  });
+});
+
+describe("hologramAlpha", () => {
+  const samples = (progress: number) => Array.from({ length: 600 }, (_, i) => hologramAlpha(progress, i / 60, 7));
+
+  it("builds towards the armed look without reaching it", () => {
+    expect(mean(samples(1))).toBeGreaterThan(mean(samples(0.5)));
+    expect(mean(samples(0.5))).toBeGreaterThan(mean(samples(0)));
+    for (const p of [0, 0.5, 1]) expect(Math.max(...samples(p))).toBeLessThanOrEqual(HOLOGRAM_MAX);
+  });
+
+  it("flickers more early on than when nearly armed", () => {
+    const dropouts = (p: number) => samples(p).filter((a, _, all) => a < Math.max(...all) * 0.5).length;
+    expect(dropouts(0)).toBeGreaterThan(dropouts(1));
+    expect(dropouts(1)).toBeGreaterThan(0);
+  });
+});
+
+describe("chordHalfWidth", () => {
+  it("follows a circle", () => {
+    expect(chordHalfWidth("circle", 10, 0)).toBe(10);
+    expect(chordHalfWidth("circle", 10, 6)).toBeCloseTo(8);
+    expect(chordHalfWidth("circle", 10, 10)).toBe(0);
+  });
+
+  it("follows the flat-topped hazard octagon", () => {
+    const apothem = 10 * Math.cos(Math.PI / 8);
+    expect(chordHalfWidth("octagon", 10, 0)).toBeCloseTo(apothem);
+    expect(chordHalfWidth("octagon", 10, apothem)).toBeCloseTo(apothem * Math.tan(Math.PI / 8));
+    expect(chordHalfWidth("octagon", 10, -apothem)).toBeCloseTo(apothem * Math.tan(Math.PI / 8));
+    expect(chordHalfWidth("octagon", 10, apothem + 0.1)).toBe(0);
+  });
+});
 
 const run = (level: number, on: boolean, seconds: number, dt = 1 / 60) => {
   for (let t = 0; t < seconds; t += dt) level = boostLevel(level, on, dt);

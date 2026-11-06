@@ -4,6 +4,7 @@ import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point
 import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createBoostFx } from "./boost-fx";
+import { drawHologram } from "./hologram";
 import { createLighting } from "./lighting";
 import { createReflections } from "./reflections";
 import { createScenery } from "./scenery";
@@ -397,10 +398,7 @@ export function createRenderer(app: Application): Renderer {
     const radius = h.kind === "freeze" ? ICE_RING + 8 : h.radius;
 
     if (now < h.armsAt) {
-      const pulse = 0.45 + 0.4 * Math.sin(now * 14);
-      dashedCircle(hazardG, x, y, radius, now * 1.5);
-      hazardG.stroke({ width: 4, color, alpha: pulse, cap: "round" });
-      hazardZoneG.circle(x, y, radius).fill({ color, alpha: 0.1 });
+      drawHologram({ line: hazardG, zone: hazardZoneG }, h, x, y, radius, color, now);
       return;
     }
 

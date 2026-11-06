@@ -29,6 +29,27 @@ export function flicker(t: number, seed: number, rate = 30): number {
   return a + (b - a) * f * f * (3 - 2 * f);
 }
 
+export const HOLOGRAM_MAX = 0.75;
+
+export function hologramProgress(now: number, armsAt: number, delay: number): number {
+  return clamp01(1 - (armsAt - now) / delay);
+}
+
+export function hologramAlpha(progress: number, t: number, seed: number): number {
+  const base = 0.2 + (HOLOGRAM_MAX - 0.2) * progress * progress;
+  const dropout = hash01(Math.floor(t * 24), seed, 31) < 0.3 * (1 - progress) + 0.05;
+  return dropout ? base * 0.3 : base;
+}
+
+export function chordHalfWidth(shape: "circle" | "octagon", radius: number, dy: number): number {
+  const y = Math.abs(dy);
+  if (y >= radius) return 0;
+  if (shape === "circle") return Math.sqrt(radius * radius - y * y);
+  const apothem = radius * Math.cos(Math.PI / 8);
+  if (y > apothem) return 0;
+  return Math.min(apothem, apothem * Math.SQRT2 - y);
+}
+
 export function glitchDensity(row: number, rows: number): number {
   const fade = clamp01(1 - row / rows);
   return row < 2 ? 0.9 : 0.8 * fade * fade;
