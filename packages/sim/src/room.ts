@@ -1,6 +1,6 @@
 import { MatchStats } from "./awards";
 import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
-import { frameCamera, isOutsideView, lineGap, type Camera } from "./camera";
+import { frameCamera, frameTarget, isOutsideView, lineGap, type Camera } from "./camera";
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
@@ -485,8 +485,8 @@ export class Room {
     this.eliminationOrder = [];
     this.hazards = [];
     this.line = null;
-    const front = slots[0]!;
-    this.camera = { x: front.x, y: front.y, scale: 1 };
+    const [lx, ly] = pointAt(track, order[0]!.progress.progress - lineGap(0));
+    this.camera = frameTarget(order[0]!.car!, { x: lx, y: ly });
     this.setPhase("countdown");
   }
 

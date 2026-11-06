@@ -26,7 +26,7 @@ export function stepCamera(cam: Camera, leader: { x: number; y: number; vx: numb
   return { x: cam.x + (tx - cam.x) * k, y: cam.y + (ty - cam.y) * k, scale };
 }
 
-export function frameCamera(cam: Camera, leader: { x: number; y: number; vx: number; vy: number }, line: { x: number; y: number }, dt: number): Camera {
+export function frameTarget(leader: { x: number; y: number; vx: number; vy: number }, line: { x: number; y: number }): Camera {
   const ahead = { x: leader.x + leader.vx * LOOK_AHEAD, y: leader.y + leader.vy * LOOK_AHEAD };
   const fit = (points: { x: number; y: number }[]) => {
     const xs = points.map((p) => p.x);
@@ -37,6 +37,11 @@ export function frameCamera(cam: Camera, leader: { x: number; y: number; vx: num
   };
   const wide = fit([leader, ahead, line]);
   const target = wide.scale <= MAX_SCALE ? wide : fit([leader, line]);
+  return { ...target, scale: Math.min(MAX_SCALE, target.scale) };
+}
+
+export function frameCamera(cam: Camera, leader: { x: number; y: number; vx: number; vy: number }, line: { x: number; y: number }, dt: number): Camera {
+  const target = frameTarget(leader, line);
   const k = 1 - Math.exp(-FRAME_FOLLOW * dt);
   const z = 1 - Math.exp(-(target.scale > cam.scale ? ZOOM_OUT : ZOOM_IN) * dt);
   return { x: cam.x + (target.x - cam.x) * k, y: cam.y + (target.y - cam.y) * k, scale: Math.min(MAX_SCALE, cam.scale + (target.scale - cam.scale) * z) };

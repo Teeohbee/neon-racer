@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
+import { isOutsideView, LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
 import { emptyInput } from "../src/car";
 import type { ClientMsg, GameEvent, Mode, ServerMsg, WinCondition } from "../src/protocol";
 import { COUNTDOWN_SECONDS, DEFAULT_WIN, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, SNAP_EVERY, TICK_RATE } from "../src/room";
@@ -168,6 +168,19 @@ describe("sketching", () => {
     g.run(SKETCH_SECONDS + DT);
     expect(g.room.phase).toBe("countdown");
     expect(g.last("track")!.raw.length).toBeGreaterThan(10);
+  });
+
+  it("frames the countdown the way the race opens so the camera doesn't jump at the start", () => {
+    const g = setup();
+    g.readyAll();
+    g.send(g.drawer(), { t: "sketch", points: loop, reset: true });
+    g.send(g.drawer(), { t: "submit" });
+    g.run(DT * SNAP_EVERY);
+    const before = g.last("snap")!.camera;
+    g.run(COUNTDOWN_SECONDS + 0.3);
+    const after = g.last("snap")!.camera;
+    expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(20);
+    expect(after.scale).toBeCloseTo(before.scale, 1);
   });
 
   it("puts the drawer at the back of the grid", () => {
@@ -507,8 +520,7 @@ describe("rounds within a match", () => {
     expect(Math.hypot(g.car("ann").x - finishedAt.x, g.car("ann").y - finishedAt.y)).toBeLessThan(TRACK_WIDTH / 2);
     expect(g.gridOrder()).toEqual(["ann", "bob", "cat"]);
     expect(g.arc("ann") - g.arc("cat")).toBeLessThan(250);
-    expect(g.last("snap")!.camera.x).toBeCloseTo(g.car("ann").x, 0);
-    expect(g.last("snap")!.camera.y).toBeCloseTo(g.car("ann").y, 0);
+    expect(isOutsideView(g.last("snap")!.camera, g.car("ann").x, g.car("ann").y)).toBe(false);
     g.run(COUNTDOWN_SECONDS + DT);
     expect(g.leaderProgress()).toBeCloseTo(lastRaceSnap.line! + LINE_GAP, 0);
   });
