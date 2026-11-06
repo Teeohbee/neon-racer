@@ -651,7 +651,13 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   }
 
   function trackPicker(selected: string[], isHost: boolean): HTMLElement {
-    const toggle = (name: string) => conn.send({ t: "tracks", names: selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name] });
+    const choose = (names: string[]) => {
+      if (!names.length || !info) return;
+      info = { ...info, tracks: names };
+      conn.send({ t: "tracks", names });
+      drawUI();
+    };
+    const toggle = (name: string) => choose(selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name]);
     return h(
       "div",
       { class: "track-picker" },
@@ -659,7 +665,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         "div",
         { class: "modes" },
         `Tracks (${selected.length}/${PRESET_TRACKS.length})`,
-        isHost ? h("button", { disabled: selected.length === PRESET_TRACKS.length, onclick: () => conn.send({ t: "tracks", names: PRESET_TRACKS.map((t) => t.name) }) }, "All") : null,
+        isHost ? h("button", { disabled: selected.length === PRESET_TRACKS.length, onclick: () => choose(PRESET_TRACKS.map((t) => t.name)) }, "All") : null,
       ),
       h(
         "div",
