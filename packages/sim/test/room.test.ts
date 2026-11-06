@@ -601,6 +601,8 @@ describe("bots", () => {
     const bot = roster(g).find((p) => p.bot)!;
     expect(bot.ready).toBe(true);
     expect(bot.name).toContain("hard");
+    for (let n = 0; n < 4; n++) g.send("ann", { t: "addBot", skill: "medium" });
+    expect(roster(g).filter((p) => p.bot).every((p) => p.name.endsWith(")"))).toBe(true);
   });
 
   it("let a lone player start a match", () => {

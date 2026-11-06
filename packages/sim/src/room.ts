@@ -103,7 +103,7 @@ export class Room {
     const color = [...Array(MAX_PLAYERS).keys()].find((c) => !used.has(c)) ?? 0;
     this.players.set(id, {
       id,
-      name: name.trim().slice(0, 16) || "Racer",
+      name: bot ? name : name.trim().slice(0, 16) || "Racer",
       color,
       ready: bot !== null,
       score: 0,
