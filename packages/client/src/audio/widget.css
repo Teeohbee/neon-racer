@@ -1,9 +1,7 @@
-.audio-settings { display: flex; gap: 12px; align-items: center; pointer-events: auto; font-size: 13px; color: #d8f6ff; }
-.audio-settings button { font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 4px 10px; cursor: pointer; min-width: 84px; }
-.audio-settings button:hover { border-color: #00f0ff; box-shadow: 0 0 8px #00f0ff66; }
-.audio-settings button.on { border-color: #00f0ff; color: #00f0ff; }
-.audio-settings .audio-slider { display: flex; margin: 0; gap: 6px; align-items: center; opacity: 0.85; }
-.audio-settings .audio-slider input { width: 90px; padding: 0; border: none; background: none; box-shadow: none; accent-color: #ff2bd6; }
+.audio-settings { display: flex; gap: var(--nr-space-3); align-items: center; pointer-events: auto; font-size: var(--nr-text-sm); color: var(--nr-text); }
+.audio-settings button, .display-settings button { font-size: var(--nr-text-sm); padding: var(--nr-space-1) var(--nr-space-3); min-width: 84px; }
+.audio-settings .audio-slider { display: flex; margin: 0; gap: 6px; align-items: center; opacity: 0.85; color: var(--nr-text-dim); font-size: var(--nr-text-xs); letter-spacing: 0.12em; text-transform: uppercase; }
+.audio-settings .audio-slider input { width: 90px; padding: 0; border: none; background: none; box-shadow: none; accent-color: var(--nr-pink); }
 .audio-settings.muted .audio-slider { opacity: 0.4; }
-.audio-sliders { display: flex; gap: 12px; align-items: center; }
+.audio-sliders { display: flex; gap: var(--nr-space-3); align-items: center; }
 .audio-icon { display: none; }

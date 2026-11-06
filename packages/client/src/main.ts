@@ -1,3 +1,4 @@
+import "./ui/kit.css";
 import { Application } from "pixi.js";
 import { audio, audioSettingsWidget, bindAudioMuteKey } from "./audio";
 import { displaySettingsWidget } from "./display-widget";
