@@ -226,6 +226,42 @@ describe("racing in ghost mode", () => {
   });
 });
 
+describe("progress under lag", () => {
+  it("keeps up with a ghost car whose updates stall, so the line doesn't catch it", () => {
+    const g = setup();
+    g.toRace();
+    g.run(SUDDEN_DEATH_AT + 30);
+    const [front, back] = g.gridOrder() as [string, string];
+    const from = { [front]: g.arc(front), [back]: g.arc(back) };
+    const stalled = (tick: number) => (tick >= 30 && tick < 75) || (tick >= 105 && tick < 150);
+    let tick = 0;
+    g.run(3, () => {
+      tick++;
+      for (const id of [front, back]) {
+        if (id === back && (stalled(tick) || tick % 3)) continue;
+        const [x, y, angle] = pointAt(g.track(), from[id]! + tick * 5);
+        g.send(id, { t: "state", seq: tick, car: { x, y, angle, vx: 0, vy: 0 } });
+      }
+    });
+    expect(g.events().filter((e) => e.kind === "eliminated")).toEqual([]);
+    const L = g.track().length;
+    expect((((g.arc(front) - g.arc(back)) % L) + L) % L).toBeLessThan(100);
+  });
+
+  it("still ignores a jump across the infield", () => {
+    const g = setup();
+    g.toRace();
+    const [front] = g.gridOrder();
+    g.driveForward([front!], 300);
+    const before = g.leaderProgress();
+    g.run(0.5);
+    const [x, y, angle] = pointAt(g.track(), g.arc(front!) + g.track().length * 0.45);
+    g.send(front!, { t: "state", seq: 9999, car: { x, y, angle, vx: 0, vy: 0 } });
+    g.run(SNAP_EVERY * DT);
+    expect(g.leaderProgress()).toBeCloseTo(before, 0);
+  });
+});
+
 describe("hazards", () => {
   it("can only be placed by eliminated players", () => {
     const g = setup(["ann", "bob", "cat"]);

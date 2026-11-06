@@ -1,13 +1,13 @@
 import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
 import { isOutsideView, lineGap, stepCamera, type Camera } from "./camera";
-import { emptyInput, type CarInput, type CarState } from "./car";
+import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
 import { LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
 import { advanceProgress, buildTrack, dropAt, gridSlots, nearestOnTrack, pointAt, TRACK_WIDTH, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { randomTrackPoints, validateDrawing } from "./validate";
-import { stepWorldCar } from "./world";
+import { BOOST_FACTOR, stepWorldCar } from "./world";
 
 export const TICK_RATE = 60;
 export const SNAP_EVERY = 3;
@@ -20,6 +20,7 @@ export const ROUND_END_SECONDS = 4;
 export const ELIMINATION_GRACE = 1;
 export const KILL_CREDIT_WINDOW = 3;
 const MAX_PROGRESS_STEP = 200;
+const MAX_TRAVEL_SPEED = defaultCarParams.maxSpeed * BOOST_FACTOR * 1.5;
 const GRID_CLEAR_STEP = 20;
 const FALL_MARGIN = 8;
 const PLACE_POINTS = [2, 1];
@@ -42,6 +43,7 @@ interface Player {
   car: CarState | null;
   alive: boolean;
   progress: ProgressState;
+  movedAt: number;
   lastInput: CarInput;
   inputs: { seq: number; input: CarInput }[];
   ack: number;
@@ -109,6 +111,7 @@ export class Room {
       car: null,
       alive: false,
       progress: { s: 0, progress: 0 },
+      movedAt: 0,
       lastInput: emptyInput,
       inputs: [],
       ack: 0,
@@ -275,7 +278,10 @@ export class Room {
       if (hit) p.lastHit = { owner: hit.owner, at: now };
       const at = nearestOnTrack(track, p.car!.x, p.car!.y);
       if (at.dist > TRACK_WIDTH / 2 + FALL_MARGIN && dropAt(track, at.s)) fell.add(p);
-      p.progress = advanceProgress(p.progress, at.s, track.length, MAX_PROGRESS_STEP);
+      if (at.s !== p.progress.s) {
+        p.progress = advanceProgress(p.progress, at.s, track.length, MAX_PROGRESS_STEP + MAX_TRAVEL_SPEED * (now - p.movedAt));
+        p.movedAt = now;
+      }
     }
 
     const leader = racers.reduce<Player | null>((best, p) => (!best || p.progress.progress > best.progress.progress ? p : best), null);
@@ -455,6 +461,7 @@ export class Room {
       p.car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
       p.alive = true;
       p.progress = { s: slot.s, progress: anchorProgress + shift + slot.back };
+      p.movedAt = 0;
       p.inputs = [];
       p.lastInput = emptyInput;
       p.lastHit = null;
