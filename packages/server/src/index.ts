@@ -2,7 +2,7 @@ import { join, normalize } from "node:path";
 import { Lobby } from "./lobby";
 
 const port = Number(process.env.PORT ?? 8787);
-const staticDir = join(import.meta.dir, "../../client/dist");
+const staticDir = process.env.STATIC_DIR ?? join(import.meta.dir, "../../client/dist");
 const serveStatic = process.env.NODE_ENV === "production";
 const lobby = new Lobby();
 
