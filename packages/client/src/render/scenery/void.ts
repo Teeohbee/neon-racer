@@ -2,6 +2,8 @@ import { Container, Graphics, GraphicsContext, Sprite, type Texture } from "pixi
 import { TRACK_WIDTH } from "@neon/sim";
 import { gapQuads, sideDepth, type GapSample } from "../features";
 import type { District } from "./districts";
+import { FLOOR_EXTRAS } from "./floors";
+import { along, laneOf, type Lane } from "./lanes";
 import { range, type Rng } from "./rng";
 
 const HALF = TRACK_WIDTH / 2;
@@ -11,14 +13,6 @@ const PIER_DEPTH = 0.12;
 const BRIDGE_DEPTH = 0.17;
 const BRIDGE_EVERY = 18;
 const QUAY_EVERY = 3;
-const LANE_MIN_DEPTH = 150;
-
-interface Lane {
-  xs: number[];
-  ys: number[];
-  cum: number[];
-  length: number;
-}
 
 interface Mover {
   lane: Lane;
@@ -38,49 +32,6 @@ const lerpColor = (a: number, b: number, k: number) => {
   const ch = (shift: number) => Math.round(((a >> shift) & 255) * (1 - k) + ((b >> shift) & 255) * k) << shift;
   return ch(16) | ch(8) | ch(0);
 };
-
-function laneOf(run: GapSample[], side: number): Lane[] {
-  const lanes: Lane[] = [];
-  let current: Lane | null = null;
-  for (const p of run) {
-    const depth = sideDepth(p, side);
-    if (depth < LANE_MIN_DEPTH) {
-      current = null;
-      continue;
-    }
-    const off = side * (HALF + depth * 0.55);
-    const x = p.x + p.nx * off;
-    const y = p.y + p.ny * off;
-    if (!current) {
-      current = { xs: [], ys: [], cum: [], length: 0 };
-      lanes.push(current);
-    }
-    const last = current.xs.length - 1;
-    current.length += last >= 0 ? Math.hypot(x - current.xs[last]!, y - current.ys[last]!) : 0;
-    current.xs.push(x);
-    current.ys.push(y);
-    current.cum.push(current.length);
-  }
-  return lanes.filter((l) => l.length > 200);
-}
-
-function along(lane: Lane, d: number): [number, number, number] {
-  const u = Math.max(0, Math.min(lane.length, d));
-  let lo = 0;
-  let hi = lane.cum.length - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (lane.cum[mid]! <= u) lo = mid;
-    else hi = mid;
-  }
-  const seg = lane.cum[hi]! - lane.cum[lo]! || 1;
-  const k = (u - lane.cum[lo]!) / seg;
-  const ax = lane.xs[lo]!;
-  const ay = lane.ys[lo]!;
-  const bx = lane.xs[hi]!;
-  const by = lane.ys[hi]!;
-  return [ax + (bx - ax) * k, ay + (by - ay) * k, Math.atan2(by - ay, bx - ax)];
-}
 
 export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng, soft: Texture): VoidScene {
   const root = new Container();
@@ -244,7 +195,7 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
       g.poly([...pt(len / 2, 0), ...pt(len / 4, wid / 2), ...pt(-len / 2, wid / 2), ...pt(-len / 2, -wid / 2), ...pt(len / 4, -wid / 2)], true);
     };
     const docked: [number, number][] = [];
-    for (const run of gaps) {
+    for (const run of district.props.boats ? gaps : []) {
       for (let m = 4; m < run.length - 4; m += 12) {
         const p = run[m]!;
         for (const side of [-1, 1]) {
@@ -322,7 +273,7 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
       layers.push({ container: bridgeLayer, depth: BRIDGE_DEPTH });
     }
 
-    for (const lane of lanes) {
+    for (const lane of district.props.boats ? lanes : []) {
       if (rng() < 0.35) continue;
       const boat = new Container();
       const body = new Graphics();
@@ -400,6 +351,11 @@ export function buildVoidScene(gaps: GapSample[][], district: District, rng: Rng
       }
       arcs.stroke({ width: 2, color: district.accents[2]!, alpha: 0.9 });
     });
+  }
+
+  for (const extra of district.extras ?? []) {
+    const fn = FLOOR_EXTRAS[extra]({ floor, scene, layers, gaps, lanes, district, rng, soft });
+    if (fn) animate.push(fn);
   }
 
   return {

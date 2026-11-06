@@ -509,10 +509,15 @@ export function createRenderer(app: Application): Renderer {
       scenery.setTrack(frame.track, frame.trackName);
       grid.visible = !scenery.active;
       scenery.update(camera, t, dt);
-      weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t);
+      const skyFlashes = weather.update(frame.sketch ? null : scenery.weather(), { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh, zoom: fit.base / camera.scale }, camera, t);
       boostLayers.forEach((g, k) => (g.alpha = chevronAlpha(k, t)));
       drawDangerLine(dangerG, frame.track, frame.dangerLine, t);
-      lighting.update({ ambient: scenery.ambient(), extra: scenery.lights(), dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      const extraLights = scenery.lights();
+      for (const f of skyFlashes) {
+        const zoom = fit.base / camera.scale;
+        extraLights.push({ x: camera.x + (f.x - fit.sw / 2) / zoom, y: camera.y + (f.y - fit.sh / 2) / zoom, size: 1400 * camera.scale, color: f.color, alpha: 0.55 * f.alpha });
+      }
+      lighting.update({ ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
     },
 
     screenToWorld(px: number, py: number): Point {

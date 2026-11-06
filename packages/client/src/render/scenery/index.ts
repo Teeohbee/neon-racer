@@ -3,8 +3,9 @@ import type { Camera, Track } from "@neon/sim";
 import { softLightTexture } from "../textures";
 import type { WeatherConfig } from "../weather";
 import { districtFor, type District } from "./districts";
-import { buildLayout, type Billboard, type Layout } from "./layout";
+import { buildLayout, scatter, type Billboard, type Layout } from "./layout";
 import { range, seeded } from "./rng";
+import { lighten, openSpots, SIGNATURES, type Parts, type Tower, type View } from "./signatures";
 import { buildVoidScene, type VoidScene } from "./void";
 
 const LAMP_HEIGHT = 0.05;
@@ -67,6 +68,8 @@ interface Built {
   yardFlash: { x: number; y: number; until: number } | null;
   nextYardArc: number;
   voidScene: VoidScene;
+  towers: Tower[];
+  signatures: Parts[];
 }
 
 function drawClutter(g: Graphics, layout: Layout, district: District) {
@@ -249,6 +252,30 @@ export function createScenery(layers: SceneryLayers): Scenery {
     glow.addChild(lamps, blinkers, boards, pylonGlow);
     layers.glow.addChild(glow);
 
+    const sigRng = seeded(`${name}:signature`);
+    const kit = {
+      track,
+      layout,
+      district,
+      rng: sigRng,
+      soft,
+      near: (count: number, clearance: number, gapMargin: number) => scatter(sigRng, track, layout.field, count, clearance, gapMargin),
+      open: (count: number, minSep: number, minClear: number) => openSpots(layout, count, minSep, minClear),
+      clear: (x: number, y: number, margin: number) => layout.field.edgeDistance(x, y) > margin && !layout.field.nearGap(x, y, 20),
+    };
+    const signatures = (district.signatures ?? []).map((kind) => SIGNATURES[kind](kit));
+    const sigLifted: { container: Container; height: number }[] = [];
+    for (const parts of signatures) {
+      for (const c of parts.deck ?? []) deck.addChild(c);
+      const sigGlow = new Container();
+      for (const c of parts.glow ?? []) sigGlow.addChild(c);
+      glow.addChildAt(sigGlow, 0);
+      for (const l of parts.lifted ?? []) {
+        (l.layer === "tall" ? tall : glow).addChild(l.container);
+        sigLifted.push(l);
+      }
+    }
+
     return {
       layout,
       district,
@@ -259,7 +286,10 @@ export function createScenery(layers: SceneryLayers): Scenery {
         { container: boards, height: BILLBOARD_HEIGHT },
         { container: pylonTops, height: PYLON_HEIGHT },
         { container: pylonGlow, height: PYLON_HEIGHT },
+        ...sigLifted,
       ],
+      towers: signatures.flatMap((parts) => parts.towers ?? []),
+      signatures,
       sunk: voidScene.layers,
       poles,
       steam,
@@ -285,6 +315,8 @@ export function createScenery(layers: SceneryLayers): Scenery {
   };
 
   const project = (x: number, y: number, s: number): [number, number] => [camera.x + (x - camera.x) * s, camera.y + (y - camera.y) * s];
+
+  const viewOf = (t: number, dt: number): View => ({ t, dt, inView, lift: (x, y, h) => project(x, y, scaleFor(h)) });
 
   const inView = (x: number, y: number) => {
     const hw = 800 * camera.scale + CULL;
@@ -338,6 +370,11 @@ export function createScenery(layers: SceneryLayers): Scenery {
         }
       }
       b.poles.stroke({ width: 2.5, color: b.district.deck.clutter, alpha: 0.85 });
+      for (const tw of b.towers) {
+        if (!inView(tw.x, tw.y)) continue;
+        b.poles.moveTo(tw.x, tw.y).lineTo(...project(tw.x, tw.y, scaleFor(tw.height)));
+      }
+      b.poles.stroke({ width: 4, color: lighten(b.district.deck.clutter, 20), alpha: 0.9 });
 
       for (const s of b.steam) {
         const u = (t * 0.22 + s.phase) % 1;
@@ -416,6 +453,8 @@ export function createScenery(layers: SceneryLayers): Scenery {
         b.yardArcs.clear();
         b.yardFlash = null;
       }
+      const view = viewOf(t, dt);
+      for (const parts of b.signatures) parts.update?.(view);
       b.voidScene.update(t, dt);
     },
 
@@ -447,6 +486,8 @@ export function createScenery(layers: SceneryLayers): Scenery {
       }
       for (const y of b.layout.yards) if (inView(y.x, y.y)) out.push({ x: y.x, y: y.y, size: 480, color: b.district.accents[0]!, alpha: 0.45 });
       if (b.yardFlash) out.push({ x: b.yardFlash.x, y: b.yardFlash.y, size: 600, color: b.district.accents[2]!, alpha: 1 });
+      const view = viewOf(time, 0);
+      for (const parts of b.signatures) parts.lights?.(out, view);
       for (const v of b.layout.clutter) if (v.kind === "ac" && inView(v.x, v.y) && v.phase < 0.3) out.push({ x: v.x, y: v.y, size: 120, color: b.district.accents[0]!, alpha: 0.25 + 0.1 * Math.sin(time * 3 + v.phase * 9) });
       return out;
     },

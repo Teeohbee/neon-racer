@@ -1,10 +1,29 @@
-import { Container, Texture, TilingSprite } from "pixi.js";
+import { Container, Graphics, Texture, TilingSprite } from "pixi.js";
 import type { Camera } from "@neon/sim";
 
 export interface WeatherConfig {
-  rain: boolean;
+  rain?: boolean;
   haze: number;
   hazeAlpha: number;
+  hazeScale?: number;
+  hazeDrift?: number;
+  particles?: { kind: "embers" | "fireflies"; color: number };
+  fireworks?: number[];
+}
+
+export interface Flash {
+  x: number;
+  y: number;
+  color: number;
+  alpha: number;
+}
+
+interface Burst {
+  x: number;
+  y: number;
+  age: number;
+  color: number;
+  rays: number;
 }
 
 export interface Viewport {
@@ -18,6 +37,8 @@ export interface Viewport {
 const RAIN_ALPHA = 0.16;
 const RAIN_SPEED = 900;
 const RAIN_DRIFT = 140;
+const FIREWORK_LIFE = 1.6;
+const FIREWORK_RADIUS = 220;
 
 function canvas(size: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement("canvas");
@@ -47,6 +68,24 @@ function rainTexture(size = 256, count = 70): Texture {
   return Texture.from(c);
 }
 
+function dotTexture(size = 256, count = 26): Texture {
+  const [c, ctx] = canvas(size);
+  let s = 23;
+  const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < count; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 2 + rand() * 3;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.4, "rgba(255,255,255,0.5)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+  }
+  return Texture.from(c);
+}
+
 function hazeTexture(size = 256): Texture {
   const [c, ctx] = canvas(size);
   let s = 5;
@@ -70,29 +109,80 @@ export function createWeather() {
   const view = new Container();
   const rainTex = rainTexture();
   const hazeTex = hazeTexture();
+  const dotTex = dotTexture();
+  const motesA = new TilingSprite({ texture: dotTex, width: 2, height: 2 });
+  const motesB = new TilingSprite({ texture: dotTex, width: 2, height: 2 });
+  motesB.tileScale.set(1.6);
+  const fireworks = new Graphics();
+  let bursts: Burst[] = [];
+  let nextBurst = 0;
+  let lastT = 0;
   const haze = new TilingSprite({ texture: hazeTex, width: 2, height: 2 });
   const far = new TilingSprite({ texture: rainTex, width: 2, height: 2 });
   const near = new TilingSprite({ texture: rainTex, width: 2, height: 2 });
   far.tileScale.set(0.6);
   haze.tileScale.set(3);
-  for (const s of [far, near]) s.blendMode = "add";
-  view.addChild(haze, far, near);
+  for (const s of [far, near, motesA, motesB, fireworks]) s.blendMode = "add";
+  view.addChild(haze, far, near, motesA, motesB, fireworks);
   view.visible = false;
 
   return {
     view,
-    update(config: WeatherConfig | null, port: Viewport, camera: Camera, t: number) {
+    update(config: WeatherConfig | null, port: Viewport, camera: Camera, t: number): Flash[] {
       view.visible = config !== null;
-      if (!config) return;
-      for (const s of [haze, far, near]) {
+      const dt = Math.min(0.1, Math.max(0, t - lastT));
+      lastT = t;
+      if (!config) return [];
+      for (const s of [haze, far, near, motesA, motesB]) {
         s.position.set(port.x, port.y);
         s.width = port.w;
         s.height = port.h;
       }
       haze.tint = config.haze;
+      haze.visible = config.hazeAlpha > 0;
       haze.alpha = config.hazeAlpha;
-      haze.tilePosition.set(-camera.x * port.zoom * 0.9 + t * 12, -camera.y * port.zoom * 0.9 + t * 5);
-      far.visible = near.visible = config.rain;
+      haze.tileScale.set(config.hazeScale ?? 3);
+      const drift = config.hazeDrift ?? 12;
+      haze.tilePosition.set(-camera.x * port.zoom * 0.9 + t * drift, -camera.y * port.zoom * 0.9 + t * drift * 0.4);
+      far.visible = near.visible = config.rain === true;
+      const motes = config.particles;
+      motesA.visible = motesB.visible = motes !== undefined;
+      if (motes) {
+        motesA.tint = motesB.tint = motes.color;
+        const wob = Math.sin(t * 0.7) * 30;
+        if (motes.kind === "embers") {
+          motesA.tilePosition.set(-camera.x * port.zoom * 1.1 + wob, -camera.y * port.zoom * 1.1 - t * 70);
+          motesB.tilePosition.set(-camera.x * port.zoom * 1.2 - wob, -camera.y * port.zoom * 1.2 - t * 110);
+          motesA.alpha = 0.35 + 0.25 * Math.sin(t * 9);
+          motesB.alpha = 0.3 + 0.25 * Math.sin(t * 7 + 2);
+        } else {
+          motesA.tilePosition.set(-camera.x * port.zoom + wob, -camera.y * port.zoom + Math.cos(t * 0.5) * 25);
+          motesB.tilePosition.set(-camera.x * port.zoom * 1.05 - wob * 0.7, -camera.y * port.zoom * 1.05 + Math.sin(t * 0.6) * 30);
+          motesA.alpha = 0.45 * Math.max(0, Math.sin(t * 1.3));
+          motesB.alpha = 0.45 * Math.max(0, Math.sin(t * 1.1 + 2));
+        }
+      }
+      fireworks.clear();
+      const flashes: Flash[] = [];
+      if (config.fireworks?.length) {
+        if (t >= nextBurst) {
+          nextBurst = t + 1.2 + Math.random() * 2.8;
+          bursts.push({ x: port.x + port.w * (0.1 + Math.random() * 0.8), y: port.y + port.h * (0.1 + Math.random() * 0.6), age: 0, color: config.fireworks[Math.floor(Math.random() * config.fireworks.length)]!, rays: 22 + Math.floor(Math.random() * 12) });
+        }
+        bursts = bursts.filter((b) => (b.age += dt) < FIREWORK_LIFE);
+        for (const b of bursts) {
+          const k = b.age / FIREWORK_LIFE;
+          const r = FIREWORK_RADIUS * port.zoom * (1 - Math.exp(-b.age * 3.5));
+          const drop = b.age * b.age * 40 * port.zoom;
+          for (let i = 0; i < b.rays; i++) {
+            const a = (i / b.rays) * Math.PI * 2;
+            fireworks.circle(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r + drop, 2.2);
+          }
+          fireworks.fill({ color: b.color, alpha: 1 - k });
+          if (b.age < 0.35) flashes.push({ x: b.x, y: b.y, color: b.color, alpha: 1 - b.age / 0.35 });
+        }
+      }
+      return flashes;
       far.alpha = RAIN_ALPHA * 0.6;
       near.alpha = RAIN_ALPHA;
       far.tilePosition.set(-camera.x * port.zoom * 1.05 + t * RAIN_DRIFT * 0.6, -camera.y * port.zoom * 1.05 + t * RAIN_SPEED * 0.6);
@@ -100,6 +190,7 @@ export function createWeather() {
     },
     destroy() {
       view.destroy({ children: true });
+      dotTex.destroy(true);
       rainTex.destroy(true);
       hazeTex.destroy(true);
     },

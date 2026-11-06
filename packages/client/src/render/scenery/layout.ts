@@ -14,6 +14,7 @@ const SKYLIGHT_SHARE = 0.55;
 const PENTHOUSE_SHARE = 0.4;
 const PYLON_OFFSET = 430;
 const PYLON_STEP = 380;
+const DEFAULT_BLOCK = { leaf: 640, min: 280, stop: 0.45, inset: [12, 34] as [number, number] };
 
 export type ClutterKind = "ac" | "vent" | "block" | "dish";
 
@@ -74,13 +75,15 @@ export interface Layout {
   pylons: Prop[];
   cables: [number, number][];
   gaps: GapSample[][];
+  field: Field;
 }
 
 function plates(rng: Rng, district: District): Building[] {
   const out: Building[] = [];
   const split = (x: number, y: number, w: number, h: number, depth: number) => {
-    if (depth > 9 || (w < 640 && h < 640 && rng() < 0.45) || (w < 280 && h < 280)) {
-      const inset = range(rng, 12, 34);
+    const block = district.block ?? DEFAULT_BLOCK;
+    if (depth > 11 || (w < block.leaf && h < block.leaf && rng() < block.stop) || (w < block.min && h < block.min)) {
+      const inset = range(rng, block.inset[0], block.inset[1]);
       const bx = x + inset;
       const by = y + inset;
       const bw = w - inset * 2;
@@ -173,7 +176,7 @@ function yards(rng: Rng, track: Track, field: Field, count: number): Yard[] {
   });
 }
 
-function scatter(rng: Rng, track: Track, field: Field, count: number, clearance: number, gapMargin: number, tries = count * 12): Prop[] {
+export function scatter(rng: Rng, track: Track, field: Field, count: number, clearance: number, gapMargin: number, tries = count * 12): Prop[] {
   const out: Prop[] = [];
   for (let k = 0; k < tries && out.length < count; k++) {
     let x = range(rng, -300, WORLD.width + 300);
@@ -278,5 +281,6 @@ export function buildLayout(track: Track, name: string, district: District): Lay
     pylons,
     cables,
     gaps: gapRuns(track),
+    field,
   };
 }
