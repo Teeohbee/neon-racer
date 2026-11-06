@@ -4,3 +4,6 @@ export * from "./hazards";
 export * from "./camera";
 export * from "./world";
 export * from "./validate";
+export * from "./collision";
+export * from "./protocol";
+export * from "./room";
