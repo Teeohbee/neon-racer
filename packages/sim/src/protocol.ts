@@ -6,7 +6,7 @@ import type { FeatureSpec, Point } from "./track";
 import type { TrackProblem } from "./validate";
 
 export type Mode = "ghost" | "contact";
-export type EliminationReason = "screen" | "line" | "fell" | "left";
+export type EliminationReason = "line" | "fell" | "left";
 export type Phase = "lobby" | "sketch" | "countdown" | "race" | "roundEnd" | "matchEnd";
 
 export const SCORE_TARGETS = [5, 8, 12] as const;

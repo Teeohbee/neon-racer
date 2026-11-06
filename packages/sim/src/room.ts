@@ -1,5 +1,5 @@
 import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
-import { isOutsideView, lineGap, stepCamera, type Camera } from "./camera";
+import { frameCamera, isOutsideView, lineGap, type Camera } from "./camera";
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
@@ -285,8 +285,9 @@ export class Room {
 
     const leader = racers.reduce<Player | null>((best, p) => (!best || p.progress.progress > best.progress.progress ? p : best), null);
     if (leader) {
-      this.camera = stepCamera(this.camera, leader.car!, dt, 1);
       this.line = leader.progress.progress - lineGap(now);
+      const [lx, ly] = pointAt(track, this.line);
+      this.camera = frameCamera(this.camera, leader.car!, { x: lx, y: ly }, dt);
       this.botHazards(leader, now);
       if (this.win.kind === "laps" && leader.progress.progress >= this.win.laps * track.length) {
         this.finalLapDone = true;
@@ -299,7 +300,6 @@ export class Room {
       for (const p of racers) {
         if (fell.has(p)) this.eliminate(p, now, "fell");
         else if (this.line !== null && p.progress.progress < this.line) this.eliminate(p, now, "line");
-        else if (isOutsideView(this.camera, p.car!.x, p.car!.y)) this.eliminate(p, now, "screen");
       }
     }
 

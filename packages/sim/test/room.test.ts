@@ -62,8 +62,12 @@ function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
     return [...names].sort((a, b) => ahead(b) - ahead(a));
   };
   const knockOut = (id: string) => {
-    const c = car(id);
-    run(ELIMINATION_GRACE + 0.1, () => send(id, { t: "state", seq: 1, car: { ...c, x: c.x - 5000 } }));
+    const from = arc(id);
+    for (let seq = 1; seq < 600 && car(id).alive; seq++) {
+      const [x, y, angle] = pointAt(track(), from - Math.min(seq * 40, LINE_GAP + 400));
+      send(id, { t: "state", seq, car: { x, y, angle, vx: 0, vy: 0 } });
+      run(DT);
+    }
   };
   const driveForward = (ids: string[], distance: number) => {
     const from = Object.fromEntries(ids.map((id) => [id, arc(id)]));
@@ -88,7 +92,10 @@ function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
     finish(...names.filter((n) => n !== id && car(n)?.alive));
   };
   const setWin = (condition: WinCondition) => send(last("room")!.hostId!, { t: "winCondition", ...condition });
-  const leaderProgress = () => last("snap")!.line! + LINE_GAP;
+  const leaderProgress = () => {
+    run(SNAP_EVERY * DT);
+    return last("snap")!.line! + LINE_GAP;
+  };
   return { room, sent, run, last, events, send, readyAll, drawer, toRace, car, arc, gridOrder, knockOut, score, finish, nextRace, driveForward, win, setWin, leaderProgress, track };
 }
 
@@ -176,27 +183,31 @@ describe("racing in ghost mode", () => {
     expect(g.car("ann").ack).toBe(4);
   });
 
-  it("eliminates a car that leaves the shot", () => {
+  it("eliminates a car that drops behind the line", () => {
     const g = setup();
     g.toRace();
     const [front, back] = g.gridOrder();
-    g.knockOut(back!);
-    expect(g.events()).toContainEqual({ kind: "eliminated", id: back, reason: "screen" });
+    g.driveForward([front!], LINE_GAP + 200);
+    g.run(ELIMINATION_GRACE);
+    expect(g.room.phase).toBe("roundEnd");
+    expect(g.events()).toContainEqual({ kind: "eliminated", id: back, reason: "line" });
     expect(g.events()).toContainEqual({ kind: "roundWon", id: front });
   });
 
-  it("eliminates a car that falls behind the line once sudden death pulls it in", () => {
+  it("leaves a car that drives off into the city to the line rather than the edge of the screen", () => {
     const g = setup();
     g.toRace();
-    g.run(SUDDEN_DEATH_AT + 30);
-    expect(g.room.phase).toBe("race");
-    const [, back] = g.gridOrder();
-    const start = nearestOnTrack(g.track(), g.car(back!).x, g.car(back!).y).s;
+    const [front, back] = g.gridOrder();
+    const start = g.car(back!);
+    const out = Math.atan2(start.y - 2000, start.x - 3200);
     let seq = 0;
-    g.run(0.25, () => {
-      const [x, y, angle] = pointAt(g.track(), start - ++seq * 40);
-      g.send(back!, { t: "state", seq, car: { x, y, angle, vx: 0, vy: 0 } });
+    g.run(ELIMINATION_GRACE + 1, () => {
+      const d = Math.min(++seq * 30, 3000);
+      g.send(back!, { t: "state", seq, car: { ...start, x: start.x + Math.cos(out) * d, y: start.y + Math.sin(out) * d } });
     });
+    expect(g.room.phase).toBe("race");
+    expect(g.events().filter((e) => e.kind === "eliminated")).toEqual([]);
+    g.driveForward([front!], LINE_GAP + 200);
     expect(g.events()).toContainEqual({ kind: "eliminated", id: back, reason: "line" });
   });
 
@@ -635,8 +646,7 @@ describe("bots", () => {
     const behind = (id: string) => track.length - nearestOnTrack(track, g.car(id).x, g.car(id).y).s;
     const bots = roster(g).filter((p) => p.bot).map((p) => p.id);
     const victim = bots.sort((a, b) => behind(b) - behind(a))[0]!;
-    const c = g.car(victim);
-    g.run(ELIMINATION_GRACE + 0.1, () => g.send(victim, { t: "state", seq: 1, car: { ...c, x: c.x - 5000 } }));
+    g.knockOut(victim);
     let placed = false;
     g.run(8, () => (placed ||= (g.last("snap")?.hazards ?? []).some((h) => h.owner === victim)));
     expect(placed).toBe(true);
