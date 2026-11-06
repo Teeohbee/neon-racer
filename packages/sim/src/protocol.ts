@@ -54,7 +54,7 @@ export type ServerMsg =
     }
   | { t: "sketch"; drawerId: string; points: Point[]; reset: boolean }
   | { t: "problems"; problems: TrackProblem[] }
-  | { t: "track"; raw: Point[] }
+  | { t: "track"; raw: Point[]; name: string }
   | {
       t: "snap";
       tick: number;

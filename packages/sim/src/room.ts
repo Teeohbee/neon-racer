@@ -4,6 +4,7 @@ import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
 import type { ClientMsg, GameEvent, Mode, Phase, ServerMsg } from "./protocol";
 import { advanceProgress, buildTrack, gridSlots, nearestOnTrack, type Point, type ProgressState, type Track } from "./track";
+import { PRESET_TRACKS } from "./tracks";
 import { randomTrackPoints, validateDrawing } from "./validate";
 import { stepWorldCar } from "./world";
 
@@ -52,6 +53,7 @@ export class Room {
   private nextDrawerId: string | null = null;
   private drawing: Point[] = [];
   private raw: Point[] | null = null;
+  private trackName = "";
   private track: Track | null = null;
   private hazards: Hazard[] = [];
   private hazardSeq = 0;
@@ -61,14 +63,18 @@ export class Room {
   private round = 0;
   private eliminationOrder: string[] = [];
   private starters = 0;
+  private presetBag: number[] = [];
+  private lastPreset = -1;
   private readonly rng: () => number;
+  private readonly sketching: boolean;
 
   constructor(
     readonly code: string,
     private readonly io: RoomIO,
-    opts: { rng?: () => number } = {},
+    opts: { rng?: () => number; sketching?: boolean } = {},
   ) {
     this.rng = opts.rng ?? Math.random;
+    this.sketching = opts.sketching ?? false;
   }
 
   get size(): number {
@@ -97,7 +103,7 @@ export class Room {
     this.hostId ??= id;
     this.io.send(id, { t: "welcome", you: id, code: this.code });
     if (this.phase === "sketch" && this.drawerId) this.io.send(id, { t: "sketch", drawerId: this.drawerId, points: this.drawing, reset: true });
-    if (this.raw && this.phase !== "sketch") this.io.send(id, { t: "track", raw: this.raw });
+    if (this.raw && this.phase !== "sketch") this.io.send(id, { t: "track", raw: this.raw, name: this.trackName });
     this.broadcastRoom();
     return true;
   }
@@ -142,7 +148,7 @@ export class Room {
         if (this.phase !== "sketch" || id !== this.drawerId) return;
         const problems = validateDrawing(this.drawing);
         if (problems.length) this.io.send(id, { t: "problems", problems });
-        else this.startCountdown(this.drawing);
+        else this.finishSketch();
         return;
       }
       case "state":
@@ -248,7 +254,27 @@ export class Room {
       this.setPhase("matchEnd");
       return;
     }
-    this.startSketch(this.nextDrawerId && this.players.has(this.nextDrawerId) ? this.nextDrawerId : this.randomPlayerId());
+    this.startRound(this.nextDrawerId && this.players.has(this.nextDrawerId) ? this.nextDrawerId : this.randomPlayerId());
+  }
+
+  private startRound(drawerId: string): void {
+    if (this.sketching) {
+      this.startSketch(drawerId);
+      return;
+    }
+    this.round++;
+    this.drawerId = null;
+    const preset = PRESET_TRACKS[this.nextPreset()]!;
+    this.startCountdown(preset.points, preset.name);
+  }
+
+  private nextPreset(): number {
+    if (this.presetBag.length === 0) {
+      this.presetBag = shuffle([...PRESET_TRACKS.keys()].filter((i) => i !== this.lastPreset), this.rng);
+      if (this.lastPreset >= 0) this.presetBag.push(this.lastPreset);
+    }
+    this.lastPreset = this.presetBag.shift()!;
+    return this.lastPreset;
   }
 
   private placeHazard(p: Player, kind: HazardKind, x: number, y: number): void {
@@ -267,7 +293,7 @@ export class Room {
     if (this.phase !== "lobby" || players.length < 2 || !players.every((p) => p.ready)) return;
     for (const p of players) p.score = 0;
     this.round = 0;
-    this.startSketch(this.randomPlayerId());
+    this.startRound(this.randomPlayerId());
   }
 
   private startSketch(drawerId: string): void {
@@ -286,13 +312,15 @@ export class Room {
   }
 
   private finishSketch(): void {
-    this.startCountdown(validateDrawing(this.drawing).length === 0 ? this.drawing : randomTrackPoints(this.rng));
+    const valid = validateDrawing(this.drawing).length === 0;
+    this.startCountdown(valid ? this.drawing : randomTrackPoints(this.rng), valid ? `${this.players.get(this.drawerId ?? "")?.name ?? "Someone"}'s track` : "Random track");
   }
 
-  private startCountdown(raw: Point[]): void {
+  private startCountdown(raw: Point[], name: string): void {
     this.raw = raw.map(([x, y]) => [x, y] as Point);
+    this.trackName = name;
     this.track = buildTrack(this.raw);
-    this.io.broadcast({ t: "track", raw: this.raw });
+    this.io.broadcast({ t: "track", raw: this.raw, name });
 
     const others = shuffle([...this.players.values()].filter((p) => p.id !== this.drawerId), this.rng);
     const drawer = this.drawerId ? this.players.get(this.drawerId) : undefined;

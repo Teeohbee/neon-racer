@@ -3,15 +3,16 @@ import { emptyInput } from "../src/car";
 import type { ClientMsg, GameEvent, ServerMsg } from "../src/protocol";
 import { COUNTDOWN_SECONDS, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, TICK_RATE } from "../src/room";
 import { buildTrack, nearestOnTrack, ovalPoints, type Point } from "../src/track";
+import { PRESET_TRACKS } from "../src/tracks";
 
 const DT = 1 / TICK_RATE;
 const loop: Point[] = ovalPoints(3200, 2000, 2200, 1300);
 
-function setup(names = ["ann", "bob"], seed = 1) {
+function setup(names = ["ann", "bob"], seed = 1, sketching = true) {
   const sent: { to: string | "*"; msg: ServerMsg }[] = [];
   let s = seed;
   const rng = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
-  const room = new Room("ABCD", { send: (to, msg) => sent.push({ to, msg }), broadcast: (msg) => sent.push({ to: "*", msg }) }, { rng });
+  const room = new Room("ABCD", { send: (to, msg) => sent.push({ to, msg }), broadcast: (msg) => sent.push({ to: "*", msg }) }, { rng, sketching });
   names.forEach((n) => room.join(n, n));
   const run = (seconds: number, each?: () => void) => {
     for (let i = 0; i < Math.round(seconds * TICK_RATE); i++) {
@@ -232,5 +233,31 @@ describe("match flow", () => {
     const g = setup(["ann", "bob", "cat"]);
     g.room.leave("ann");
     expect(g.last("room")!.hostId).toBe("bob");
+  });
+});
+
+describe("preset tracks", () => {
+  it("skips sketching and goes straight to the countdown on a named track", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.readyAll();
+    expect(g.room.phase).toBe("countdown");
+    expect(PRESET_TRACKS.map((t) => t.name)).toContain(g.last("track")!.name);
+  });
+
+  it("plays every track before repeating one", () => {
+    const g = setup(["ann", "bob"], 3, false);
+    g.readyAll();
+    const names: string[] = [];
+    for (let i = 0; i < PRESET_TRACKS.length; i++) {
+      names.push(g.last("track")!.name);
+      g.run(COUNTDOWN_SECONDS + DT);
+      g.knockOut(g.gridOrder()[1]!);
+      g.run(ROUND_END_SECONDS + DT);
+      if (g.room.phase === "matchEnd") {
+        g.send(g.last("room")!.hostId!, { t: "again" });
+        g.readyAll();
+      }
+    }
+    expect(new Set(names).size).toBe(PRESET_TRACKS.length);
   });
 });
