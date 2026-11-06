@@ -3,6 +3,7 @@ import { AdvancedBloomFilter } from "pixi-filters";
 import { pointAt, TRACK_WIDTH, VIEW, WORLD, type Camera, type Hazard, type Point, type Track } from "@neon/sim";
 import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
+import { createBloomSwell, impactSwell } from "./bloom-swell";
 import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
 import { createContactTracker } from "./contacts";
@@ -203,6 +204,7 @@ export function createRenderer(app: Application): Renderer {
 
   const bloom = new AdvancedBloomFilter({ threshold: 0.3, bloomScale: 1.25, brightness: 1, blur: 5, quality: 4 });
   fxRoot.filters = [bloom];
+  const swell = createBloomSwell(bloom);
   fxRoot.filterArea = new Rectangle(0, 0, app.screen.width, app.screen.height);
 
   const grid = new Graphics();
@@ -263,6 +265,7 @@ export function createRenderer(app: Application): Renderer {
     const felt = strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2);
     jolt = hit(jolt, felt);
     postfx.pulse(felt * 0.6);
+    swell.kick(impactSwell(felt));
     warp.shockwave(x, y, strength * WARP.impact);
   };
 
@@ -517,6 +520,7 @@ export function createRenderer(app: Application): Renderer {
       const fit = fitView(app);
       glitch.screen({ x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh }, dt, t);
       postfx.refresh();
+      swell.update(dt);
       if (halted) return;
 
       camera = shakeCamera(frame.camera, jolt.trauma, t);
