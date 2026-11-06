@@ -1,5 +1,6 @@
 import { Application } from "pixi.js";
 import { audio, audioSettingsWidget, bindAudioMuteKey } from "./audio";
+import { displaySettingsWidget } from "./display-widget";
 import { h } from "./dom";
 import { showMenu, type MenuChoice } from "./menu";
 import { startOnline } from "./online";
@@ -24,10 +25,12 @@ function play(choice: MenuChoice) {
   if (choice.kind === "practice") {
     const stop = startPractice(app, ui);
     const settings = audioSettingsWidget();
-    const bar = h("div", { class: "practice-bar" }, h("button", { class: "back", onclick: () => exit() }, "← Menu"), settings.el);
+    const displaySettings = displaySettingsWidget();
+    const bar = h("div", { class: "practice-bar" }, h("button", { class: "back", onclick: () => exit() }, "← Menu"), settings.el, displaySettings.el);
     const exit = () => {
       stop();
       settings.dispose();
+      displaySettings.dispose();
       bar.remove();
       menu();
     };

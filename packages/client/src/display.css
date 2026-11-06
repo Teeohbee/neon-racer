@@ -1,0 +1,6 @@
+.display-settings { display: flex; align-items: center; pointer-events: auto; font-size: 13px; color: #d8f6ff; }
+.display-settings button { font: inherit; color: #d8f6ff; background: #0c1022; border: 1px solid #2a3866; border-radius: 6px; padding: 4px 10px; cursor: pointer; min-width: 84px; }
+.display-settings button:hover { border-color: #00f0ff; box-shadow: 0 0 8px #00f0ff66; }
+.display-settings button.on { border-color: #00f0ff; color: #00f0ff; }
+.menu-audio { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.crt .online.menu::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.22) 2px 3px), radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }

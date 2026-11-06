@@ -48,6 +48,7 @@ import { PULSE } from "./render/envelopes";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap, drawTrackShape } from "./minimap";
+import { displaySettingsWidget } from "./display-widget";
 import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
 import { countdownLabel, createCountdown } from "./ui/countdown";
@@ -87,6 +88,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
   const drafting = createDrafting(() => audio.sfx.slipstream());
   const audioWidget = audioSettingsWidget();
+  const displayWidget = displaySettingsWidget();
   const minimap = createMinimap(ui);
 
   let you = "";
@@ -126,6 +128,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const top = h("div", { class: "online-top" });
   const topInfo = h("div", { class: "online-top-info" });
   top.append(topInfo, audioWidget.el, h("button", { class: "leave", onclick: () => leave() }, "Leave"));
+  audioWidget.el.after(displayWidget.el);
   const center = h("div", { class: "online-center" });
   const bottom = h("div", { class: "online-bottom" });
   const toastBox = h("div", { class: "online-toasts" });
@@ -749,6 +752,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     audio.engines.stop();
     audio.danger(0);
     audioWidget.dispose();
+    displayWidget.dispose();
     minimap.dispose();
     keyboard.dispose();
     tool.dispose();

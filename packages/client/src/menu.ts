@@ -1,4 +1,5 @@
 import { audioSettingsWidget } from "./audio";
+import { displaySettingsWidget } from "./display-widget";
 import { h } from "./dom";
 import "./online.css";
 
@@ -14,6 +15,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
   const params = new URLSearchParams(location.search);
   const invited = params.get("room")?.toUpperCase() ?? "";
   const settings = audioSettingsWidget();
+  const displaySettings = displaySettingsWidget();
   const name = h("input", { value: localStorage.getItem(NAME_KEY) ?? "", placeholder: "Your name", maxLength: 16 });
   const code = h("input", { value: invited, placeholder: "CODE", maxLength: 4, class: "code-input" });
 
@@ -47,7 +49,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
         h("div", { class: "modes" }, code, h("button", { onclick: () => choose("join") }, invited ? `Join ${invited}` : "Join room")),
         h("div", { class: "modes" }, h("button", { onclick: () => choose("practice") }, "Solo practice")),
         h("p", { class: "hint" }, "Drive: WASD / arrows · Shift handbrake · M mute"),
-        h("div", { class: "menu-audio" }, settings.el),
+        h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
       ),
     ),
   );
@@ -59,6 +61,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
   (invited ? name : name.value ? code : name).focus();
   return () => {
     settings.dispose();
+    displaySettings.dispose();
     root.remove();
   };
 }
