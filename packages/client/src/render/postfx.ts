@@ -79,7 +79,7 @@ function warpFilter() {
   });
 }
 
-export function createPostFx(root: Container) {
+export function createPostFx(root: Container, glitch: { filter: Filter; active(): boolean }) {
   const split = new RGBSplitFilter({ red: [0, 0], green: [0, 0], blue: [0, 0] });
   const crt = new CRTFilter({ curvature: 2, lineWidth: 2, lineContrast: 0.18, noise: 0.035, noiseSize: 1.5, vignetting: 0.28, vignettingAlpha: 0.55, vignettingBlur: 0.35 });
   const warp = warpFilter();
@@ -94,8 +94,9 @@ export function createPostFx(root: Container) {
   const applyChain = () => {
     const filters: Filter[] = [];
     if (pulse > 0) filters.push(split);
+    if (glitch.active()) filters.push(glitch.filter);
     if (crtOn) filters.push(crt, warp);
-    const key = filters.length ? `${pulse > 0}${crtOn}` : "";
+    const key = filters.length ? `${pulse > 0}${glitch.active()}${crtOn}` : "";
     if (key === chain) return;
     chain = key;
     root.filters = filters;
@@ -109,6 +110,7 @@ export function createPostFx(root: Container) {
     danger(level: number) {
       vignette.set(level);
     },
+    refresh: applyChain,
     update(screen: { w: number; h: number }, view: ViewRect, dt: number, t: number) {
       area.width = screen.w;
       area.height = screen.h;

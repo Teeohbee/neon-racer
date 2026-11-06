@@ -11,6 +11,7 @@ import type { FallStart } from "./falling";
 import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
 import { createLighting } from "./lighting";
 import { createReflections } from "./reflections";
+import { createGlitchFx } from "./glitch";
 import { createPostFx } from "./postfx";
 import { createScenery } from "./scenery";
 import { createWeather } from "./weather";
@@ -228,8 +229,9 @@ export function createRenderer(app: Application): Renderer {
   const sparksG = new Graphics();
   const boostLayers = Array.from({ length: CHEVRONS }, () => new Graphics());
   const dangerG = new Graphics();
+  const glitch = createGlitchFx();
   const boostFx = createBoostFx({ length: CAR_LENGTH, width: CAR_WIDTH });
-  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, sketchG, slipstreamG, boostFx.view, carsLayer, aimG, sparksG);
+  fxLayer.addChild(sceneryGlow, edgesG, ...boostLayers, dangerG, hazardG, glitch.marks, sketchG, slipstreamG, boostFx.view, carsLayer, aimG, sparksG);
   const reflections = createReflections();
   fxLayer.addChildAt(reflections.view, 0);
   const falls = createFallLayer(drawCarBody);
@@ -238,8 +240,10 @@ export function createRenderer(app: Application): Renderer {
   const weather = createWeather();
   root.addChild(litLayer, lighting.view, fxRoot, weather.view, labelLayer, letterbox);
   app.stage.addChild(root);
-  const postfx = createPostFx(root);
+  const postfx = createPostFx(root, glitch);
   root.addChildAt(postfx.vignette, root.getChildIndex(letterbox));
+  root.addChildAt(glitch.card, root.getChildIndex(letterbox));
+  labelLayer.addChild(glitch.glyphs);
 
   const cars = new Map<string, CarSprite>();
   const trails = new Map<string, CarTrails>();
@@ -502,10 +506,12 @@ export function createRenderer(app: Application): Renderer {
       const t = wall / 1000;
       const halted = jolt.stop > 0;
       jolt = settle(jolt, dt);
+      const fit = fitView(app);
+      glitch.screen({ x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh }, dt, t);
+      postfx.refresh();
       if (halted) return;
 
       camera = shakeCamera(frame.camera, jolt.trauma, t);
-      const fit = fitView(app);
       updateLetterbox(fit);
       applyCamera(fit);
 
@@ -533,6 +539,9 @@ export function createRenderer(app: Application): Renderer {
       updateTrails(frame.cars, t);
       boostFx.update(frame.cars, t, dt);
       updateCars(frame.cars, t);
+      glitch.world({ dt, t, camera, zoom: fit.base / camera.scale, screen: { w: fit.sw, h: fit.sh }, locate: (id) => carsById.get(id) });
+      const corrupt = glitch.leader(frame.cars, frame.track, frame.dangerLine, dt);
+      for (const [id, sprite] of cars) sprite.label.text = id === corrupt?.id ? corrupt.text : sprite.name;
       drawSlipstream(slipstreamG, frame.cars, t);
       drawSketch(frame.sketch);
       drawAim(frame.aim, t);
@@ -587,9 +596,22 @@ export function createRenderer(app: Application): Renderer {
       postfx.danger(level);
     },
 
+    hack(h: Hazard) {
+      glitch.hack({ id: h.id, x: h.x, y: h.y, radius: h.kind === "freeze" ? ICE_RING + 8 : h.radius, color: HAZARD_COLORS[h.kind], targetId: h.targetId });
+    },
+
+    signalLost() {
+      glitch.signalLost();
+    },
+
+    glitch(strength: number, duration?: number) {
+      glitch.glitch(strength, duration);
+    },
+
     destroy() {
       app.stage.removeChild(root);
       postfx.destroy();
+      glitch.destroy();
       fxRoot.filters = [];
       bloom.destroy();
       scenery.destroy();

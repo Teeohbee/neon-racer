@@ -52,5 +52,8 @@ export interface Renderer {
   fall(car: FallStart): void;
   pulse(strength: number): void;
   danger(level: number): void;
+  hack(hazard: Hazard): void;
+  signalLost(): void;
+  glitch(strength: number, duration?: number): void;
   destroy(): void;
 }
