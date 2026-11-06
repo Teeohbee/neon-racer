@@ -45,6 +45,7 @@ import { onBoostPad } from "./render/boost-fx";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
+import { GLITCH } from "./render/glitch-math";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
 import { createMinimap, drawTrackShape } from "./minimap";
@@ -229,6 +230,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       track = null;
     }
     if (info.phase === "countdown") {
+      renderer.glitch(GLITCH.phase);
       roundResults = [];
       resetFromSnap = true;
     }
@@ -237,6 +239,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (info.phase !== "countdown") countdown.show(info.phase === "race" ? "GO" : null);
     if (info.phase === "roundEnd") podium.round(roundWinner && nameOf(roundWinner), roundResults.slice(0, 3).map((r) => entry(r.id, formatDelta(r.delta))));
     else if (info.phase === "matchEnd") {
+      renderer.glitch(GLITCH.matchEnd);
       const subtitle = info.win.kind === "laps" ? `${info.win.laps} laps of ${trackName}` : `First to ${info.win.target} on ${trackName}`;
       const standings = finalStandings(info.players, matchWinner).map((p) => entry(p.id, formatScore(p.score)));
       podium.match(`${nameOf(matchWinner)} wins!`, subtitle, standings, awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
@@ -273,6 +276,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         if (event.id === you) {
           myAlive = false;
           renderer.pulse(PULSE.eliminated);
+          renderer.signalLost();
           audio.sfx.eliminated(event.reason);
           audio.danger(0);
           stream.alert(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
@@ -496,7 +500,10 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       live.add(hz.id);
       const armed = snap.now >= hz.armsAt;
       const seen = hazardsSeen.get(hz.id);
-      if (seen === undefined && !armed) audio.sfx.hazardArming(hz.armsAt - snap.now);
+      if (seen === undefined && !armed) {
+        audio.sfx.hazardArming(hz.armsAt - snap.now);
+        renderer.hack(hz);
+      }
       if (armed && seen === false) audio.sfx.hazardActivate(hz.kind, heard ? screenPan(hz, heard.camera) : 0);
       hazardsSeen.set(hz.id, armed);
     }
