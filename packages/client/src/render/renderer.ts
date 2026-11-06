@@ -5,6 +5,7 @@ import { flat, offsetLoop } from "./geometry";
 import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdges, drawTrackSurface, drawVoid } from "./features";
 import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
+import { calm, falloff, hit, release, settle, shakeCamera } from "./impact";
 import { createLighting } from "./lighting";
 import { createReflections } from "./reflections";
 import { createScenery } from "./scenery";
@@ -240,6 +241,7 @@ export function createRenderer(app: Application): Renderer {
   let camera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: 1 };
   let lastFitKey = "";
   let lastTime = performance.now();
+  let jolt = calm();
 
   const applyCamera = (fit: Fit) => {
     const zoom = fit.base / camera.scale;
@@ -484,8 +486,11 @@ export function createRenderer(app: Application): Renderer {
       const dt = Math.min(0.1, (wall - lastTime) / 1000);
       lastTime = wall;
       const t = wall / 1000;
+      const halted = jolt.stop > 0;
+      jolt = settle(jolt, dt);
+      if (halted) return;
 
-      camera = frame.camera;
+      camera = shakeCamera(frame.camera, jolt.trauma, t);
       const fit = fitView(app);
       updateLetterbox(fit);
       applyCamera(fit);
@@ -530,6 +535,7 @@ export function createRenderer(app: Application): Renderer {
       }
       reflections.update({ wet: !frame.sketch && scenery.weather()?.rain === true, track: frame.track, edges, cars: frame.cars, lights: extraLights, brakeOf: lighting.brakeOf, t });
       lighting.update({ edges, ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      jolt = release(jolt);
     },
 
     screenToWorld(px: number, py: number): Point {
@@ -546,6 +552,10 @@ export function createRenderer(app: Application): Renderer {
         sparks.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: max, max, color });
       }
       lighting.flash(x, y, color);
+    },
+
+    impact(x: number, y: number, strength: number) {
+      jolt = hit(jolt, strength * falloff(x - camera.x, y - camera.y, (VIEW.width * camera.scale) / 2));
     },
 
     destroy() {

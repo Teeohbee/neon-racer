@@ -46,5 +46,6 @@ export interface Renderer {
   render(frame: FrameView): void;
   screenToWorld(px: number, py: number): Point;
   burst(x: number, y: number, color: number): void;
+  impact(x: number, y: number, strength: number): void;
   destroy(): void;
 }
