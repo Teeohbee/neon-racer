@@ -28,12 +28,20 @@ export interface CarSnap extends CarState {
   ack: number;
 }
 
+export interface Award {
+  id: string;
+  title: string;
+  blurb: string;
+  stat: string;
+}
+
 export type GameEvent =
   | { kind: "eliminated"; id: string; reason: EliminationReason }
   | { kind: "roundScored"; results: { id: string; delta: number }[] }
   | { kind: "hazardKill"; by: string; victim: string }
   | { kind: "roundWon"; id: string | null }
-  | { kind: "matchWon"; id: string };
+  | { kind: "matchWon"; id: string }
+  | { kind: "awards"; awards: Award[] };
 
 export type ClientMsg =
   | { t: "ready"; ready: boolean }
