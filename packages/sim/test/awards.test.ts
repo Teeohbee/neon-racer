@@ -84,9 +84,16 @@ describe("match stats", () => {
       const stats = new MatchStats();
       stats.sample("ann", straight, 10, DT);
       stats.eliminated("ann", "line");
-      stats.sample("bob", straight, 300, DT);
+      stats.sample("bob", straight, 100, DT);
       stats.endRound("bob");
       expect(award(stats, "Firewall Kisser")?.id).toBe("bob");
+    });
+
+    it("isn't a shave when the line never got within a few car lengths", () => {
+      const stats = new MatchStats();
+      stats.sample("ann", straight, 900, DT);
+      stats.endRound("ann");
+      expect(award(stats, "Firewall Kisser")).toBeUndefined();
     });
 
     it("still counts it when the player fell off later", () => {

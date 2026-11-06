@@ -27,6 +27,7 @@ interface AwardSpec {
   stat: (value: number) => string;
 }
 
+const MAX_SHAVE = CAR_RADIUS * 2 * 5;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const seconds = (n: number) => `${+n.toFixed(1)}s`;
 
@@ -35,7 +36,7 @@ const AWARDS: AwardSpec[] = [
   {
     title: "Firewall Kisser",
     blurb: "Close enough to the line to read its source code",
-    score: (s) => s.shave,
+    score: (s) => (s.shave <= MAX_SHAVE ? s.shave : Infinity),
     lowest: true,
     stat: (n) => `outran the line by ${+(n / (CAR_RADIUS * 2)).toFixed(1)} car lengths`,
   },
