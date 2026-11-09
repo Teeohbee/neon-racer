@@ -13,6 +13,9 @@ const polar = (fn: (t: number) => number, rx: number, ry: number, n = 120): Poin
     return [3200 + Math.cos(t) * rx * r, 2000 + Math.sin(t) * ry * r];
   });
 
+const curve = (fn: (t: number) => Point, n: number): Point[] =>
+  Array.from({ length: n }, (_, i) => fn(Math.PI / 2 + (i / n) * Math.PI * 2));
+
 const spline = (points: Point[], samples = 16): Point[] =>
   points.flatMap((_, i) => {
     const at = (k: number) => points[(i + k + points.length) % points.length]!;
@@ -78,6 +81,31 @@ const RAW_TRACKS: PresetTrack[] = [
     points: [[800, 900], [2200, 500], [4600, 500], [5700, 1300], [5700, 2700], [4700, 3500], [2600, 3500], [1700, 2900], [2300, 2300], [3600, 2500], [4400, 2200], [4300, 1500], [3200, 1400], [1900, 1600], [1100, 2300], [600, 1700]],
     features: [{ kind: "boost", at: [3250, 430] }, { kind: "boost", at: [3430, 3580] }, { kind: "drop", at: [4290, 1510], span: 1000 }, { kind: "drop", at: [1090, 2280], span: 800 }],
   },
+  {
+    name: "Interchange",
+    points: curve((t) => [3200 + 2600 * Math.sin(t), 2000 + 1500 * Math.sin(2 * t)], 240),
+    features: [
+      { kind: "bridge", at: [3392, 1779], span: 900 },
+      { kind: "boost", at: [5251, 553] },
+      { kind: "boost", at: [1130, 562] },
+      { kind: "drop", at: [1135, 3440], span: 900 },
+      { kind: "drop", at: [5246, 3449], span: 900 },
+    ],
+  },
+  {
+    name: "Pretzel",
+    points: curve((t) => [3200 + 2700 * Math.sin(t), 2000 + 1100 * Math.sin(3 * t + 0.8)], 360),
+    features: [
+      { kind: "bridge", at: [4735, 2931], span: 900 },
+      { kind: "bridge", at: [1664, 1069], span: 900 },
+      { kind: "boost", at: [3467, 1472] },
+      { kind: "boost", at: [2933, 2529] },
+      { kind: "drop", at: [502, 2748], span: 900 },
+      { kind: "drop", at: [5284, 1670], span: 900 },
+    ],
+  },
 ];
 
-export const PRESET_TRACKS: PresetTrack[] = RAW_TRACKS.map((t) => ({ ...t, points: t.name === "Starfish" ? t.points : spline(t.points) }));
+const DENSE = new Set(["Starfish", "Interchange", "Pretzel"]);
+
+export const PRESET_TRACKS: PresetTrack[] = RAW_TRACKS.map((t) => ({ ...t, points: DENSE.has(t.name) ? t.points : spline(t.points) }));
