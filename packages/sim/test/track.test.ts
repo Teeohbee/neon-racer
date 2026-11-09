@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceProgress, buildTrack, gridSlots, isOnRoad, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point } from "../src/track";
+import { advanceProgress, bridgeAt, buildTrack, crossings, gridSlots, isOnRoad, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point } from "../src/track";
 
 const circle = buildTrack(ovalPoints(0, 0, 1000, 1000));
 const eight = buildTrack(Array.from({ length: 240 }, (_, i): Point => {
@@ -100,5 +100,43 @@ describe("nearestOnTrack near a previous position", () => {
   it("falls back to the whole track when the car is far from its old spot", () => {
     const far = nearestOnTrack(eight, 0, 0, eight.length / 2);
     expect(far.dist).toBeLessThan(5);
+  });
+});
+
+describe("crossings", () => {
+  it("finds where the road crosses itself, with both passes and the angle", () => {
+    const found = crossings(eight);
+    expect(found).toHaveLength(1);
+    const [c] = found;
+    expect(Math.hypot(c!.x, c!.y)).toBeLessThan(5);
+    expect(Math.min(Math.abs(c!.a - eight.length / 4), Math.abs(c!.b - eight.length / 4))).toBeLessThan(30);
+    expect(c!.angle).toBeGreaterThan(Math.PI / 3);
+  });
+
+  it("finds none on a plain loop", () => {
+    expect(crossings(circle)).toEqual([]);
+  });
+});
+
+describe("bridges", () => {
+  const [bx, by] = pointAt(eight, eight.length / 4 - 250);
+  const bridged = buildTrack(
+    Array.from({ length: 240 }, (_, i): Point => {
+      const t = Math.PI / 2 + (i / 240) * Math.PI * 2;
+      return [2600 * Math.sin(t), 1500 * Math.sin(2 * t)];
+    }),
+    [{ kind: "bridge", at: [bx, by], span: 800 }],
+  );
+  const over = bridged.length / 4;
+
+  it("centres the bridge on the crossing along the branch it was placed on", () => {
+    expect(bridgeAt(bridged, over)).toBe(true);
+    expect(bridgeAt(bridged, over - 350)).toBe(true);
+    expect(bridgeAt(bridged, over + 350)).toBe(true);
+    expect(bridgeAt(bridged, over + 450)).toBe(false);
+  });
+
+  it("leaves the other pass underneath", () => {
+    expect(bridgeAt(bridged, (bridged.length * 3) / 4)).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ export const TRACK_WIDTH = 150;
 export const WORLD = { width: 6400, height: 4000 };
 const SPACING = 20;
 
-export type FeatureSpec = { kind: "drop"; at: Point; span: number } | { kind: "boost"; at: Point };
+export type FeatureSpec = { kind: "drop"; at: Point; span: number } | { kind: "boost"; at: Point } | { kind: "bridge"; at: Point; span: number };
 
 export const BOOST_LENGTH = 160;
 const FALL_MARGIN = 8;
@@ -16,6 +16,15 @@ export interface Track {
   length: number;
   drops: [from: number, to: number][];
   boosts: number[];
+  bridges: [from: number, to: number][];
+}
+
+export interface Crossing {
+  x: number;
+  y: number;
+  a: number;
+  b: number;
+  angle: number;
 }
 
 export function ovalPoints(cx: number, cy: number, rx: number, ry: number, n = 96): Point[] {
@@ -115,20 +124,61 @@ export function buildTrack(raw: Point[], features: FeatureSpec[] = []): Track {
     cum.push(cum[i - 1]! + Math.hypot(xs[j]! - xs[i - 1]!, ys[j]! - ys[i - 1]!));
   }
   const length = cum.pop()!;
-  const track: Track = { xs, ys, cum, length, drops: [], boosts: [] };
+  const track: Track = { xs, ys, cum, length, drops: [], boosts: [], bridges: [] };
   const wrap = (v: number) => ((v % length) + length) % length;
+  const passes = features.some((f) => f.kind === "bridge") ? crossings(track).flatMap((c) => [c.a, c.b]) : [];
   for (const f of features) {
     const s = nearestOnTrack(track, f.at[0], f.at[1]).s;
     if (f.kind === "drop") track.drops.push([wrap(s - f.span / 2), wrap(s + f.span / 2)]);
-    else track.boosts.push(s);
+    else if (f.kind === "boost") track.boosts.push(s);
+    else {
+      const centre = passes.reduce<number | null>((best, p) => (best === null || arcGap(p, s, length) < arcGap(best, s, length) ? p : best), null) ?? s;
+      track.bridges.push([wrap(centre - f.span / 2), wrap(centre + f.span / 2)]);
+    }
   }
   return track;
+}
+
+const arcGap = (a: number, b: number, length: number) => {
+  const d = (((a - b) % length) + length) % length;
+  return Math.min(d, length - d);
+};
+
+export function crossings(track: Track): Crossing[] {
+  const { xs, ys, cum } = track;
+  const n = xs.length;
+  const found: Crossing[] = [];
+  for (let i = 0; i < n; i++) {
+    const i2 = (i + 1) % n;
+    const [ax, ay, bx, by] = [xs[i]!, ys[i]!, xs[i2]!, ys[i2]!];
+    for (let j = i + 2; j < n; j++) {
+      const j2 = (j + 1) % n;
+      if (j2 === i) continue;
+      const [cx, cy, dx, dy] = [xs[j]!, ys[j]!, xs[j2]!, ys[j2]!];
+      const rx = bx - ax;
+      const ry = by - ay;
+      const sx = dx - cx;
+      const sy = dy - cy;
+      const den = rx * sy - ry * sx;
+      if (den === 0) continue;
+      const t = ((cx - ax) * sy - (cy - ay) * sx) / den;
+      const u = ((cx - ax) * ry - (cy - ay) * rx) / den;
+      if (t < 0 || t >= 1 || u < 0 || u >= 1) continue;
+      const cos = Math.abs(rx * sx + ry * sy) / (Math.hypot(rx, ry) * Math.hypot(sx, sy));
+      found.push({ x: ax + rx * t, y: ay + ry * t, a: cum[i]! + Math.hypot(rx, ry) * t, b: cum[j]! + Math.hypot(sx, sy) * u, angle: Math.acos(Math.min(1, cos)) });
+    }
+  }
+  return found;
 }
 
 const forwardGap = (from: number, to: number, length: number) => (((to - from) % length) + length) % length;
 
 export function dropAt(track: Track, s: number): boolean {
   return track.drops.some(([from, to]) => forwardGap(from, s, track.length) <= forwardGap(from, to, track.length));
+}
+
+export function bridgeAt(track: Track, s: number): boolean {
+  return track.bridges.some(([from, to]) => forwardGap(from, s, track.length) <= forwardGap(from, to, track.length));
 }
 
 export function boostAt(track: Track, s: number): boolean {
