@@ -2,10 +2,11 @@ import { CAR_RADIUS, type CarState } from "./car";
 
 const RESTITUTION = 0.6;
 
-export function resolveCarCollisions(cars: CarState[]): CarState[] {
+export function resolveCarCollisions(cars: CarState[], levels?: boolean[]): CarState[] {
   const out = cars.map((c) => ({ ...c }));
   for (let i = 0; i < out.length; i++) {
     for (let j = i + 1; j < out.length; j++) {
+      if (levels && levels[i] !== levels[j]) continue;
       const a = out[i]!;
       const b = out[j]!;
       const dx = b.x - a.x;

@@ -1,7 +1,7 @@
-import { defaultCarParams, stepCar, type CarInput, type CarParams, type CarState } from "./car";
+import { CAR_RADIUS, defaultCarParams, stepCar, type CarInput, type CarParams, type CarState } from "./car";
 import { freezeOn, hazardSpeedFactor, pushOutOfBlocks, slowZoneAt, type Hazard } from "./hazards";
 import { DRAFT_ACCEL, draftFactor } from "./slipstream";
-import { boostAt, nearestOnTrack, TRACK_WIDTH, type Track } from "./track";
+import { boostAt, bridgeAt, nearestOnTrack, pointAt, TRACK_WIDTH, type Track } from "./track";
 
 export const OFFROAD_FACTOR = 0.45;
 export const BOOST_FACTOR = 1.4;
@@ -34,6 +34,19 @@ export function stepWorldCar(car: CarState, input: CarInput, dt: number, ctx: St
     const fy = Math.sin(moved.angle);
     moved = { ...moved, vx: moved.vx + fx * push * dt, vy: moved.vy + fy * push * dt };
   }
-  const { car: pushed, hit } = pushOutOfBlocks(moved, ctx.hazards, ctx.now);
+  const { car: blocked, hit } = pushOutOfBlocks(moved, ctx.hazards, ctx.now);
+  const pushed = ctx.track && ctx.near !== undefined ? railOntoBridge(blocked, ctx.track, ctx.near) : blocked;
   return { car: pushed, hazardHit: hit ?? slowZoneAt(ctx.hazards, pushed.x, pushed.y, ctx.now) ?? null };
+}
+
+const RAIL = TRACK_WIDTH / 2 - CAR_RADIUS;
+
+function railOntoBridge(car: CarState, track: Track, near: number): CarState {
+  const at = nearestOnTrack(track, car.x, car.y, near);
+  if (at.dist <= RAIL || !bridgeAt(track, at.s)) return car;
+  const [cx, cy] = pointAt(track, at.s);
+  const nx = (car.x - cx) / at.dist;
+  const ny = (car.y - cy) / at.dist;
+  const out = Math.max(0, car.vx * nx + car.vy * ny);
+  return { ...car, x: cx + nx * RAIL, y: cy + ny * RAIL, vx: car.vx - nx * out, vy: car.vy - ny * out };
 }

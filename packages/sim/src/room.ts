@@ -5,7 +5,7 @@ import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./ca
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
 import { CUP_LEGS, LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type CupLegs, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
-import { advanceProgress, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
+import { advanceProgress, bridgeAt, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { Slipstream } from "./slipstream";
 import { randomTrackPoints, validateDrawing } from "./validate";
@@ -296,7 +296,7 @@ export class Room {
         }
         p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       }
-      const resolved = resolveCarCollisions(racers.map((p) => p.car!));
+      const resolved = resolveCarCollisions(racers.map((p) => p.car!), racers.map((p) => bridgeAt(track, p.progress.s)));
       racers.forEach((p, i) => (p.car = resolved[i]!));
     }
 

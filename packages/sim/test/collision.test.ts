@@ -20,4 +20,14 @@ describe("resolveCarCollisions", () => {
     const cars = [car(0, 100), car(500, 100)];
     expect(resolveCarCollisions(cars)).toEqual(cars);
   });
+
+  it("lets a car on a bridge pass over a car underneath", () => {
+    const cars = [car(0, 300), car(10, -300)];
+    expect(resolveCarCollisions(cars, [true, false])).toEqual(cars);
+  });
+
+  it("still collides cars on the same level", () => {
+    const [a, b] = resolveCarCollisions([car(0, 0), car(10, 0)], [true, true]);
+    expect(b!.x - a!.x).toBeGreaterThanOrEqual(CAR_RADIUS * 2 - 0.001);
+  });
 });
