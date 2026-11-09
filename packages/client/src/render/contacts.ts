@@ -12,6 +12,7 @@ export interface ContactCar {
   speed: number;
   alive: boolean;
   color: number;
+  upper?: boolean;
 }
 
 export interface Touch {
@@ -69,6 +70,7 @@ export function findTouches(cars: ContactCar[], hazards: Hazard[], now: number, 
     for (let j = i + 1; j < alive.length; j++) {
       const a = alive[i]!;
       const b = alive[j]!;
+      if (!!a.upper !== !!b.upper) continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.hypot(dx, dy);

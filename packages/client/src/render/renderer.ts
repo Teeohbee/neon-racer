@@ -6,6 +6,7 @@ import { chevronAlpha, CHEVRONS, drawBoostChevrons, drawDangerLine, drawTrackEdg
 import { createBloomSwell, impactSwell } from "./bloom-swell";
 import { createBoostFx } from "./boost-fx";
 import { drawHologram } from "./hologram";
+import { drawBridgeDecks, drawBridgeShadows } from "./bridge";
 import { createContactTracker } from "./contacts";
 import { createExplosions } from "./explosions";
 import { FALL_POP } from "./explosion-math";
@@ -249,6 +250,13 @@ export function createRenderer(app: Application): Renderer {
     swell.kick(FALL_POP);
   });
   fxLayer.addChildAt(falls.view, fxLayer.getChildIndex(carsLayer));
+  const bridgeShadow = new Graphics();
+  litLayer.addChildAt(bridgeShadow, litLayer.getChildIndex(roadG) + 1);
+  const bridgeDeck = new Graphics();
+  const upperCars = new Container();
+  fxLayer.addChildAt(bridgeDeck, fxLayer.getChildIndex(carsLayer) + 1);
+  fxLayer.addChildAt(dangerG, fxLayer.getChildIndex(bridgeDeck) + 1);
+  fxLayer.addChildAt(upperCars, fxLayer.getChildIndex(dangerG) + 1);
   fxRoot.addChild(fxLayer);
   const weather = createWeather();
   root.addChild(litLayer, lighting.view, fxRoot, weather.view, labelLayer, letterbox);
@@ -339,6 +347,8 @@ export function createRenderer(app: Application): Renderer {
       sprite.root.visible = visible;
       sprite.label.visible = visible;
       if (!visible) continue;
+      const layer = car.upper ? upperCars : carsLayer;
+      if (sprite.root.parent !== layer) layer.addChild(sprite.root);
       sprite.root.position.set(car.x, car.y);
       sprite.body.rotation = car.angle;
       sprite.body.tint = car.frozen ? UI.ice : car.color;
@@ -545,8 +555,10 @@ export function createRenderer(app: Application): Renderer {
           drawVoid(voidG, currentTrack);
           drawTrackEdges(edgesG, currentTrack, edges);
           drawBoostChevrons(boostLayers, currentTrack);
+          drawBridgeShadows(bridgeShadow, currentTrack);
+          drawBridgeDecks(bridgeDeck, currentTrack, edges);
         } else {
-          for (const g of [roadG, voidG, edgesG, ...boostLayers]) g.clear();
+          for (const g of [roadG, voidG, edgesG, bridgeShadow, bridgeDeck, ...boostLayers]) g.clear();
         }
       }
 

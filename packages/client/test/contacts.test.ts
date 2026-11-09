@@ -13,6 +13,11 @@ function seq(values: number[]) {
 }
 
 describe("findTouches", () => {
+  it("doesn't spark between a car on a bridge and a car passing underneath", () => {
+    const over = { ...car("a", 0, 0, 0, 300), upper: true };
+    expect(findTouches([over, car("b", 10, 0, Math.PI, 300)], [], 1, true, BLOCK)).toEqual([]);
+  });
+
   it("finds a car pressed against a live block with the contact on its rim", () => {
     const [t] = findTouches([car("a", 0, 70 + CAR_RADIUS, 0, 300)], [block(0, 0)], 1, false, BLOCK);
     expect(t).toMatchObject({ key: "a#7", x: 0, block: true, colors: [BLOCK, 0x00ff00] });

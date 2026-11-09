@@ -12,6 +12,7 @@ export interface CarView {
   drifting: boolean;
   boosting: boolean;
   s?: number;
+  upper?: boolean;
   alive: boolean;
   frozen: boolean;
   isYou: boolean;

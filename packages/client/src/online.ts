@@ -2,6 +2,7 @@ import type { Application, Ticker } from "pixi.js";
 import {
   BOT_SKILLS,
   boostAt,
+  bridgeAt,
   buildTrack,
   CUP_LEGS,
   describeProblem,
@@ -455,6 +456,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       drifting: Math.abs(lateral) > DRIFT_LATERAL,
       boosting: snap.alive && !!at && at.dist <= TRACK_WIDTH / 2 && boostAt(track!, at.s),
       s: at?.s,
+      upper: !!at && bridgeAt(track!, at.s),
       alive: snap.alive,
       frozen: isFrozen(snap.id, hazards, now),
       isYou: snap.id === you,

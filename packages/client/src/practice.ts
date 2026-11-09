@@ -2,6 +2,7 @@ import type { Application, Ticker } from "pixi.js";
 import {
   advanceProgress,
   boostAt,
+  bridgeAt,
   fellOffAt,
   pointAt,
   buildTrack,
@@ -339,6 +340,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       speed: speedOf(car),
       drifting: mode === "drive" && isDrifting(car, input),
       s: progress.s,
+      upper: bridgeAt(track, progress.s),
       boosting: mode === "drive" && boosting,
       alive: fall === null,
       frozen: false,

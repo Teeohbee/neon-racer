@@ -1,5 +1,5 @@
 import type { Application, Ticker } from "pixi.js";
-import { botInput, buildTrack, fellOffAt, gridSlots, pointAt, PRESET_TRACKS, speedOf, stepCamera, stepWorldCar, type BotSkill, type Camera, type CarState, type Track } from "@neon/sim";
+import { botInput, bridgeAt, buildTrack, fellOffAt, gridSlots, pointAt, PRESET_TRACKS, speedOf, stepCamera, stepWorldCar, type BotSkill, type Camera, type CarState, type Track } from "@neon/sim";
 import { TrackFollower } from "../net/track-follower";
 import { onBoostPad } from "../render/boost-fx";
 import { PLAYER_COLORS } from "../render/palette";
@@ -61,6 +61,7 @@ export function startAttract(app: Application): { stop(): void } {
     drifting: Math.abs(-car.vx * Math.sin(car.angle) + car.vy * Math.cos(car.angle)) > DRIFT_LATERAL,
     boosting: onBoostPad(track, car.x, car.y, follower.near(field[i]!.name)),
     s: follower.near(field[i]!.name),
+    upper: bridgeAt(track, follower.near(field[i]!.name) ?? 0),
     alive: true,
     frozen: false,
     isYou: false,
