@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kickPulse, MAX_SPLIT, PULSE, PULSE_TIME, splitOffset, stepPulse, stepVignette, VIGNETTE_IDLE, VIGNETTE_MAX, vignetteAlpha, vignetteRate, type VignetteState } from "../src/render/envelopes";
+import { barrel, kickPulse, MAX_SPLIT, PULSE, PULSE_TIME, splitOffset, stepPulse, stepVignette, VIGNETTE_IDLE, VIGNETTE_MAX, vignetteAlpha, vignetteRate, type VignetteState } from "../src/render/envelopes";
 
 const run = (state: VignetteState, target: number, seconds: number, dt = 1 / 60) => {
   for (let t = 0; t < seconds; t += dt) state = stepVignette(state, target, dt);
@@ -69,3 +69,19 @@ describe("danger vignette", () => {
   });
 });
 
+
+describe("barrel", () => {
+  it("leaves the centre where it is", () => {
+    expect(barrel(500, 300, { x: 0, y: 0, w: 1000, h: 600 }, 0.07)).toEqual([500, 300]);
+  });
+
+  it("pushes points out towards the corners, as the CRT shows them", () => {
+    const [x, y] = barrel(900, 540, { x: 0, y: 0, w: 1000, h: 600 }, 0.07);
+    expect(x).toBeCloseTo(900 + 400 * 0.07 * 1.28, 5);
+    expect(y).toBeCloseTo(540 + 240 * 0.07 * 1.28, 5);
+  });
+
+  it("curves around the game view, not the whole window", () => {
+    expect(barrel(1000, 450, { x: 280, y: 0, w: 1440, h: 900 }, 0.07)).toEqual([1000, 450]);
+  });
+});

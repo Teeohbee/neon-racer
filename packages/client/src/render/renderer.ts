@@ -587,7 +587,8 @@ export function createRenderer(app: Application): Renderer {
       jolt = release(jolt);
     },
 
-    screenToWorld(px: number, py: number): Point {
+    screenToWorld(sx: number, sy: number): Point {
+      const [px, py] = postfx.shown(sx, sy);
       const fit = fitView(app);
       const zoom = fit.base / camera.scale;
       return [camera.x + (px - fit.sw / 2) / zoom, camera.y + (py - fit.sh / 2) / zoom];

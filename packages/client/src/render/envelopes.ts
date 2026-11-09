@@ -39,3 +39,10 @@ export function vignetteAlpha({ level, phase }: VignetteState): number {
   return VIGNETTE_MAX * level * (0.55 + 0.45 * beat);
 }
 
+
+export function barrel(x: number, y: number, view: { x: number; y: number; w: number; h: number }, curve: number): [number, number] {
+  const px = ((x - view.x) / view.w) * 2 - 1;
+  const py = ((y - view.y) / view.h) * 2 - 1;
+  const k = 1 + curve * (px * px + py * py);
+  return [view.x + ((px * k + 1) / 2) * view.w, view.y + ((py * k + 1) / 2) * view.h];
+}
