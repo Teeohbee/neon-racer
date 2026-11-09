@@ -38,7 +38,8 @@
 .award-stat { font-size: 13px; color: #fff; }
 .award-blurb { margin-top: 4px; font-size: 12px; font-style: italic; opacity: 0.55; }
 
-.podium-actions { margin-top: var(--nr-space-4); }
+.podium-actions { margin-top: var(--nr-space-4); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--nr-space-2); }
+.podium-actions .hint { flex-basis: 100%; margin: 0; text-align: center; }
 
 @keyframes podium-in {
   from { opacity: 0; transform: translateY(-10px); }

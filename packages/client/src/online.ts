@@ -3,6 +3,7 @@ import {
   BOT_SKILLS,
   boostAt,
   buildTrack,
+  CUP_LEGS,
   describeProblem,
   HAZARD_KINDS,
   HAZARD_SPECS,
@@ -26,6 +27,7 @@ import {
   type Camera,
   type CarSnap,
   type CarState,
+  type CupLegs,
   type EliminationReason,
   type GameEvent,
   type HazardKind,
@@ -36,6 +38,7 @@ import {
   type WinCondition,
 } from "@neon/sim";
 import { h } from "./dom";
+import { cupTable, isLegEnd, rematchLabel, stillWaiting, tallyLine } from "./ui/match-end";
 import { createKeyboard, isTyping } from "./input";
 import { connect } from "./net/connection";
 import { createDrafting } from "./net/drafting";
@@ -109,6 +112,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   let roundResults: { id: string; delta: number }[] = [];
   let matchWinner: string | null = null;
   let awards: Award[] = [];
+  let cupWinner: string | null = null;
   let hazardKind: HazardKind = "block";
   let mouse: Point | null = null;
   let steps = 0;
@@ -139,7 +143,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   root.append(top, center, bottom, toastBox);
   const countdown = createCountdown(root);
   const podium = createPodium(root, { click: audio.sfx.click, reveal: audio.sfx.reveal });
-  const stream = createStreamHud(root, top, (id) => { const p = player(id); return p ? raceName(p) : "Someone"; });
+  const stream = createStreamHud(root, top, (id) => shortName(id));
   const uiClick = (e: MouseEvent) => {
     if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
   };
@@ -150,7 +154,11 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
   const player = (id: string | null | undefined) => info?.players.find((p) => p.id === id);
   const nameOf = (id: string | null | undefined) => player(id)?.name ?? "Someone";
-  const entry = (id: string, value: string) => ({ name: nameOf(id), color: css(playerColor(player(id)?.color ?? 0)), value });
+  const shortName = (id: string | null | undefined) => {
+    const p = player(id);
+    return p ? raceName(p) : "Someone";
+  };
+  const entry = (id: string, value: string) => ({ name: shortName(id), color: css(playerColor(player(id)?.color ?? 0)), value });
   const isDrawer = () => info?.phase === "sketch" && info.drawerId === you;
   const serverNow = () => buffer.serverNow(performance.now());
 
@@ -228,6 +236,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
     if (info.phase === "lobby") {
       matchWinner = null;
+      cupWinner = null;
       awards = [];
       track = null;
     }
@@ -242,9 +251,17 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (info.phase === "roundEnd") podium.round(roundWinner && nameOf(roundWinner), roundResults.slice(0, 3).map((r) => entry(r.id, formatDelta(r.delta))));
     else if (info.phase === "matchEnd") {
       renderer.glitch(GLITCH.matchEnd);
-      const subtitle = info.win.kind === "laps" ? `${info.win.laps} laps of ${trackName}` : `First to ${info.win.target} on ${trackName}`;
-      const standings = finalStandings(info.players, matchWinner).map((p) => entry(p.id, formatScore(p.score)));
-      podium.match(`${nameOf(matchWinner)} wins!`, subtitle, standings, awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
+      const rules = info.win.kind === "laps" ? `${info.win.laps} laps of ${trackName}` : `First to ${info.win.target} on ${trackName}`;
+      const tally = tallyLine(info.players);
+      if (info.cup) {
+        const title = isLegEnd(info) ? `${shortName(matchWinner)} takes leg ${info.leg}` : `${shortName(cupWinner)} wins the cup!`;
+        const subtitle = [`Leg ${info.leg} of ${info.cup} · ${rules}`, tally].filter(Boolean).join(" — ");
+        const standings = cupTable(info.players).map((p) => entry(p.id, `${p.cupPoints} pts`));
+        podium.match(title, subtitle, standings, isLegEnd(info) ? [] : awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
+      } else {
+        const standings = finalStandings(info.players, matchWinner).map((p) => entry(p.id, formatScore(p.score)));
+        podium.match(`${shortName(matchWinner)} wins!`, [rules, tally].filter(Boolean).join(" — "), standings, awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
+      }
     } else podium.hide();
     if (info.phase !== "race") audio.danger(0);
   }
@@ -300,6 +317,9 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
         break;
       case "awards":
         awards = event.awards;
+        break;
+      case "cupWon":
+        cupWinner = event.id;
         break;
     }
     drawUI();
@@ -612,6 +632,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                   ),
                 ),
                 winPicker(i.win, isHost),
+                cupPicker(i.cup, isHost),
                 trackPicker(i.tracks, isHost),
               ),
               h(
@@ -626,7 +647,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                           "li",
                           { style: `--c:${css(playerColor(p.color))}` },
                           h("span", { class: "dot" }),
-                          h("span", { class: "name" }, `${p.name}${p.id === i.hostId ? " ★" : ""}${p.id === you ? " (you)" : ""}`),
+                          h("span", { class: "name" }, `${p.name}${p.id === i.hostId ? " ★" : ""}${p.id === you ? " (you)" : ""}${p.wins ? ` · 🏆${p.wins}` : ""}`),
                           h("span", { class: p.ready ? "ready yes" : "ready" }, p.bot ? "bot" : p.ready ? "ready" : "not ready"),
                           p.bot && isHost ? h("button", { class: "remove", title: "Remove bot", onclick: () => conn.send({ t: "removeBot", id: p.id }) }, "×") : null,
                         )
@@ -665,7 +686,16 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       case "roundEnd":
         return [];
       case "matchEnd":
-        podium.actions(i.hostId === you ? h("button", { class: "big", onclick: () => conn.send({ t: "again" }) }, "Back to lobby") : h("p", { class: "hint" }, "Waiting for the host…"));
+      {
+        const mine = player(you)?.rematch === true;
+        const waiting = stillWaiting(i.players);
+        podium.actions(
+          h("button", { class: `big${mine ? " on" : ""}`, onclick: () => conn.send({ t: "rematch", in: !mine }) }, mine ? "In ✓" : rematchLabel(i)),
+          ...(i.hostId === you ? [h("button", { onclick: () => conn.send({ t: "again" }) }, "Change settings")] : []),
+          h("button", { onclick: () => leave() }, "Leave"),
+          h("p", { class: "hint" }, waiting ? `Waiting for ${waiting} more…` : "Starting…"),
+        );
+      }
         return [];
     }
   }
@@ -692,7 +722,21 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           return h("button", { class: on ? "on" : "", disabled: !isHost, onclick: () => pick(v) }, String(n));
         }),
       ),
-      h("span", { class: "hint" }, win.kind === "laps" ? "laps, one track" : "points to win"),
+      h("span", { class: "hint" }, win.kind === "laps" ? "laps per track" : "points per track"),
+    );
+  }
+
+  function cupPicker(cup: CupLegs, isHost: boolean): HTMLElement {
+    return h(
+      "div",
+      { class: "modes" },
+      "Cup: ",
+      h(
+        "span",
+        { class: "seg" },
+        ...CUP_LEGS.map((legs) => h("button", { class: cup === legs ? "on" : "", disabled: !isHost, onclick: () => conn.send({ t: "cup", legs }) }, legs ? `${legs} tracks` : "Off")),
+      ),
+      h("span", { class: "hint" }, cup ? "points carry across tracks" : "one track per match"),
     );
   }
 
