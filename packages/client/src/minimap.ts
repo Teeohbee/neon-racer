@@ -58,6 +58,22 @@ export function drawTrackShape(ctx: CanvasRenderingContext2D, track: Track, scal
     }
     ctx.stroke();
   }
+  for (const [from, to] of track.bridges) {
+    const span = (((to - from) % track.length) + track.length) % track.length;
+    const steps = Math.max(1, Math.ceil(span / DROP_STEP));
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const [x, y] = pointAt(track, from + (span * i) / steps);
+      if (i) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = "#1d2a55";
+    ctx.lineWidth = 170;
+    ctx.stroke();
+    ctx.strokeStyle = "#00f0ff";
+    ctx.lineWidth = 45;
+    ctx.stroke();
+  }
   ctx.strokeStyle = "#ffd400";
   ctx.lineWidth = 60;
   for (const s of track.boosts) tick(ctx, track, s, 130);

@@ -220,4 +220,7 @@ export const DISTRICTS: Record<string, District> = {
   },
 };
 
+DISTRICTS.Interchange = { ...DISTRICTS["Kidney Bean"]!, edges: [0x2ad8c8, 0xffb020], roofLight: 0xffb020 };
+DISTRICTS.Pretzel = { ...DISTRICTS.Lightning!, edges: [0x7cff6a, 0xff4fd8], accents: [0x7cff6a, 0xff4fd8, 0xe8fff0], roofLight: 0x7cff6a };
+
 export const districtFor = (name: string | null | undefined): District | null => (name ? (DISTRICTS[name] ?? null) : null);
