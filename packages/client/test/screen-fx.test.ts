@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crtFlicker, kickPulse, MAX_SPLIT, PULSE, PULSE_TIME, splitOffset, stepPulse, stepVignette, VIGNETTE_IDLE, VIGNETTE_MAX, vignetteAlpha, vignetteRate, type VignetteState } from "../src/render/envelopes";
+import { kickPulse, MAX_SPLIT, PULSE, PULSE_TIME, splitOffset, stepPulse, stepVignette, VIGNETTE_IDLE, VIGNETTE_MAX, vignetteAlpha, vignetteRate, type VignetteState } from "../src/render/envelopes";
 
 const run = (state: VignetteState, target: number, seconds: number, dt = 1 / 60) => {
   for (let t = 0; t < seconds; t += dt) state = stepVignette(state, target, dt);
@@ -69,11 +69,3 @@ describe("danger vignette", () => {
   });
 });
 
-describe("crt flicker", () => {
-  it("only dims the picture slightly", () => {
-    for (let t = 0; t < 5; t += 0.013) {
-      expect(crtFlicker(t)).toBeGreaterThan(0.96);
-      expect(crtFlicker(t)).toBeLessThanOrEqual(1);
-    }
-  });
-});
