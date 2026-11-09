@@ -32,8 +32,8 @@ export interface BoostFx {
   destroy(): void;
 }
 
-export function onBoostPad(track: Track, x: number, y: number): boolean {
-  const near = nearestOnTrack(track, x, y);
+export function onBoostPad(track: Track, x: number, y: number, hint?: number): boolean {
+  const near = nearestOnTrack(track, x, y, hint);
   return near.dist <= TRACK_WIDTH / 2 && boostAt(track, near.s);
 }
 

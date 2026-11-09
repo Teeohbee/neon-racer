@@ -2,7 +2,7 @@ import type { Application, Ticker } from "pixi.js";
 import {
   advanceProgress,
   boostAt,
-  fellOff,
+  fellOffAt,
   pointAt,
   buildTrack,
   describeProblem,
@@ -153,7 +153,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     const slot = gridSlots(track, 1)[0]!;
     car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
     prev = car;
-    const { s } = nearestOnTrack(track, car.x, car.y);
+    const { s } = nearestOnTrack(track, car.x, car.y, slot.s);
     progress = { s, progress: s > track.length / 2 ? s - track.length : s };
     crossed = Math.floor(progress.progress / track.length);
     lapStart = null;
@@ -257,7 +257,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     const [x, y, angle] = pointAt(track, s);
     car = { x, y, angle, vx: 0, vy: 0 };
     prev = car;
-    const at = nearestOnTrack(track, x, y).s;
+    const at = nearestOnTrack(track, x, y, s).s;
     let delta = at - progress.s;
     if (delta < -track.length / 2) delta += track.length;
     if (delta > track.length / 2) delta -= track.length;
@@ -274,11 +274,12 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       return;
     }
     prev = car;
-    const result = stepWorldCar(car, input, DT, { track, hazards: [], now, params, carId: CAR_ID });
+    const result = stepWorldCar(car, input, DT, { track, hazards: [], now, params, carId: CAR_ID, near: progress.s });
     car = result.car;
     now += DT;
-    if (fellOff(track, car.x, car.y)) {
-      fall = { at: now, s: nearestOnTrack(track, car.x, car.y).s };
+    const { s, dist } = nearestOnTrack(track, car.x, car.y, progress.s);
+    if (fellOffAt(track, { s, dist, tx: 0, ty: 0 })) {
+      fall = { at: now, s };
       renderer.fall({ ...car, id: CAR_ID, color: COLOR });
       car = { ...car, vx: 0, vy: 0 };
       prev = car;
@@ -289,7 +290,6 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       boosting = false;
       return;
     }
-    const { s, dist } = nearestOnTrack(track, car.x, car.y);
     const onBoost = dist <= TRACK_WIDTH / 2 && boostAt(track, s);
     if (onBoost && !boosting) {
       audio.sfx.boost();
@@ -338,6 +338,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
       angle: view.angle,
       speed: speedOf(car),
       drifting: mode === "drive" && isDrifting(car, input),
+      s: progress.s,
       boosting: mode === "drive" && boosting,
       alive: fall === null,
       frozen: false,

@@ -38,13 +38,13 @@ import {
   type WinCondition,
 } from "@neon/sim";
 import { h } from "./dom";
+import { TrackFollower } from "./net/track-follower";
 import { cupTable, isLegEnd, rematchLabel, stillWaiting, tallyLine } from "./ui/match-end";
 import { createKeyboard, isTyping } from "./input";
 import { connect } from "./net/connection";
 import { createDrafting } from "./net/drafting";
 import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
-import { onBoostPad } from "./render/boost-fx";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
@@ -90,6 +90,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const keyboard = createKeyboard();
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
+  const follower = new TrackFollower();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
   const drafting = createDrafting(() => audio.sfx.slipstream());
   const audioWidget = audioSettingsWidget();
@@ -327,7 +328,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
   function stepContext() {
     const latest = buffer.latest();
-    return { track, hazards: latest?.hazards ?? [], now: serverNow(), carId: you, draft: drafting.own(you) };
+    return { track, hazards: latest?.hazards ?? [], now: serverNow(), carId: you, draft: drafting.own(you), near: follower.near(you) };
   }
 
   function step() {
@@ -442,6 +443,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const car = mine ? (info?.mode === "contact" ? predictor.rendered : local!) : snap;
     const lateral = -car.vx * Math.sin(car.angle) + car.vy * Math.cos(car.angle);
     const p = player(snap.id);
+    const at = track ? follower.follow(track, snap.id, car.x, car.y) : null;
     return {
       id: snap.id,
       name: p ? raceName(p) : "",
@@ -451,7 +453,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       angle: car.angle,
       speed: Math.hypot(car.vx, car.vy),
       drifting: Math.abs(lateral) > DRIFT_LATERAL,
-      boosting: snap.alive && !!track && onBoostPad(track, car.x, car.y),
+      boosting: snap.alive && !!at && at.dist <= TRACK_WIDTH / 2 && boostAt(track!, at.s),
+      s: at?.s,
       alive: snap.alive,
       frozen: isFrozen(snap.id, hazards, now),
       isYou: snap.id === you,
@@ -463,7 +466,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const line = heard!.line;
     if (!track || line === null || alive.length < 2) return 1;
     const L = track.length;
-    const ahead = (c: CarView) => (((nearestOnTrack(track!, c.x, c.y).s - line) % L) + L) % L;
+    const ahead = (c: CarView) => (((c.s ?? nearestOnTrack(track!, c.x, c.y).s) - line) % L + L) % L;
     const mine = ahead(me);
     return alive.filter((c) => c !== me && ahead(c) < mine).length / (alive.length - 1);
   }
@@ -489,8 +492,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     audio.danger(danger);
     renderer.danger(danger);
     if (track) {
-      const near = nearestOnTrack(track, me.x, me.y);
-      const boosting = near.dist <= TRACK_WIDTH / 2 && boostAt(track, near.s);
+      const boosting = me.boosting;
       if (boosting && !onBoost) {
         audio.sfx.boost();
         renderer.pulse(PULSE.boost);

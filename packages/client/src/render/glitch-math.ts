@@ -98,14 +98,14 @@ export function corruptName(name: string, seed: number): string {
   return Array.from(name, (ch, i) => (ch === " " ? ch : noise[Math.floor(hash01(i, seed, 61) * noise.length)]!)).join("");
 }
 
-export function leaderOf(cars: readonly { id: string; x: number; y: number; alive: boolean }[], track: Track | null, line: number | null | undefined): string | null {
+export function leaderOf(cars: readonly { id: string; x: number; y: number; alive: boolean; s?: number }[], track: Track | null, line: number | null | undefined): string | null {
   if (!track || line === null || line === undefined) return null;
   const L = track.length;
   let best: string | null = null;
   let lead = -1;
   for (const c of cars) {
     if (!c.alive) continue;
-    const ahead = (((nearestOnTrack(track, c.x, c.y).s - line) % L) + L) % L;
+    const ahead = (((c.s ?? nearestOnTrack(track, c.x, c.y).s) - line) % L + L) % L;
     if (ahead > lead) {
       lead = ahead;
       best = c.id;

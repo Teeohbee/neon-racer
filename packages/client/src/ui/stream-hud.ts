@@ -75,7 +75,7 @@ export function createStreamHud(root: HTMLElement, top: HTMLElement, nameOf: (id
     if (frame.line === null) return;
     const line = frame.line;
     const alive = frame.cars.filter((c) => c.alive);
-    const racers = alive.map((c) => ({ id: c.id, gap: signedGap(nearestOnTrack(track, c.x, c.y).s, line, track.length) }));
+    const racers = alive.map((c) => ({ id: c.id, gap: signedGap(c.s ?? nearestOnTrack(track, c.x, c.y).s, line, track.length) }));
     for (const e of watch.update(racers, wall())) {
       hype(e.kind);
       say({ kind: e.kind, name: alive.find((c) => c.id === e.id)?.name || nameOf(e.id) });
