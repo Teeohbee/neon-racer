@@ -75,10 +75,16 @@ describe("barrel", () => {
     expect(barrel(500, 300, { x: 0, y: 0, w: 1000, h: 600 }, 0.07)).toEqual([500, 300]);
   });
 
-  it("pushes points out towards the corners, as the CRT shows them", () => {
-    const [x, y] = barrel(900, 540, { x: 0, y: 0, w: 1000, h: 600 }, 0.07);
-    expect(x).toBeCloseTo(900 + 400 * 0.07 * 1.28, 5);
-    expect(y).toBeCloseTo(540 + 240 * 0.07 * 1.28, 5);
+  it("overscans so the middle of each edge still reaches the edge of the tube", () => {
+    const view = { x: 0, y: 0, w: 1000, h: 600 };
+    expect(barrel(1000, 300, view, 0.07)[0]).toBeCloseTo(1000, 1);
+    expect(barrel(500, 0, view, 0.07)[1]).toBeCloseTo(0, 1);
+  });
+
+  it("pushes the corners past the tube so they round off", () => {
+    const [x, y] = barrel(1000, 600, { x: 0, y: 0, w: 1000, h: 600 }, 0.07);
+    expect(x).toBeGreaterThan(1000);
+    expect(y).toBeGreaterThan(600);
   });
 
   it("curves around the game view, not the whole window", () => {

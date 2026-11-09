@@ -1,7 +1,7 @@
 import { Container, Filter, GlProgram, GpuProgram, Rectangle } from "pixi.js";
 import { RGBSplitFilter, vertex, wgslVertex } from "pixi-filters";
 import { display } from "../display";
-import { barrel, kickPulse, splitOffset, stepPulse } from "./envelopes";
+import { barrel, kickPulse, overscan, splitOffset, stepPulse } from "./envelopes";
 import { createVignette, type ViewRect } from "./vignette";
 
 const CURVE = 0.07;
@@ -19,11 +19,12 @@ uniform float uCurve;
 uniform float uGain;
 uniform float uFringe;
 uniform vec4 uView;
+uniform float uOverscan;
 
 void main(void)
 {
   vec2 extent = uOutputFrame.zw * uInputSize.zw;
-  vec2 p = ((vTextureCoord / extent - uView.xy) / uView.zw) * 2.0 - 1.0;
+  vec2 p = (((vTextureCoord / extent - uView.xy) / uView.zw) * 2.0 - 1.0) * uOverscan;
   p *= 1.0 + uCurve * dot(p, p);
   vec2 px = 2.0 / (uOutputFrame.zw * uView.zw);
   vec2 mask = clamp((1.0 - abs(p)) / (3.0 * px), 0.0, 1.0);
@@ -41,6 +42,7 @@ const warpSource = `struct WarpUniforms {
   uGain: f32,
   uFringe: f32,
   uView: vec4<f32>,
+  uOverscan: f32,
 };
 
 struct GlobalFilterUniforms {
@@ -64,7 +66,7 @@ fn mainFragment(
 ) -> @location(0) vec4<f32> {
   let extent = gfu.uOutputFrame.zw * gfu.uInputSize.zw;
   let view = warpUniforms.uView;
-  var p = ((uv / extent - view.xy) / view.zw) * 2.0 - 1.0;
+  var p = (((uv / extent - view.xy) / view.zw) * 2.0 - 1.0) * warpUniforms.uOverscan;
   p = p * (1.0 + warpUniforms.uCurve * dot(p, p));
   let px = 2.0 / (gfu.uOutputFrame.zw * view.zw);
   let mask = clamp((vec2<f32>(1.0) - abs(p)) / (3.0 * px), vec2<f32>(0.0), vec2<f32>(1.0));
@@ -90,6 +92,7 @@ function warpFilter() {
         uGain: { value: 1, type: "f32" },
         uFringe: { value: FRINGE, type: "f32" },
         uView: { value: new Float32Array([0, 0, 1, 1]), type: "vec4<f32>" },
+        uOverscan: { value: overscan(CURVE), type: "f32" },
       },
     },
   });

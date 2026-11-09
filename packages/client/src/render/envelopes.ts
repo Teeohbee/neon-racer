@@ -40,9 +40,16 @@ export function vignetteAlpha({ level, phase }: VignetteState): number {
 }
 
 
+export function overscan(curve: number): number {
+  let s = 1;
+  for (let i = 0; i < 6; i++) s -= (s + curve * s ** 3 - 1) / (1 + 3 * curve * s * s);
+  return s;
+}
+
 export function barrel(x: number, y: number, view: { x: number; y: number; w: number; h: number }, curve: number): [number, number] {
-  const px = ((x - view.x) / view.w) * 2 - 1;
-  const py = ((y - view.y) / view.h) * 2 - 1;
+  const zoom = overscan(curve);
+  const px = (((x - view.x) / view.w) * 2 - 1) * zoom;
+  const py = (((y - view.y) / view.h) * 2 - 1) * zoom;
   const k = 1 + curve * (px * px + py * py);
   return [view.x + ((px * k + 1) / 2) * view.w, view.y + ((py * k + 1) / 2) * view.h];
 }
