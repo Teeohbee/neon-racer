@@ -279,8 +279,8 @@ export class Room {
 
     for (const p of racers) {
       if (!p.bot) continue;
-      const input = botInput(p.car!, track, p.bot, this.rng, drafts.get(p.id));
-      if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id) }).car;
+      const input = botInput(p.car!, track, p.bot, this.rng, drafts.get(p.id), p.progress.s);
+      if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       else {
         p.inputs = [];
         p.lastInput = input;
@@ -294,7 +294,7 @@ export class Room {
           p.lastInput = next.input;
           p.ack = next.seq;
         }
-        p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id) }).car;
+        p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       }
       const resolved = resolveCarCollisions(racers.map((p) => p.car!));
       racers.forEach((p, i) => (p.car = resolved[i]!));
@@ -304,7 +304,7 @@ export class Room {
     for (const p of racers) {
       const hit = touchingHazard(p.id, p.car!, this.hazards, now);
       if (hit) p.lastHit = { owner: hit.owner, at: now };
-      const at = nearestOnTrack(track, p.car!.x, p.car!.y);
+      const at = nearestOnTrack(track, p.car!.x, p.car!.y, p.progress.s);
       if (fellOffAt(track, at)) fell.add(p);
       if (at.s !== p.progress.s) {
         p.progress = advanceProgress(p.progress, at.s, track.length, MAX_PROGRESS_STEP + MAX_TRAVEL_SPEED * (now - p.movedAt));
@@ -516,7 +516,7 @@ export class Room {
     const order = [...ranked, ...[...this.players.values()].filter((p) => !ranked.includes(p))];
     const lead = ranked.find((p) => p.car);
     const front = gridSlots(track, 1)[0]!.back;
-    const s = lead ? nearestOnTrack(track, lead.car!.x, lead.car!.y).s : 0;
+    const s = lead ? nearestOnTrack(track, lead.car!.x, lead.car!.y, lead.progress.s).s : 0;
     this.grid(order, s - front, (lead?.progress.progress ?? 0) - front);
   }
 

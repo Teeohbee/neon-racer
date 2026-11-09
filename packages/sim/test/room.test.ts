@@ -11,6 +11,15 @@ const loop: Point[] = ovalPoints(3200, 2000, 2200, 1300);
 const loopTrack = buildTrack(loop);
 const dropAhead: PresetTrack = { name: "Drop Ahead", points: loop, features: [{ kind: "drop", at: pointAt(loopTrack, 400).slice(0, 2) as Point, span: 200 }] };
 
+const figureEight: PresetTrack = {
+  name: "Figure Eight",
+  points: Array.from({ length: 240 }, (_, i): Point => {
+    const t = Math.PI / 2 + (i / 240) * Math.PI * 2;
+    return [3200 + 2600 * Math.sin(t), 2000 + 1500 * Math.sin(2 * t)];
+  }),
+  features: [],
+};
+
 let savedPresets: PresetTrack[] | null = null;
 const usePresets = (...tracks: PresetTrack[]) => {
   const old = PRESET_TRACKS.splice(0, PRESET_TRACKS.length, ...tracks);
@@ -288,6 +297,28 @@ describe("progress under lag", () => {
     g.send(front!, { t: "state", seq: 9999, car: { x, y, angle, vx: 0, vy: 0 } });
     g.run(SNAP_EVERY * DT);
     expect(g.leaderProgress()).toBeCloseTo(before, 0);
+  });
+});
+
+describe("crossing tracks", () => {
+  it("keeps the leader's progress climbing steadily through both passes of a crossing", () => {
+    usePresets(figureEight);
+    const g = setup(["ann", "bob"], 1, false);
+    g.toRace();
+    const track = g.track();
+    const from = { ann: g.arc("ann"), bob: g.arc("bob") };
+    const before = g.leaderProgress();
+    const steps = Math.round((track.length * 0.9) / 40);
+    for (let seq = 1; seq <= steps; seq++) {
+      for (const id of ["ann", "bob"] as const) {
+        const [x, y, angle] = pointAt(track, from[id] + seq * 40);
+        const side = seq % 2 ? 50 : -50;
+        g.send(id, { t: "state", seq, car: { x: x - Math.sin(angle) * side, y: y + Math.cos(angle) * side, angle, vx: 0, vy: 0 } });
+      }
+      g.run(DT);
+    }
+    expect(g.room.phase).toBe("race");
+    expect(g.leaderProgress() - before).toBeCloseTo(steps * 40, 0);
   });
 });
 

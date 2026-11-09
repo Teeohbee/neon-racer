@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { botInput, BOT_SKILLS, type BotSkill } from "../src/bot";
-import { advanceProgress, buildTrack, fellOff, gridSlots, isOnRoad, nearestOnTrack } from "../src/track";
+import { advanceProgress, buildTrack, fellOff, gridSlots, isOnRoad, nearestOnTrack, type Track } from "../src/track";
 import { PRESET_TRACKS } from "../src/tracks";
 import { stepWorldCar } from "../src/world";
 
 const DT = 1 / 60;
 
-function race(skill: BotSkill, trackIndex: number, seconds: number, seed = 7) {
-  const { points, features } = PRESET_TRACKS[trackIndex]!;
-  const track = buildTrack(points, features);
+const eight = buildTrack(
+  Array.from({ length: 240 }, (_, i): [number, number] => {
+    const t = Math.PI / 2 + (i / 240) * Math.PI * 2;
+    return [3200 + 2600 * Math.sin(t), 2000 + 1500 * Math.sin(2 * t)];
+  }),
+);
+
+function race(skill: BotSkill, trackIndex: number | Track, seconds: number, seed = 7) {
+  const track = typeof trackIndex === "number" ? buildTrack(PRESET_TRACKS[trackIndex]!.points, PRESET_TRACKS[trackIndex]!.features) : trackIndex;
   const slot = gridSlots(track, 1)[0]!;
   let car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
   const start = nearestOnTrack(track, car.x, car.y).s;
@@ -18,8 +24,8 @@ function race(skill: BotSkill, trackIndex: number, seconds: number, seed = 7) {
   const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const steps = seconds * 60;
   for (let i = 0; i < steps && !fell; i++) {
-    car = stepWorldCar(car, botInput(car, track, skill, rng), DT, { track, hazards: [], now: i * DT }).car;
-    progress = advanceProgress(progress, nearestOnTrack(track, car.x, car.y).s, track.length, 200);
+    car = stepWorldCar(car, botInput(car, track, skill, rng, 0, progress.s), DT, { track, hazards: [], now: i * DT, near: progress.s }).car;
+    progress = advanceProgress(progress, nearestOnTrack(track, car.x, car.y, progress.s).s, track.length, 200);
     if (!isOnRoad(track, car.x, car.y)) offRoad++;
     fell = fellOff(track, car.x, car.y);
   }
@@ -32,6 +38,12 @@ describe("botInput", () => {
     expect(fell).toBe(false);
     expect(distance).toBeGreaterThan(10000);
     expect(offRoad).toBeLessThan(0.15);
+  });
+
+  it("a medium bot goes straight over a crossing instead of turning onto the other branch", () => {
+    const { distance, offRoad } = race("medium", eight, 40);
+    expect(distance).toBeGreaterThan(eight.length);
+    expect(offRoad).toBeLessThan(0.05);
   });
 
   it("harder bots are faster", () => {

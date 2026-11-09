@@ -13,6 +13,7 @@ export interface StepContext {
   now: number;
   params?: CarParams;
   carId?: string;
+  near?: number;
   draft?: number;
 }
 
@@ -20,7 +21,7 @@ export function stepWorldCar(car: CarState, input: CarInput, dt: number, ctx: St
   const frozen = ctx.carId ? freezeOn(ctx.carId, ctx.hazards, ctx.now) : undefined;
   if (frozen) return { car: { ...car, vx: 0, vy: 0 }, hazardHit: frozen };
 
-  const at = ctx.track ? nearestOnTrack(ctx.track, car.x, car.y) : null;
+  const at = ctx.track ? nearestOnTrack(ctx.track, car.x, car.y, ctx.near) : null;
   const onRoad = !at || at.dist <= TRACK_WIDTH / 2;
   const boosting = !!at && onRoad && boostAt(ctx.track!, at.s);
   const surface = onRoad ? (boosting ? BOOST_FACTOR : 1) : OFFROAD_FACTOR;

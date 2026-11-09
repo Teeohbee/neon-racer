@@ -17,10 +17,10 @@ const DROP_CAUTION = 0.95;
 
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function botInput(car: CarState, track: Track, skill: BotSkill, rng: () => number, draft = 0): CarInput {
+export function botInput(car: CarState, track: Track, skill: BotSkill, rng: () => number, draft = 0, near?: number): CarInput {
   const tune = TUNING[skill];
   const speed = speedOf(car);
-  const { s } = nearestOnTrack(track, car.x, car.y);
+  const { s } = nearestOnTrack(track, car.x, car.y, near);
 
   const nearDrop = [0, 200, 400].some((d) => dropAt(track, s + d + speed * 0.3));
   const [tx, ty] = pointAt(track, s + (nearDrop ? 90 + speed * 0.25 : 120 + speed * 0.35));
