@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { awardDelay, finalStandings, nameFit, podiumOrder } from "../src/ui/podium";
 import { formatDelta, formatScore, raceName } from "../src/ui/format";
 
-const player = (id: string, score: number) => ({ id, name: id, color: 0, ready: true, score, bot: false });
+const player = (id: string, score: number) => ({ id, name: id, color: 0, ready: true, score, bot: false, wins: 0, rematch: false, cupPoints: 0 });
 
 describe("podiumOrder", () => {
   it("puts the winner in the middle, second on the left and third on the right", () => {

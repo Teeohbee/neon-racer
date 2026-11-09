@@ -11,6 +11,8 @@ export type Phase = "lobby" | "sketch" | "countdown" | "race" | "roundEnd" | "ma
 
 export const SCORE_TARGETS = [5, 8, 12] as const;
 export const LAP_COUNTS = [2, 3, 5] as const;
+export const CUP_LEGS = [0, 3, 5] as const;
+export type CupLegs = (typeof CUP_LEGS)[number];
 export type WinCondition = { kind: "score"; target: (typeof SCORE_TARGETS)[number] } | { kind: "laps"; laps: (typeof LAP_COUNTS)[number] };
 
 export interface PlayerInfo {
@@ -20,6 +22,9 @@ export interface PlayerInfo {
   ready: boolean;
   score: number;
   bot: boolean;
+  wins: number;
+  rematch: boolean;
+  cupPoints: number;
 }
 
 export interface CarSnap extends CarState {
@@ -41,6 +46,7 @@ export type GameEvent =
   | { kind: "hazardKill"; by: string; victim: string }
   | { kind: "roundWon"; id: string | null }
   | { kind: "matchWon"; id: string }
+  | { kind: "cupWon"; id: string }
   | { kind: "awards"; awards: Award[] };
 
 export type ClientMsg =
@@ -55,7 +61,9 @@ export type ClientMsg =
   | { t: "removeBot"; id: string }
   | { t: "tracks"; names: string[] }
   | ({ t: "winCondition" } & WinCondition)
-  | { t: "again" };
+  | { t: "again" }
+  | { t: "rematch"; in: boolean }
+  | { t: "cup"; legs: CupLegs };
 
 export type ServerMsg =
   | { t: "welcome"; you: string; code: string }
@@ -72,6 +80,8 @@ export type ServerMsg =
       tracks: string[];
       remaining: number;
       round: number;
+      cup: CupLegs;
+      leg: number;
     }
   | { t: "sketch"; drawerId: string; points: Point[]; reset: boolean }
   | { t: "problems"; problems: TrackProblem[] }

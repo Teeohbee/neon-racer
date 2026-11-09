@@ -4,7 +4,7 @@ import { frameCamera, frameTarget, isOutsideView, lineGap, type Camera } from ".
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
-import { LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
+import { CUP_LEGS, LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type CupLegs, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
 import { advanceProgress, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { Slipstream } from "./slipstream";
@@ -26,6 +26,7 @@ const MAX_TRAVEL_SPEED = defaultCarParams.maxSpeed * BOOST_FACTOR * 1.5;
 const GRID_CLEAR_STEP = 20;
 const PLACE_POINTS = [2, 1];
 const LAST_PLACE_POINTS = -1;
+export const LEG_POINTS = [10, 6, 4, 3, 2, 1];
 const MAX_INPUT_QUEUE = 8;
 const MAX_SKETCH_POINTS = 4000;
 const BOT_NAMES = ["Bolt", "Glitch", "Nova", "Pixel", "Sprocket", "Turbo"];
@@ -52,6 +53,9 @@ interface Player {
   cooldowns: Record<HazardKind, number>;
   bot: BotSkill | null;
   nextBotHazardAt: number;
+  wins: number;
+  rematch: boolean;
+  cupPoints: number;
 }
 
 const freshCooldowns = (): Record<HazardKind, number> => ({ block: 0, slow: 0, freeze: 0 });
@@ -79,6 +83,8 @@ export class Room {
   private standings: string[] = [];
   private starters = 0;
   private win: WinCondition = DEFAULT_WIN;
+  private cup: CupLegs = 0;
+  private leg = 0;
   private finalLapDone = false;
   private selected: string[] = PRESET_TRACKS.map((t) => t.name);
   private presetBag: string[] = [];
@@ -122,6 +128,9 @@ export class Room {
       cooldowns: freshCooldowns(),
       bot,
       nextBotHazardAt: 0,
+      wins: 0,
+      rematch: false,
+      cupPoints: 0,
     });
     if (!bot) this.hostId ??= id;
     this.io.send(id, { t: "welcome", you: id, code: this.code });
@@ -143,6 +152,7 @@ export class Room {
     }
     if (this.phase === "sketch" && this.drawerId === id) this.finishSketch();
     this.broadcastRoom();
+    this.maybeRematch();
   }
 
   handle(id: string, msg: ClientMsg): void {
@@ -220,6 +230,20 @@ export class Room {
       case "again":
         if (this.phase === "matchEnd" && id === this.hostId) this.toLobby();
         return;
+      case "rematch":
+        if (this.phase !== "matchEnd") return;
+        p.rematch = msg.in === true;
+        this.broadcastRoom();
+        this.maybeRematch();
+        return;
+      case "cup": {
+        if (this.phase !== "lobby" || id !== this.hostId) return;
+        const legs = CUP_LEGS.find((l) => l === msg.legs);
+        if (legs === undefined) return;
+        this.cup = legs;
+        this.broadcastRoom();
+        return;
+      }
     }
   }
 
@@ -367,19 +391,53 @@ export class Room {
     const over = this.win.kind === "laps" ? this.finalLapDone : !!best && best.score >= this.win.target;
     if (best && over) {
       this.emit({ kind: "matchWon", id: best.id });
-      this.emit({ kind: "awards", awards: this.stats.awards([...this.players.keys()]) });
-      this.setPhase("matchEnd");
+      this.finishMatch(best);
       return;
     }
     this.regrid();
   }
 
+  private finishMatch(best: Player): void {
+    let champion = best;
+    if (this.cup) {
+      const byScore = [...this.players.values()].sort((a, b) => b.score - a.score || (a === best ? -1 : b === best ? 1 : 0));
+      byScore.forEach((p, i) => (p.cupPoints += LEG_POINTS[i] ?? 0));
+      if (this.leg < this.cup) {
+        this.setPhase("matchEnd");
+        return;
+      }
+      champion = [...this.players.values()].sort((a, b) => b.cupPoints - a.cupPoints || (a === best ? -1 : b === best ? 1 : 0))[0]!;
+      this.emit({ kind: "cupWon", id: champion.id });
+    }
+    champion.wins++;
+    this.emit({ kind: "awards", awards: this.stats.awards([...this.players.keys()]) });
+    this.setPhase("matchEnd");
+  }
+
+  private maybeRematch(): void {
+    const players = [...this.players.values()];
+    if (this.phase !== "matchEnd" || players.length < 2 || !players.every((p) => p.bot !== null || p.rematch)) return;
+    if (this.cup && this.leg > 0 && this.leg < this.cup) {
+      this.leg++;
+      this.startLeg();
+    } else this.startMatch();
+  }
+
   private startMatch(): void {
+    this.stats = new MatchStats();
+    this.leg = 1;
+    for (const p of this.players.values()) p.cupPoints = 0;
+    this.startLeg();
+  }
+
+  private startLeg(): void {
     this.round = 0;
     this.finalLapDone = false;
     this.standings = [];
-    this.stats = new MatchStats();
-    for (const p of this.players.values()) p.score = 0;
+    for (const p of this.players.values()) {
+      p.score = 0;
+      p.rematch = false;
+    }
     if (this.sketching) {
       this.startSketch(this.randomPlayerId());
       return;
@@ -493,6 +551,7 @@ export class Room {
   private toLobby(): void {
     for (const p of this.players.values()) {
       p.ready = p.bot !== null;
+      p.rematch = false;
       p.alive = false;
       p.car = null;
     }
@@ -500,6 +559,7 @@ export class Room {
     this.raw = null;
     this.track = null;
     this.hazards = [];
+    this.leg = 0;
     this.setPhase("lobby");
   }
 
@@ -518,7 +578,7 @@ export class Room {
     this.io.broadcast({
       t: "room",
       code: this.code,
-      players: [...this.players.values()].map(({ id, name, color, ready, score, bot }) => ({ id, name, color, ready, score, bot: bot !== null })),
+      players: [...this.players.values()].map(({ id, name, color, ready, score, bot, wins, rematch, cupPoints }) => ({ id, name, color, ready, score, bot: bot !== null, wins, rematch, cupPoints })),
       hostId: this.hostId,
       mode: this.mode,
       phase: this.phase,
@@ -527,6 +587,8 @@ export class Room {
       tracks: this.selected,
       remaining: this.remaining(),
       round: this.round,
+      cup: this.cup,
+      leg: this.leg,
     });
   }
 

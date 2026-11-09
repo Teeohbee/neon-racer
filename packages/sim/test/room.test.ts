@@ -469,6 +469,50 @@ describe("match flow", () => {
     expect(lastAwards(g)).toContainEqual({ id: back, title: "Black ICE Dealer", blurb: expect.any(String), stat: "1 racer flatlined" });
   });
 
+  const vote = (g: ReturnType<typeof setup>, ...ids: string[]) => ids.forEach((id) => g.send(id, { t: "rematch", in: true }));
+  const info = (g: ReturnType<typeof setup>, id: string) => g.last("room")!.players.find((p) => p.id === id)!;
+  const matchWinner = (g: ReturnType<typeof setup>) => (g.events().filter((e) => e.kind === "matchWon").at(-1) as { id: string }).id;
+
+  it("starts a rematch once every racer votes for one, and tallies match wins for the session", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    playMatch(g);
+    const winner = matchWinner(g);
+    vote(g, "ann");
+    expect(g.room.phase).toBe("matchEnd");
+    expect(info(g, "ann").rematch).toBe(true);
+    vote(g, "bob");
+    expect(g.room.phase).toBe("countdown");
+    expect(info(g, winner).wins).toBe(1);
+    expect(info(g, "ann").score).toBe(0);
+    expect(info(g, "ann").rematch).toBe(false);
+  });
+
+  it("starts the rematch when the last holdout leaves", () => {
+    const g = setup(["ann", "bob", "cat"], 1, false);
+    playMatch(g);
+    vote(g, "ann", "bob");
+    expect(g.room.phase).toBe("matchEnd");
+    g.room.leave("cat");
+    expect(g.room.phase).toBe("countdown");
+  });
+
+  it("only takes rematch votes at the end of a match", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.toRace();
+    vote(g, "ann", "bob");
+    expect(g.room.phase).toBe("race");
+    expect(info(g, "ann").rematch).toBe(false);
+  });
+
+  it("drops the session tally for a player who leaves", () => {
+    const g = setup(["ann", "bob", "cat"], 1, false);
+    playMatch(g);
+    const winner = matchWinner(g);
+    g.room.leave(winner);
+    g.room.join(winner, winner);
+    expect(info(g, winner).wins).toBe(0);
+  });
+
   it("drops back to the lobby when only one player is left", () => {
     const g = setup();
     g.toRace();
@@ -741,5 +785,71 @@ describe("bots", () => {
     let placed = false;
     g.run(8, () => (placed ||= (g.last("snap")?.hazards ?? []).some((h) => h.owner === victim)));
     expect(placed).toBe(true);
+  });
+});
+
+describe("cup", () => {
+  const playLeg = (g: ReturnType<typeof setup>) => {
+    g.run(COUNTDOWN_SECONDS + DT);
+    while (g.room.phase === "race") {
+      g.win(g.gridOrder()[0]!);
+      g.run(ROUND_END_SECONDS + DT);
+      if ((g.room.phase as string) === "countdown") g.run(COUNTDOWN_SECONDS + DT);
+    }
+  };
+  const info = (g: ReturnType<typeof setup>, id: string) => g.last("room")!.players.find((p) => p.id === id)!;
+
+  it("only lets the host set a cup in the lobby", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.send("bob", { t: "cup", legs: 3 });
+    expect(g.last("room")!.cup).toBe(0);
+    g.send("ann", { t: "cup", legs: 3 });
+    expect(g.last("room")!.cup).toBe(3);
+    g.send("ann", { t: "cup", legs: 4 as never });
+    expect(g.last("room")!.cup).toBe(3);
+  });
+
+  it("plays each leg on a new track, carrying cup points, and crowns the winner after the last leg", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.send("ann", { t: "cup", legs: 3 });
+    g.setWin({ kind: "score", target: 5 });
+    g.readyAll();
+    const tracks = [g.last("track")!.name];
+    playLeg(g);
+    expect(g.room.phase).toBe("matchEnd");
+    expect(g.last("room")!.leg).toBe(1);
+    expect(g.events().at(-1)!.kind).toBe("matchWon");
+    const points = ["ann", "bob"].map((id) => info(g, id).cupPoints).sort((a, b) => b - a);
+    expect(points).toEqual([10, 6]);
+
+    for (const leg of [2, 3]) {
+      g.send("ann", { t: "rematch", in: true });
+      g.send("bob", { t: "rematch", in: true });
+      expect(g.last("room")!.leg).toBe(leg);
+      tracks.push(g.last("track")!.name);
+      playLeg(g);
+    }
+    expect(new Set(tracks).size).toBe(3);
+    const total = ["ann", "bob"].map((id) => info(g, id).cupPoints);
+    expect(total[0]! + total[1]!).toBe(48);
+    const champion = total[0]! > total[1]! ? "ann" : "bob";
+    expect(g.events().at(-2)).toEqual({ kind: "cupWon", id: champion });
+    expect(g.events().at(-1)!.kind).toBe("awards");
+    expect(info(g, champion).wins).toBe(1);
+    expect(info(g, champion === "ann" ? "bob" : "ann").wins).toBe(0);
+  });
+
+  it("starts a fresh cup after the last leg", () => {
+    const g = setup(["ann", "bob"], 1, false);
+    g.send("ann", { t: "cup", legs: 3 });
+    g.setWin({ kind: "score", target: 5 });
+    g.readyAll();
+    for (let leg = 1; leg <= 3; leg++) {
+      playLeg(g);
+      g.send("ann", { t: "rematch", in: true });
+      g.send("bob", { t: "rematch", in: true });
+    }
+    expect(g.last("room")!.leg).toBe(1);
+    expect(info(g, "ann").cupPoints + info(g, "bob").cupPoints).toBe(0);
   });
 });
