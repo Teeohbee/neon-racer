@@ -93,6 +93,9 @@ export function createStreamHud(root: HTMLElement, top: HTMLElement, nameOf: (id
       if (next === "countdown") {
         watch.reset();
         suddenSaid = false;
+        feed.clear();
+        pending = [];
+        drawChat();
       }
       if (next === "race" && phase !== "race") say({ kind: "go" });
       if (!STREAMING.has(next)) {
