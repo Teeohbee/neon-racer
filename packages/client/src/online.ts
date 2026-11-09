@@ -53,7 +53,7 @@ import { displaySettingsWidget } from "./display-widget";
 import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
 import { countdownLabel, createCountdown } from "./ui/countdown";
-import { formatDelta, formatScore } from "./ui/format";
+import { formatDelta, formatScore, raceName } from "./ui/format";
 import { createPodium, finalStandings } from "./ui/podium";
 import { createStreamHud } from "./ui/stream-hud";
 import { bindLobbyShell, copyInvite } from "./shell/lobby-shell";
@@ -139,7 +139,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   root.append(top, center, bottom, toastBox);
   const countdown = createCountdown(root);
   const podium = createPodium(root, { click: audio.sfx.click, reveal: audio.sfx.reveal });
-  const stream = createStreamHud(root, top, (id) => nameOf(id));
+  const stream = createStreamHud(root, top, (id) => { const p = player(id); return p ? raceName(p) : "Someone"; });
   const uiClick = (e: MouseEvent) => {
     if (e.target instanceof Element && e.target.closest("button:not(:disabled)")) audio.sfx.click();
   };
@@ -424,7 +424,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const p = player(snap.id);
     return {
       id: snap.id,
-      name: p?.name ?? "",
+      name: p ? raceName(p) : "",
       color: playerColor(p?.color ?? 0),
       x: car.x,
       y: car.y,
@@ -561,7 +561,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           h(
             "span",
             { class: `score${racing && snapCars.get(p.id)?.alive === false ? " out" : ""}`, style: `--c:${css(playerColor(p.color))}`, title: `${p.name} ${formatScore(p.score)}` },
-            h("span", { class: "name" }, p.name),
+            h("span", { class: "name" }, raceName(p)),
             h("span", { class: "pts" }, formatScore(p.score)),
           ),
         ),
