@@ -153,10 +153,36 @@ export interface Projection {
   ty: number;
 }
 
-export function nearestOnTrack(track: Track, x: number, y: number): Projection {
+const LOCAL_WINDOW = 400;
+
+export function nearestOnTrack(track: Track, x: number, y: number, near?: number): Projection {
+  const n = track.xs.length;
+  if (near !== undefined) {
+    const span = Math.ceil(LOCAL_WINDOW / (track.length / n)) + 1;
+    const centre = segmentAt(track, near);
+    const local = nearestAmong(track, x, y, centre - span, centre + span);
+    if (local.dist <= TRACK_WIDTH) return local;
+  }
+  return nearestAmong(track, x, y, 0, n - 1);
+}
+
+function segmentAt(track: Track, s: number): number {
+  const target = ((s % track.length) + track.length) % track.length;
+  let lo = 0;
+  let hi = track.cum.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (track.cum[mid]! <= target) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+function nearestAmong(track: Track, x: number, y: number, first: number, last: number): Projection {
   const n = track.xs.length;
   let best: Projection = { dist: Infinity, s: 0, tx: 1, ty: 0 };
-  for (let i = 0; i < n; i++) {
+  for (let k = first; k <= last; k++) {
+    const i = ((k % n) + n) % n;
     const ax = track.xs[i]!;
     const ay = track.ys[i]!;
     const j = (i + 1) % n;

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { advanceProgress, buildTrack, gridSlots, isOnRoad, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH } from "../src/track";
+import { advanceProgress, buildTrack, gridSlots, isOnRoad, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point } from "../src/track";
 
 const circle = buildTrack(ovalPoints(0, 0, 1000, 1000));
+const eight = buildTrack(Array.from({ length: 240 }, (_, i): Point => {
+  const t = Math.PI / 2 + (i / 240) * Math.PI * 2;
+  return [2600 * Math.sin(t), 1500 * Math.sin(2 * t)];
+}));
 
 describe("buildTrack", () => {
   it("produces a closed loop of roughly the drawn length", () => {
@@ -76,5 +80,25 @@ describe("gridSlots", () => {
       expect(isOnRoad(circle, slot.x, slot.y)).toBe(true);
       expect(nearestOnTrack(circle, slot.x, slot.y).s).toBeCloseTo(slot.s, -1);
     });
+  });
+});
+
+describe("nearestOnTrack near a previous position", () => {
+  const passes = [eight.length / 4, (eight.length * 3) / 4];
+
+  it("stays on the car's own branch through a crossing", () => {
+    for (const pass of passes) {
+      expect(nearestOnTrack(eight, 0, 0, pass - 40).s).toBeCloseTo(pass, -2);
+    }
+  });
+
+  it("wraps the search window around the start of the loop", () => {
+    const [x, y] = pointAt(eight, 10);
+    expect(nearestOnTrack(eight, x, y, eight.length - 50).s).toBeCloseTo(10, 0);
+  });
+
+  it("falls back to the whole track when the car is far from its old spot", () => {
+    const far = nearestOnTrack(eight, 0, 0, eight.length / 2);
+    expect(far.dist).toBeLessThan(5);
   });
 });
