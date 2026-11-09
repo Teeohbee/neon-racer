@@ -1,2 +1,2 @@
 .display-settings { display: flex; align-items: center; pointer-events: auto; font-size: var(--nr-text-sm); color: var(--nr-text); }
-.crt .online.menu::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.22) 2px 3px), radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }
+.crt .online.menu::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.4) 2px 4px), radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }
