@@ -52,7 +52,7 @@ export const USERS = [
 const USER_COLORS = ["#00f0ff", "#ff2bd6", "#b6ff00", "#ffb000", "#8a5bff", "#7fd8ff", "#ff9cf0"] as const;
 
 const LINES = {
-  fell: ["lmao {name} fell off", "{name} found the edge of the lanes", "F in chat for {name}", "gravity patch hit {name} hard", "{name} unsubscribed from the road", "{name} forgot the lanes are hard-light, not hard-floor"],
+  fell: ["lmao {name} fell off", "{name} found the edge of the lanes", "F in chat for {name}", "gravity patch hit {name} hard", "{name} unsubscribed from the road", "{name} forgot the lanes are hard-light, not hard-floor", "{name} is still falling. the city is a long way down", "{name} rolled a little too high"],
   line: ["{name} got garbage collected", "the line ate {name} x_x", "{name} got deprecated", "{name} caught lacking", "line diff: -{name}", "{name} ran out of memory"],
   left: ["{name} rage-quit the stream", "{name} disconnected. coward or router?", "{name} logged off to pay rent"],
   hazardKill: ["{by} flatlined {victim} from beyond lmao", "{by} hacked a lane and {victim} paid for it", "{victim} got griefed by {by}", "clip it, {by} just deleted {victim}", "{by} is a menace. RIP {victim}", "dead and still posting, {by} got {victim}"],
@@ -63,7 +63,7 @@ const LINES = {
   matchWon: ["{name} WINS IT ALL", "{name} is the main character now", "gg {name}, not even close", "clip that, {name} champion"],
   go: ["here we go", "GO GO GO", "first", "stream lagging or is it just me", "who hacked the lanes this time"],
   suddenDeath: ["SUDDEN DEATH lets gooo", "the line is speedrunning now", "this is where it gets ugly"],
-  ambient: ["is this stream even legal", "mods asleep, post neon", "chat is this canon", "someone tell the city we're on their lanes", "my landlord is watching this too", "buffering in sector 7 again"],
+  ambient: ["is this stream even legal", "mods asleep, post neon", "chat is this canon", "someone tell the city we're on their lanes", "my landlord is watching this too", "buffering in sector 7 again", "the view from up here goes hard", "rooftops look tiny from the lanes"],
   ad: ["[AD] Breathe+ Premium: now 12% more oxygen", "[AD] Your rent has been updated. Swipe to accept", "[AD] Skip this ad for 4.99 cred", "[AD] Gravity Lite: falls billed per metre"],
 } as const;
 

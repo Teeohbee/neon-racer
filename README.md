@@ -1,6 +1,6 @@
 # neon-racer
 
-Top-down party racer for team game time. Each match runs on one of ten built-in tracks, and every round restarts behind the last winner. An elimination line chases the pack a fixed distance behind the leader, and the camera keeps both in shot: anyone the line catches, or who falls off a drop, is out. Eliminated players drop hazards on the ones still racing. Track sketching is built but switched off (`sketching` room option, `SKETCHING` in practice).
+High Rollers: a top-down party racer on hard-light lanes high above a neon city, for team game time. Each match runs on one of ten built-in tracks, and every round restarts behind the last winner. An elimination line chases the pack a fixed distance behind the leader, and the camera keeps both in shot: anyone the line catches, or who falls off a drop, is out. Eliminated players drop hazards on the ones still racing. Track sketching is built but switched off (`sketching` room option, `SKETCHING` in practice).
 
 ## Run
 

@@ -46,7 +46,8 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
   const root = h(
     "div",
     { class: "online menu title-screen" },
-    h("h1", { class: "title-logo", ariaLabel: "Neon Racer" }, logo("NEON", "neon", 0), logo("RACER", "racer", 4)),
+    h("h1", { class: "title-logo", ariaLabel: "High Rollers" }, logo("HIGH", "high", 0), logo("ROLLERS", "rollers", 4)),
+    h("p", { class: "title-tagline" }, "Hard-light lanes, high above the city. Don't look down."),
     h(
       "div",
       { class: "panel title-panel" },
