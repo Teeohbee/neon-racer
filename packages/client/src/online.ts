@@ -17,6 +17,7 @@ import {
   SCORE_TARGETS,
   smoothLoop,
   stepWorldCar,
+  SLOW_FACTOR,
   SUDDEN_DEATH_AT,
   TARGET_SCORE,
   TICK_RATE,
@@ -47,6 +48,7 @@ import { createDrafting } from "./net/drafting";
 import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
+import { hazardIcon } from "./ui/hazard-icons";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
 import { GLITCH } from "./render/glitch-math";
@@ -71,6 +73,11 @@ const SKETCH_FLUSH_EVERY = 6;
 const DRIFT_LATERAL = 120;
 const TOAST_MS = 3000;
 const HAZARD_LABELS: Record<HazardKind, string> = { block: "Block", slow: "Slow", freeze: "Freeze" };
+const HAZARD_EFFECTS: Record<HazardKind, string> = {
+  block: `Wall · ${HAZARD_SPECS.block.duration}s`,
+  slow: `Slows ${Math.round((1 - SLOW_FACTOR) * 100)}% · ${HAZARD_SPECS.slow.duration}s`,
+  freeze: `Freezes a car · ${HAZARD_SPECS.freeze.duration}s`,
+};
 const YOUR_OUT_REASONS: Record<EliminationReason, string> = { line: "The line caught you", fell: "You fell off", left: "You left" };
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 const THUMB = { width: 84, height: 50, pad: 200 };
@@ -554,6 +561,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       const left = Math.max(0, (cooldowns?.[kind] ?? 0) - now);
       el.style.setProperty("--charge", String(1 - left / HAZARD_SPECS[kind].cooldown));
       el.classList.toggle("ready", left === 0);
+      el.querySelector(".hz-wait")!.textContent = left > 0 ? `${Math.ceil(left)}s` : "";
     }
     const t = performance.now();
     if (toasts.length && toasts[0]!.until < t) {
@@ -783,16 +791,24 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       h(
         "div",
         { class: "hazards" },
-        ...HAZARD_KINDS.map((kind, idx) => {
-          const el = h(
-            "button",
-            { class: `hazard${kind === hazardKind ? " on" : ""}`, style: `--c:${css(HAZARD_COLORS[kind])}`, onclick: () => ((hazardKind = kind), drawUI()) },
-            `${idx + 1} ${HAZARD_LABELS[kind]}`,
-          );
-          live.cooldowns.set(kind, el);
-          return el;
-        }),
         h("span", { class: "hint" }, "Click the track to drop it"),
+        h(
+          "div",
+          { class: "hazard-row" },
+          ...HAZARD_KINDS.map((kind, idx) => {
+            const el = h(
+              "button",
+              { class: `hazard${kind === hazardKind ? " on" : ""}`, style: `--c:${css(HAZARD_COLORS[kind])}`, ariaPressed: String(kind === hazardKind), onclick: () => ((hazardKind = kind), drawUI()) },
+              h("span", { class: "hz-key" }, String(idx + 1)),
+              hazardIcon(kind),
+              h("span", { class: "hz-name" }, HAZARD_LABELS[kind]),
+              h("span", { class: "hz-effect" }, HAZARD_EFFECTS[kind]),
+              h("span", { class: "hz-wait" }),
+            );
+            live.cooldowns.set(kind, el);
+            return el;
+          }),
+        ),
       ),
     ];
   }

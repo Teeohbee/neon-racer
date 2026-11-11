@@ -70,11 +70,20 @@
 .panel .problems { color: #ff3b5c; margin: 8px 0 0; padding-left: 18px; }
 .sudden { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b; font-size: 18px; letter-spacing: 2px; }
 .online-bottom { position: absolute; bottom: 18px; left: 0; right: 0; display: flex; justify-content: center; }
-.hazards { display: flex; gap: 10px; align-items: center; }
-.hazard { position: relative; overflow: hidden; color: var(--c) !important; border-color: var(--c) !important; opacity: 0.6; }
-.hazard::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--charge, 1) * 100%); background: var(--c); }
-.hazard.ready { opacity: 1; }
-.hazard.on { box-shadow: 0 0 14px var(--c); }
+.hazards { display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: auto; }
+.hazard-row { display: flex; gap: 10px; align-items: flex-end; }
+.hazard { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr; grid-template-areas: "icon name" "icon effect"; column-gap: 10px; align-items: center; padding: 8px 10px !important; text-align: left; color: var(--c) !important; border: 2px solid color-mix(in srgb, var(--c) 45%, transparent) !important; background: #05060de6 !important; opacity: 0.55; padding-right: 30px !important; transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s; }
+.hazard.ready { opacity: 0.85; }
+.hazard.on { opacity: 1; transform: translateY(-6px); border-color: var(--c) !important; background: color-mix(in srgb, var(--c) 22%, #05060d) !important; box-shadow: 0 0 18px var(--c), inset 0 0 12px color-mix(in srgb, var(--c) 35%, transparent); }
+.hazard::before { content: ""; position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(calc(1 - var(--charge, 1))); background: #05060dcc; pointer-events: none; }
+.hz-icon { grid-area: icon; width: 34px; height: 34px; filter: drop-shadow(0 0 4px var(--c)); }
+.hz-name { grid-area: name; font-size: var(--nr-text-lg); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.hz-effect { grid-area: effect; white-space: nowrap; font-size: var(--nr-text-sm); color: var(--nr-text); opacity: 0.8; }
+.hz-key { position: absolute; top: 4px; right: 6px; min-width: 18px; padding: 0 4px; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; line-height: 16px; text-align: center; }
+.hazard.on .hz-key { background: var(--c); color: #05060d; }
+.hz-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 900; color: #fff; text-shadow: 0 0 8px var(--c); pointer-events: none; }
+.hz-wait:empty { display: none; }
+.hazard:not(.ready) :is(.hz-icon, .hz-name, .hz-effect) { opacity: 0.25; }
 .online-toasts { position: absolute; right: 16px; bottom: 170px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .online-toasts .toast { position: static; transform: none; opacity: 1; font-size: inherit; text-shadow: none; background: #05060dd9; border: 1px solid #ff2bd6; color: #ff9cf0; padding: 6px 12px; border-radius: 6px; }
 .online .leave { margin-left: auto; }
