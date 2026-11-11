@@ -177,3 +177,28 @@ describe("RaceWatch", () => {
     expect(w.update([{ id: "a", gap: SHAVE_CLEAR + 1 }, { id: "b", gap: 900 }], 2)).toEqual([]);
   });
 });
+
+describe("chat feed emote stacking", () => {
+  const emote = (user: string, text: string) => ({ user, color: "#fff", text, tone: "player" as const });
+
+  it("stacks a player's repeated emotes onto their latest line", () => {
+    const feed = new ChatFeed();
+    feed.post(emote("ann", "🔥"), true, 0);
+    expect(feed.stack("ann", "😂", 1)).toBe(true);
+    expect(feed.lines.map((l) => l.text)).toEqual(["🔥😂"]);
+  });
+
+  it("starts a new line when someone else posted last", () => {
+    const feed = new ChatFeed();
+    feed.post(emote("ann", "🔥"), true, 0);
+    feed.post(emote("bob", "👋"), true, 0);
+    expect(feed.stack("ann", "😂", 1)).toBe(false);
+  });
+
+  it("keeps only the latest dozen emotes on a line", () => {
+    const feed = new ChatFeed();
+    feed.post(emote("ann", "🔥"), true, 0);
+    for (let i = 0; i < 20; i++) feed.stack("ann", "😂", i);
+    expect([...feed.lines[0]!.text]).toHaveLength(12);
+  });
+});

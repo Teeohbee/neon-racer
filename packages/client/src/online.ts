@@ -6,6 +6,7 @@ import {
   buildTrack,
   CUP_LEGS,
   describeProblem,
+  EMOTES,
   HAZARD_KINDS,
   HAZARD_SPECS,
   isFrozen,
@@ -48,6 +49,7 @@ import { createDrafting } from "./net/drafting";
 import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
+import { EMOTE_GLYPHS, EMOTE_KEYS, floatEmote } from "./ui/emotes";
 import { hazardIcon } from "./ui/hazard-icons";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
@@ -295,6 +297,12 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   function onEvent(event: GameEvent) {
     stream.event(event);
     switch (event.kind) {
+      case "emote": {
+        const color = css(playerColor(player(event.id)?.color ?? 0));
+        stream.emote(nameOf(event.id), color, EMOTE_GLYPHS[event.emote]);
+        floatEmote(root, event.emote, nameOf(event.id), color);
+        break;
+      }
       case "eliminated": {
         const car = buffer.latest()?.cars.find((c) => c.id === event.id);
         const color = playerColor(player(event.id)?.color ?? 0);
@@ -307,7 +315,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           renderer.signalLost();
           audio.sfx.eliminated(event.reason);
           audio.danger(0);
-          stream.alert(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click`);
+          stream.alert(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click, emote with 4-7`);
         } else {
           audio.sfx.eliminated(event.reason, { you: false, pan: car && heard ? screenPan(car, heard.camera) : 0 });
         }
@@ -387,6 +395,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       hazardKind = HAZARD_KINDS[index]!;
       drawUI();
     }
+    const emote = EMOTES[EMOTE_KEYS.indexOf(e.key as (typeof EMOTE_KEYS)[number])];
+    if (emote && info?.phase === "race" && !myAlive) conn.send({ t: "emote", emote });
   };
   const onPointerMove = (e: PointerEvent) => {
     const rect = app.canvas.getBoundingClientRect();
@@ -808,6 +818,13 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
             live.cooldowns.set(kind, el);
             return el;
           }),
+        ),
+        h(
+          "div",
+          { class: "emote-row" },
+          ...EMOTES.map((emote, idx) =>
+            h("button", { class: "emote-btn", title: `Key ${EMOTE_KEYS[idx]}`, onclick: () => conn.send({ t: "emote", emote }) }, EMOTE_GLYPHS[emote], h("span", { class: "hz-key" }, EMOTE_KEYS[idx])),
+          ),
         ),
       ),
     ];

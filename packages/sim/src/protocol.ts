@@ -7,6 +7,8 @@ import type { TrackProblem } from "./validate";
 
 export type Mode = "ghost" | "contact";
 export type EliminationReason = "line" | "fell" | "left";
+export const EMOTES = ["fire", "lol", "scream", "wave"] as const;
+export type Emote = (typeof EMOTES)[number];
 export type Phase = "lobby" | "sketch" | "countdown" | "race" | "roundEnd" | "matchEnd";
 
 export const SCORE_TARGETS = [5, 8, 12] as const;
@@ -47,7 +49,8 @@ export type GameEvent =
   | { kind: "roundWon"; id: string | null }
   | { kind: "matchWon"; id: string }
   | { kind: "cupWon"; id: string }
-  | { kind: "awards"; awards: Award[] };
+  | { kind: "awards"; awards: Award[] }
+  | { kind: "emote"; id: string; emote: Emote };
 
 export type ClientMsg =
   | { t: "ready"; ready: boolean }
@@ -63,7 +66,8 @@ export type ClientMsg =
   | ({ t: "winCondition" } & WinCondition)
   | { t: "again" }
   | { t: "rematch"; in: boolean }
-  | { t: "cup"; legs: CupLegs };
+  | { t: "cup"; legs: CupLegs }
+  | { t: "emote"; emote: Emote };
 
 export type ServerMsg =
   | { t: "welcome"; you: string; code: string }

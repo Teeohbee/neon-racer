@@ -12,7 +12,7 @@ export type StreamEvent =
   | { kind: "suddenDeath" }
   | { kind: "ambient" };
 
-export type ChatTone = "chat" | "hype" | "ad";
+export type ChatTone = "chat" | "hype" | "ad" | "player";
 
 export interface ChatMessage {
   user: string;
@@ -105,6 +105,8 @@ export function mergeKills(events: StreamEvent[]): StreamEvent[] {
   return events.filter((e) => !(e.kind === "eliminated" && killed.has(e.name)));
 }
 
+const MAX_STACK = 12;
+
 export interface ChatFeedOptions {
   max: number;
   ttl: number;
@@ -122,6 +124,13 @@ export class ChatFeed {
     if (!urgent && now - this.lastAt < this.opts.gap) return false;
     this.lastAt = now;
     this.lines = [...this.lines, { ...message, id: this.nextId++, at: now }].slice(-this.opts.max);
+    return true;
+  }
+
+  stack(user: string, glyph: string, now: number): boolean {
+    const last = this.lines.at(-1);
+    if (last?.tone !== "player" || last.user !== user) return false;
+    this.lines = [...this.lines.slice(0, -1), { ...last, text: [...last.text, ...glyph].slice(-MAX_STACK).join(""), at: now }];
     return true;
   }
 

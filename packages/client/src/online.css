@@ -84,6 +84,14 @@
 .hz-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 900; color: #fff; text-shadow: 0 0 8px var(--c); pointer-events: none; }
 .hz-wait:empty { display: none; }
 .hazard:not(.ready) :is(.hz-icon, .hz-name, .hz-effect) { opacity: 0.25; }
+.emote-row { display: flex; gap: 8px; }
+.emote-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px !important; font-size: 20px; line-height: 1.2; }
+.emote-btn .hz-key { position: static; font-size: 10px; line-height: 14px; min-width: 14px; }
+.emote-float { position: absolute; left: var(--x); bottom: 140px; display: flex; flex-direction: column; align-items: center; pointer-events: none; animation: emote-rise 2.2s ease-out forwards; }
+.emote-glyph { font-size: 56px; line-height: 1; filter: drop-shadow(0 0 10px var(--c)); }
+.emote-name { margin-top: 2px; padding: 0 6px; border-radius: 4px; background: #05060dcc; color: var(--c); font-size: 12px; font-weight: 700; }
+@keyframes emote-rise { 0% { transform: translateY(20px) scale(0.4); opacity: 0; } 15% { transform: translateY(0) scale(1.15); opacity: 1; } 25% { transform: scale(1); } 70% { opacity: 1; } 100% { transform: translateY(-260px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .emote-float { animation-duration: 0.01s; animation-delay: 1.5s; } }
 .online-toasts { position: absolute; right: 16px; bottom: 170px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .online-toasts .toast { position: static; transform: none; opacity: 1; font-size: inherit; text-shadow: none; background: #05060dd9; border: 1px solid #ff2bd6; color: #ff9cf0; padding: 6px 12px; border-radius: 6px; }
 .online .leave { margin-left: auto; }

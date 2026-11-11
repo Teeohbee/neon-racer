@@ -322,6 +322,36 @@ describe("crossing tracks", () => {
   });
 });
 
+describe("emotes", () => {
+  it("lets eliminated players send emotes to the room", () => {
+    const g = setup(["ann", "bob", "cat"]);
+    g.toRace();
+    const [, , back] = g.gridOrder();
+    g.knockOut(back!);
+    g.send(back!, { t: "emote", emote: "lol" });
+    expect(g.events()).toContainEqual({ kind: "emote", id: back, emote: "lol" });
+  });
+
+  it("ignores emotes from players still racing and unknown emotes", () => {
+    const g = setup(["ann", "bob", "cat"]);
+    g.toRace();
+    const [front, , back] = g.gridOrder();
+    g.knockOut(back!);
+    g.send(front!, { t: "emote", emote: "lol" });
+    g.send(back!, { t: "emote", emote: "nope" as never });
+    expect(g.events().filter((e) => e.kind === "emote")).toEqual([]);
+  });
+
+  it("allows spamming at up to ten emotes a second per player", () => {
+    const g = setup(["ann", "bob", "cat"]);
+    g.toRace();
+    const [, , back] = g.gridOrder();
+    g.knockOut(back!);
+    g.run(1, () => g.send(back!, { t: "emote", emote: "fire" }));
+    expect(g.events().filter((e) => e.kind === "emote")).toHaveLength(10);
+  });
+});
+
 describe("hazards", () => {
   it("can only be placed by eliminated players", () => {
     const g = setup(["ann", "bob", "cat"]);

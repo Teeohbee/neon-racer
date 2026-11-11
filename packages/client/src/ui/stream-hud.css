@@ -20,6 +20,7 @@
 .chat-line { max-width: 100%; padding: 3px 8px; color: #d8f6ff; background: #05060dbf; border-left: 2px solid #1f2b55; border-radius: 3px; overflow-wrap: anywhere; animation: chat-in 0.25s ease-out, chat-out 0.6s 8.3s forwards; }
 .chat-user { color: var(--u); font-weight: 700; }
 .chat-line.hype { border-left-color: #ff2bd6; color: #fff; }
+.chat-line.player { border-left-color: var(--nr-cyan); font-size: 16px; }
 .chat-line.ad { border-left-color: #ffb000; color: #ffd27a; font-style: italic; opacity: 0.8; }
 
 .stream-chrome { position: absolute; left: 14px; bottom: 14px; font-size: 11px; opacity: 0.6; pointer-events: none; }

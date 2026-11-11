@@ -4,7 +4,7 @@ import { frameCamera, frameTarget, isOutsideView, lineGap, type Camera } from ".
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
 import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
-import { CUP_LEGS, LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type CupLegs, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
+import { CUP_LEGS, EMOTES, LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type CupLegs, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
 import { advanceProgress, bridgeAt, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
 import { Slipstream } from "./slipstream";
@@ -28,6 +28,7 @@ const PLACE_POINTS = [2, 1];
 const LAST_PLACE_POINTS = -1;
 export const LEG_POINTS = [10, 6, 4, 3, 2, 1];
 const MAX_INPUT_QUEUE = 8;
+export const EMOTE_COOLDOWN = 0.1;
 const MAX_SKETCH_POINTS = 4000;
 const BOT_NAMES = ["Bolt", "Glitch", "Nova", "Pixel", "Sprocket", "Turbo"];
 
@@ -56,6 +57,7 @@ interface Player {
   wins: number;
   rematch: boolean;
   cupPoints: number;
+  emoteAt: number;
 }
 
 const freshCooldowns = (): Record<HazardKind, number> => ({ block: 0, slow: 0, freeze: 0 });
@@ -128,6 +130,7 @@ export class Room {
       cooldowns: freshCooldowns(),
       bot,
       nextBotHazardAt: 0,
+      emoteAt: -Infinity,
       wins: 0,
       rematch: false,
       cupPoints: 0,
@@ -199,6 +202,11 @@ export class Room {
         return;
       case "hazard":
         this.placeHazard(p, msg.kind, msg.x, msg.y);
+        return;
+      case "emote":
+        if (this.phase !== "race" || p.alive || p.bot || !EMOTES.includes(msg.emote) || this.phaseTime + 1e-9 < p.emoteAt + EMOTE_COOLDOWN) return;
+        p.emoteAt = this.phaseTime;
+        this.emit({ kind: "emote", id, emote: msg.emote });
         return;
       case "addBot": {
         if (this.phase !== "lobby" || id !== this.hostId || !BOT_SKILLS.includes(msg.skill)) return;

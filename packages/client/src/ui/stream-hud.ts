@@ -124,6 +124,12 @@ export function createStreamHud(root: HTMLElement, top: HTMLElement, nameOf: (id
       }
       hype(event.kind);
     },
+    emote(name: string, color: string, glyph: string) {
+      if (feed.stack(name, glyph, wall()) || feed.post({ user: name, color, text: glyph, tone: "player" }, true, wall())) {
+        rendered.clear();
+        drawChat();
+      }
+    },
     alert(text: string) {
       alert.textContent = text;
       alert.classList.remove("show");
