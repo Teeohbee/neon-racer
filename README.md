@@ -9,13 +9,23 @@ bun install
 bun run dev        # server on :8787, client on http://localhost:5173
 ```
 
-Open the client, create a room and share the invite link. To play with people outside your network before hosting is decided, tunnel the Vite port (for example `cloudflared tunnel --url http://localhost:5173`).
+Open the client, create a room and share the invite link.
 
 Production-style single process:
 
 ```sh
 bun run build && bun run start   # serves client and rooms on :8787
 ```
+
+## Deploy
+
+Hosted on Fly.io as one machine in London (`fly.toml`), at https://neon-racer.fly.dev. Rooms live in memory, so it must stay a single machine. It stops when nobody is connected and starts again on the next visit.
+
+```sh
+fly deploy --local-only   # Fly's remote builder fails behind Netskope
+```
+
+Roll back with `fly releases` then `fly deploy --image <previous image>`.
 
 ## Check
 
@@ -31,8 +41,6 @@ bun run check
 | `packages/sim` | All game rules: car physics, tracks, validation, hazards, camera, collisions, the `Room` state machine and protocol. No platform imports. |
 | `packages/server` | Thin bun WebSocket adapter around `Room`, room codes, static serving. |
 | `packages/client` | PixiJS renderer, practice mode, online play, interpolation and prediction. |
-
-Hosting is undecided; a new platform only needs another adapter like `packages/server/src/lobby.ts`.
 
 ## Controls
 
