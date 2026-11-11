@@ -20,7 +20,7 @@ const logo = (word: string, cls: string, offset: number) =>
 
 export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void, notice?: string): () => void {
   const params = new URLSearchParams(location.search);
-  const invited = params.get("room")?.toUpperCase() ?? "";
+  let invited = params.get("room")?.toUpperCase() ?? "";
   const settings = audioSettingsWidget();
   const displaySettings = displaySettingsWidget();
   const name = h("input", { value: localStorage.getItem(NAME_KEY) ?? "", placeholder: "Your name", maxLength: 16, ariaLabel: "Your name" });
@@ -43,28 +43,48 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
     onChoose({ kind, name: trimmed || "Racer", room: code.value.trim().toUpperCase() });
   };
 
+  const field = h("label", { class: "title-field" }, h("span", { class: "nr-label" }, "Racer"), name);
+  const panel = h("div", { class: "panel title-panel" });
+  const fill = () =>
+    panel.replaceChildren(
+      ...(invited
+        ? [
+            field,
+            h("button", { class: "nr-btn primary big", onclick: () => choose("join") }, `Join ${invited}`),
+            h("p", { class: "nr-hint title-keys" }, "Enter join · M mute"),
+            h("button", { class: "title-leave", onclick: () => leaveInvite() }, "Main menu"),
+          ]
+        : [
+            field,
+            h("button", { class: "nr-btn primary big", onclick: () => choose("create") }, "Create room"),
+            h("div", { class: "title-join" }, code, h("button", { class: "nr-btn", onclick: () => choose("join") }, "Join room")),
+            h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
+            h("p", { class: "nr-hint title-keys" }, "↑↓ select · Enter go · M mute"),
+            h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
+          ]),
+    );
+  const leaveInvite = () => {
+    history.replaceState(null, "", location.pathname);
+    invited = "";
+    code.value = "";
+    fill();
+    name.focus();
+  };
+  fill();
+
   const root = h(
     "div",
     { class: "online menu title-screen" },
     h("h1", { class: "title-logo", ariaLabel: "High Rollers" }, logo("HIGH", "high", 0), logo("ROLLERS", "rollers", 4)),
     h("p", { class: "title-tagline" }, "Hard-light lanes, high above the city. Don't look down."),
-    h(
-      "div",
-      { class: "panel title-panel" },
-      h("label", { class: "title-field" }, h("span", { class: "nr-label" }, "Racer"), name),
-      h("button", { class: "nr-btn primary big", onclick: () => choose("create") }, "Create room"),
-      h("div", { class: "title-join" }, code, h("button", { class: "nr-btn", onclick: () => choose("join") }, invited ? `Join ${invited}` : "Join room")),
-      h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
-      h("p", { class: "nr-hint title-keys" }, "↑↓ select · Enter go · M mute"),
-      h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
-    ),
+    panel,
     h("p", { class: "nr-hint title-drive" }, "Drive: WASD / arrows · Shift handbrake"),
   );
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter" && e.target instanceof HTMLInputElement && e.target.type !== "range") choose(invited || code.value.trim() ? "join" : "create");
   };
   root.addEventListener("keydown", onKey);
-  const unbindNav = createKeyNav(root, { onMove: audio.sfx.hover });
+  const unbindNav = createKeyNav(root, { onMove: audio.sfx.hover, onBack: () => invited && leaveInvite() });
   const unbindHover = bindHoverSound(root, audio.sfx.hover);
   ui.append(root);
   (invited ? name : name.value ? code : name).focus();

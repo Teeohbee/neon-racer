@@ -48,3 +48,5 @@
 @media (prefers-reduced-motion: reduce) {
   .title-word, .title-letter, .title-word.rollers .title-letter:nth-child(4), .title-tagline, .title-panel, .title-drive { animation: none; }
 }
+.title-leave { align-self: center; padding: var(--nr-space-1) var(--nr-space-2); border: 0; background: none; font: inherit; font-size: var(--nr-text-sm); color: var(--nr-text-dim); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.title-leave:hover { color: var(--nr-cyan); text-shadow: 0 0 8px var(--nr-cyan); }
