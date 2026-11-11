@@ -2,6 +2,7 @@ import "./ui/kit.css";
 import { Application } from "pixi.js";
 import { audio, audioSettingsWidget, bindAudioMuteKey } from "./audio";
 import { displaySettingsWidget } from "./display-widget";
+import { bindFpsOverlay } from "./fps-overlay";
 import { h } from "./dom";
 import { isTyping } from "./input";
 import { showMenu, type MenuChoice } from "./menu";
@@ -18,6 +19,7 @@ const ui = document.getElementById("ui")!;
 bindViewRect(document.documentElement);
 
 bindAudioMuteKey();
+bindFpsOverlay(ui);
 
 function menu(notice?: string) {
   audio.music.setMood("lobby");

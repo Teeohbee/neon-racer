@@ -7,15 +7,27 @@ const memory = (initial: Record<string, string> = {}) => {
 };
 
 describe("display settings", () => {
-  it("defaults to CRT off", () => {
-    expect(createDisplaySettings(memory()).get()).toEqual({ crt: false });
+  it("defaults to CRT and FPS off", () => {
+    expect(createDisplaySettings(memory()).get()).toEqual({ crt: false, fps: false });
     expect(DEFAULT_DISPLAY.crt).toBe(false);
   });
 
   it("persists the CRT toggle and restores it in a new session", () => {
     const store = memory();
     createDisplaySettings(store).toggleCrt();
-    expect(createDisplaySettings(store).get()).toEqual({ crt: true });
+    expect(createDisplaySettings(store).get()).toEqual({ crt: true, fps: false });
+  });
+
+  it("persists the FPS toggle alongside CRT", () => {
+    const store = memory();
+    const settings = createDisplaySettings(store);
+    settings.toggleCrt();
+    settings.toggleFps();
+    expect(createDisplaySettings(store).get()).toEqual({ crt: true, fps: true });
+  });
+
+  it("reads settings saved before FPS existed", () => {
+    expect(parseDisplay(JSON.stringify({ crt: true }))).toEqual({ crt: true, fps: false });
   });
 
   it("ignores junk", () => {

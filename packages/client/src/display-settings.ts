@@ -1,18 +1,22 @@
 export interface DisplaySettings {
   crt: boolean;
+  fps: boolean;
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 type Listener = (settings: DisplaySettings) => void;
 
 export const DISPLAY_KEY = "neon.display";
-export const DEFAULT_DISPLAY: DisplaySettings = { crt: false };
+export const DEFAULT_DISPLAY: DisplaySettings = { crt: false, fps: false };
 
 export function parseDisplay(raw: string | null): DisplaySettings {
   if (!raw) return { ...DEFAULT_DISPLAY };
   try {
     const data = JSON.parse(raw) as Partial<Record<keyof DisplaySettings, unknown>> | null;
-    return { crt: typeof data?.crt === "boolean" ? data.crt : DEFAULT_DISPLAY.crt };
+    return {
+      crt: typeof data?.crt === "boolean" ? data.crt : DEFAULT_DISPLAY.crt,
+      fps: typeof data?.fps === "boolean" ? data.fps : DEFAULT_DISPLAY.fps,
+    };
   } catch {
     return { ...DEFAULT_DISPLAY };
   }
@@ -34,6 +38,7 @@ export function createDisplaySettings(store: Store | null) {
     get: (): DisplaySettings => current,
     set,
     toggleCrt: () => set({ crt: !current.crt }),
+    toggleFps: () => set({ fps: !current.fps }),
     subscribe(fn: Listener): () => void {
       listeners.add(fn);
       return () => listeners.delete(fn);

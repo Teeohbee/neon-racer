@@ -10,12 +10,19 @@ export function createDisplayToggle(settings: DisplayStore, onClick?: () => void
     settings.toggleCrt();
     onClick?.();
   });
-  const el = h("div", { class: "display-settings" }, crt);
+  const fps = h("button", { class: "display-fps", title: "Frame rate readout" });
+  fps.addEventListener("click", () => {
+    settings.toggleFps();
+    onClick?.();
+  });
+  const el = h("div", { class: "display-settings" }, crt, fps);
 
   const sync = () => {
-    const on = settings.get().crt;
-    crt.textContent = on ? "CRT on" : "CRT off";
-    crt.classList.toggle("on", on);
+    const { crt: crtOn, fps: fpsOn } = settings.get();
+    crt.textContent = crtOn ? "CRT on" : "CRT off";
+    crt.classList.toggle("on", crtOn);
+    fps.textContent = fpsOn ? "FPS on" : "FPS off";
+    fps.classList.toggle("on", fpsOn);
   };
   sync();
   const unsubscribe = settings.subscribe(sync);

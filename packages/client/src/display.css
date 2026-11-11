@@ -1,4 +1,4 @@
-.display-settings { display: flex; align-items: center; pointer-events: auto; font-size: var(--nr-text-sm); color: var(--nr-text); }
+.display-settings { display: flex; gap: var(--nr-space-2); align-items: center; pointer-events: auto; font-size: var(--nr-text-sm); color: var(--nr-text); }
 
 .crt #ui::before, .crt #ui::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
 .crt #ui::before { z-index: 51; background: linear-gradient(to bottom, transparent, rgba(200, 240, 255, 0.07) 50%, transparent) 0 -30% / 100% 22% no-repeat; animation: crt-roll 9s linear infinite; }
@@ -19,4 +19,7 @@
   .crt #ui::before, .crt #ui::after { animation: none; }
 }
 .crt .online { inset: 12px 22px; }
+.fps-readout { position: absolute; left: 10px; bottom: 8px; z-index: 60; padding: 2px 6px; border-radius: 4px; background: #05060dcc; font: 11px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; color: var(--nr-text-dim); }
+.fps-readout.slow { color: #ff3b5c; }
+.crt .fps-readout { left: 30px; bottom: 24px; }
 .crt .minimap { right: 30px; bottom: 24px; }
