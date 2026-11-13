@@ -76,7 +76,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
     "div",
     { class: "online menu title-screen" },
     h("h1", { class: "title-logo", ariaLabel: "High Rollers" }, logo("HIGH", "high", 0), logo("ROLLERS", "rollers", 4)),
-    h("p", { class: "title-tagline" }, "Hard-light lanes, high above the city. Don't look down."),
+    h("p", { class: "title-tagline" }, "Okay, let's go!"),
     panel,
     h("p", { class: "nr-hint title-drive" }, "Drive: WASD / arrows · Shift handbrake"),
   );
