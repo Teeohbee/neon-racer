@@ -32,6 +32,7 @@ import {
   type CarState,
   type CupLegs,
   type EliminationReason,
+  type Emote,
   type GameEvent,
   type HazardKind,
   type Point,
@@ -81,6 +82,7 @@ const HAZARD_EFFECTS: Record<HazardKind, string> = {
   freeze: `Freezes a car · ${HAZARD_SPECS.freeze.duration}s`,
 };
 const YOUR_OUT_REASONS: Record<EliminationReason, string> = { line: "The line caught you", fell: "You fell off", left: "You left" };
+const HAZARD_HELP_KEY = "neon-racer:hazard-help-seen";
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
 const THUMB = { width: 84, height: 50, pad: 200 };
 const DEFAULT_LAPS = 3;
@@ -118,6 +120,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   let drawPreview: Point[] | null = null;
   let local: CarState | null = null;
   let myAlive = false;
+  let hazardHelpSeen = localStorage.getItem(HAZARD_HELP_KEY) === "1";
   let resetFromSnap = false;
   let roundWinner: string | null = null;
   let roundResults: { id: string; delta: number }[] = [];
@@ -315,7 +318,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           renderer.signalLost();
           audio.sfx.eliminated(event.reason);
           audio.danger(0);
-          stream.alert(`${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click, emote with 4-7`);
+          stream.alert(hazardHelpSeen ? YOUR_OUT_REASONS[event.reason] : `${YOUR_OUT_REASONS[event.reason]} - drop hazards with 1/2/3 + click, emote with 4-7`);
         } else {
           audio.sfx.eliminated(event.reason, { you: false, pan: car && heard ? screenPan(car, heard.camera) : 0 });
         }
@@ -323,6 +326,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       }
       case "roundScored":
         roundResults = event.results;
+        stream.dismissAlert();
         break;
       case "roundWon":
         roundWinner = event.id;
@@ -396,7 +400,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       drawUI();
     }
     const emote = EMOTES[EMOTE_KEYS.indexOf(e.key as (typeof EMOTE_KEYS)[number])];
-    if (emote && info?.phase === "race" && !myAlive) conn.send({ t: "emote", emote });
+    if (emote && info?.phase === "race" && !myAlive) sendEmote(emote);
   };
   const onPointerMove = (e: PointerEvent) => {
     const rect = app.canvas.getBoundingClientRect();
@@ -406,6 +410,18 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (info?.phase !== "race" || myAlive || !mouse || e.button !== 0) return;
     if (serverNow() >= (buffer.latest()?.cooldowns[you]?.[hazardKind] ?? 0)) audio.sfx.hazardPlaced();
     conn.send({ t: "hazard", kind: hazardKind, x: mouse[0], y: mouse[1] });
+    learnHazards();
+  };
+  const sendEmote = (emote: Emote) => {
+    conn.send({ t: "emote", emote });
+    learnHazards();
+  };
+  // The knockout help shows until the player has dropped a hazard or emoted once, then never again on this browser.
+  const learnHazards = () => {
+    if (hazardHelpSeen) return;
+    hazardHelpSeen = true;
+    localStorage.setItem(HAZARD_HELP_KEY, "1");
+    drawUI();
   };
   window.addEventListener("keydown", onKey);
   app.canvas.addEventListener("pointermove", onPointerMove);
@@ -801,7 +817,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       h(
         "div",
         { class: "hazards" },
-        h("span", { class: "hint" }, "Click the track to drop it"),
+        hazardHelpSeen ? null : h("span", { class: "hint" }, "Click the track to drop it"),
         h(
           "div",
           { class: "hazard-row" },
@@ -823,7 +839,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           "div",
           { class: "emote-row" },
           ...EMOTES.map((emote, idx) =>
-            h("button", { class: "emote-btn", title: `Key ${EMOTE_KEYS[idx]}`, onclick: () => conn.send({ t: "emote", emote }) }, EMOTE_GLYPHS[emote], h("span", { class: "hz-key" }, EMOTE_KEYS[idx])),
+            h("button", { class: "emote-btn", title: `Key ${EMOTE_KEYS[idx]}`, onclick: () => sendEmote(emote) }, EMOTE_GLYPHS[emote], h("span", { class: "hz-key" }, EMOTE_KEYS[idx])),
           ),
         ),
       ),

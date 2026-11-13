@@ -138,6 +138,10 @@ export function createStreamHud(root: HTMLElement, top: HTMLElement, nameOf: (id
       clearTimeout(alertTimer);
       alertTimer = window.setTimeout(() => alert.classList.remove("show"), ALERT_MS);
     },
+    dismissAlert() {
+      clearTimeout(alertTimer);
+      alert.classList.remove("show");
+    },
     update(track: Track | null, frame: StreamFrame | null, now: number) {
       if (!phase || !STREAMING.has(phase)) return;
       if (pending.length) {
