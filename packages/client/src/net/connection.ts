@@ -3,7 +3,7 @@ import type { ClientMsg, ServerMsg } from "@neon/sim";
 export interface Connection {
   send(msg: ClientMsg): void;
   onMessage(cb: (msg: ServerMsg) => void): void;
-  onClose(cb: () => void): void;
+  onClose(cb: (e: CloseEvent) => void): void;
   close(): void;
 }
 
@@ -23,7 +23,7 @@ export function connect(room: string, name: string): Connection {
       ws.addEventListener("message", (e) => cb(JSON.parse(String(e.data))));
     },
     onClose(cb) {
-      ws.addEventListener("close", () => !closedByUs && cb());
+      ws.addEventListener("close", (e) => !closedByUs && cb(e));
     },
     close() {
       closedByUs = true;

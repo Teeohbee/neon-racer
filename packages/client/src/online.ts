@@ -51,6 +51,7 @@ import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { EMOTE_GLYPHS, EMOTE_KEYS, floatEmote } from "./ui/emotes";
+import { report, setReportContext } from "./report";
 import { hazardIcon } from "./ui/hazard-icons";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
@@ -99,6 +100,7 @@ export interface OnlineOptions {
 export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptions, onExit: (reason?: string) => void): () => void {
   const renderer = createRenderer(app);
   const conn = connect(opts.room, opts.name);
+  const connectedAt = performance.now();
   const keyboard = createKeyboard();
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
@@ -187,21 +189,29 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     drawToasts();
   };
 
-  conn.onClose(() => leave("Disconnected from the server"));
+  conn.onClose((e) => {
+    report("disconnect", { code: e.code, reason: e.reason || undefined, phase: info?.phase, round: info?.round, connectedS: Math.round((performance.now() - connectedAt) / 1000) });
+    leave("Disconnected from the server");
+  });
   conn.onMessage((msg) => {
     switch (msg.t) {
       case "welcome":
         you = msg.you;
         history.replaceState(null, "", `?room=${msg.code}`);
+        setReportContext({ room: msg.code, player: you });
         break;
       case "error":
+        report("server_error", { message: msg.message, room: opts.room });
         leave(msg.message);
         break;
       case "room": {
         const prev = info?.phase;
         info = msg;
         roomReceivedAt = performance.now();
-        if (prev !== msg.phase) enterPhase();
+        if (prev !== msg.phase) {
+          setReportContext({ phase: msg.phase });
+          enterPhase();
+        }
         drawUI();
         break;
       }
@@ -850,6 +860,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
 
   return () => {
     ended = true;
+    setReportContext({ room: undefined, player: undefined, phase: undefined });
     unbindShell();
     app.ticker.remove(tick);
     window.removeEventListener("keydown", onKey);

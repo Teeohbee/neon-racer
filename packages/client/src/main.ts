@@ -5,6 +5,7 @@ import { displaySettingsWidget } from "./display-widget";
 import { bindFpsOverlay } from "./fps-overlay";
 import { h } from "./dom";
 import { isTyping } from "./input";
+import { bindReporting } from "./report";
 import { showMenu, type MenuChoice } from "./menu";
 import { startOnline } from "./online";
 import { startPractice } from "./practice";
@@ -15,6 +16,7 @@ import { bindViewRect } from "./view-rect";
 const app = new Application();
 await app.init({ resizeTo: window, background: "#05060d", antialias: true });
 document.getElementById("stage")!.appendChild(app.canvas);
+bindReporting(app);
 const ui = document.getElementById("ui")!;
 bindViewRect(document.documentElement);
 
