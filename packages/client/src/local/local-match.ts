@@ -6,7 +6,6 @@ import {
   Room,
   TICK_RATE,
   VIEW,
-  viewBounds,
   type BotSkill,
   type ClientMsg,
   type Emote,
@@ -54,6 +53,13 @@ export interface HazardCursor {
 
 type Snap = Extract<ServerMsg, { t: "snap" }>;
 
+/** A cursor's place on screen, from -0.5 to 0.5 of the view each way, so it stays put while the camera follows the race. */
+interface ScreenCursor {
+  across: number;
+  down: number;
+  kind: HazardKind;
+}
+
 export interface LocalMatchOptions {
   onMessage: (msg: ServerMsg) => void;
   rng?: () => number;
@@ -83,7 +89,7 @@ export class LocalMatch {
   private carry = 0;
   private pauser: string | null = null;
   private latestSnap: Snap | null = null;
-  private cursors = new Map<string, HazardCursor>();
+  private cursors = new Map<string, ScreenCursor>();
   private botSkills = new Map<string, BotSkill>();
   private sim: Room;
 
@@ -141,14 +147,14 @@ export class LocalMatch {
   /** The hazard cursor of the Seat on this controller, while that Seat is knocked out of a race. */
   cursor(controllerId: string): HazardCursor | null {
     const cursor = this.cursors.get(this.seatOf(controllerId)?.playerId ?? "");
-    return cursor ? { ...cursor } : null;
+    return cursor ? this.inWorld(cursor) : null;
   }
 
   /** Every knocked-out Seat's hazard cursor, with the Seat it belongs to. */
   allCursors(): { seat: Seat; cursor: HazardCursor }[] {
     return this.seats.flatMap((seat) => {
       const cursor = this.cursors.get(seat.playerId);
-      return cursor ? [{ seat, cursor: { ...cursor } }] : [];
+      return cursor ? [{ seat, cursor: this.inWorld(cursor) }] : [];
     });
   }
 
@@ -286,7 +292,8 @@ export class LocalMatch {
       if (pressed("a")) {
         const readyAt = this.latestSnap?.cooldowns[seat.playerId]?.[cursor.kind] ?? 0;
         notices.push({ kind: "hazard", seat, ready: (this.latestSnap?.now ?? 0) >= readyAt });
-        this.sim.handle(seat.playerId, { t: "hazard", kind: cursor.kind, x: cursor.x, y: cursor.y });
+        const { x, y } = this.inWorld(cursor);
+        this.sim.handle(seat.playerId, { t: "hazard", kind: cursor.kind, x, y });
       }
       for (const [button, emote] of EMOTE_BUTTONS) if (pressed(button)) this.sim.handle(seat.playerId, { t: "emote", emote });
     }
@@ -299,24 +306,27 @@ export class LocalMatch {
     if (!snap || this.roomState?.phase !== "race") return;
     for (const seat of this.seatList) {
       const car = snap.cars.find((c) => c.id === seat.playerId);
-      if (car && !car.alive && !this.cursors.has(seat.playerId)) this.cursors.set(seat.playerId, { x: snap.camera.x, y: snap.camera.y, kind: "block" });
+      if (car && !car.alive && !this.cursors.has(seat.playerId)) this.cursors.set(seat.playerId, { across: 0, down: 0, kind: "block" });
     }
   }
 
   private moveCursors(): void {
-    const camera = this.latestSnap?.camera;
-    if (!camera) return;
-    const bounds = viewBounds(camera);
-    const speed = VIEW.width * camera.scale * CURSOR_SPEED * DT;
+    const step = CURSOR_SPEED * DT;
+    const aspect = VIEW.width / VIEW.height;
     for (const seat of this.seatList) {
       const cursor = this.cursors.get(seat.playerId);
       const pad = seat.controllerId ? this.pads.get(seat.controllerId) : undefined;
       if (!cursor || !pad) continue;
       const stick = leftStick(pad);
-      const push = Math.hypot(stick.x, stick.y) < CURSOR_DEADZONE ? { x: 0, y: 0 } : stick;
-      cursor.x = Math.min(bounds.right, Math.max(bounds.left, cursor.x + push.x * speed));
-      cursor.y = Math.min(bounds.bottom, Math.max(bounds.top, cursor.y + push.y * speed));
+      if (Math.hypot(stick.x, stick.y) < CURSOR_DEADZONE) continue;
+      cursor.across = Math.min(0.5, Math.max(-0.5, cursor.across + stick.x * step));
+      cursor.down = Math.min(0.5, Math.max(-0.5, cursor.down + stick.y * step * aspect));
     }
+  }
+
+  private inWorld(cursor: ScreenCursor): HazardCursor {
+    const camera = this.latestSnap?.camera ?? { x: 0, y: 0, scale: 1 };
+    return { x: camera.x + cursor.across * VIEW.width * camera.scale, y: camera.y + cursor.down * VIEW.height * camera.scale, kind: cursor.kind };
   }
 
   /** Advance the match by real elapsed time, in whole Room ticks. */
