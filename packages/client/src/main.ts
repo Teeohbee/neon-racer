@@ -9,6 +9,7 @@ import { bindReporting } from "./report";
 import { showMenu, type MenuChoice } from "./menu";
 import { startOnline } from "./online";
 import { startPractice } from "./practice";
+import { startLocalPlay } from "./local/local-play";
 import { startAttract } from "./shell/attract";
 import { glitchSwap } from "./shell/transition";
 import { bindViewRect } from "./view-rect";
@@ -73,6 +74,15 @@ function play(choice: MenuChoice) {
     };
     window.addEventListener("keydown", onEscape);
     ui.append(bar);
+    return;
+  }
+  if (choice.kind === "local") {
+    const stop = startLocalPlay(app, ui, { controllers, menus: controllerMenus }, () =>
+      glitchSwap(() => {
+        stop();
+        menu();
+      }),
+    );
     return;
   }
   const stop = startOnline(app, ui, { room: choice.kind === "create" ? "new" : choice.room!, name: choice.name }, (reason) =>
