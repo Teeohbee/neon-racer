@@ -2,6 +2,9 @@ import type { HazardKind } from "@neon/sim";
 
 export const PLAYER_COLORS = [0x00f0ff, 0xff2bd6, 0xb6ff00, 0xffb000, 0x8a5bff, 0xff3b3b] as const;
 
+/** What people call each car colour, in the same order as PLAYER_COLORS. Local play names Seats by these. */
+export const PLAYER_COLOR_NAMES = ["Cyan", "Pink", "Lime", "Amber", "Violet", "Red"] as const;
+
 export const playerColor = (index: number): number => PLAYER_COLORS[((index % PLAYER_COLORS.length) + PLAYER_COLORS.length) % PLAYER_COLORS.length]!;
 
 export const UI = {
