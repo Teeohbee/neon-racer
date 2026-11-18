@@ -9,6 +9,7 @@ function knockedOut() {
   r.press("pad-2", "a");
   r.press("pad-0", "start");
   r.hold("pad-0", "rightTrigger");
+  r.hold("pad-1", "rightTrigger");
   const out = () => r.lastSnap()?.cars.some((c) => !c.alive) ?? false;
   r.tick(120, () => r.phase() === "race" && out());
   if (r.phase() !== "race") throw new Error("the round ended before anyone was knocked out");
@@ -57,7 +58,7 @@ describe("Local play hazards and emotes", () => {
     const { r, loser, loserId } = knockedOut();
     for (const button of ["dpadUp", "dpadRight", "dpadDown", "dpadLeft"] as const) {
       r.press(loser, button);
-      r.tick(0.2);
+      r.tick(0.12);
     }
     const emotes = r.events().flatMap((e) => (e.kind === "emote" && e.id === loserId ? [e.emote] : []));
     expect(emotes).toEqual(["fire", "lol", "scream", "wave"]);
