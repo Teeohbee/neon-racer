@@ -18,7 +18,12 @@ export interface MenuChoice {
 const logo = (word: string, cls: string, offset: number) =>
   h("span", { class: `title-word ${cls}` }, ...[...word].map((ch, i) => h("span", { class: "title-letter", style: `--i:${offset + i}` }, ch)));
 
-export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void, notice?: string): () => void {
+export interface MenuOptions {
+  /** Offers a Quit game button, where the game can close itself (the Steam build). */
+  quitGame?: () => void;
+}
+
+export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: MenuChoice) => void, notice?: string): () => void {
   const params = new URLSearchParams(location.search);
   let invited = params.get("room")?.toUpperCase() ?? "";
   const settings = audioSettingsWidget();
@@ -60,6 +65,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
             h("div", { class: "title-join" }, code, h("button", { class: "nr-btn", onclick: () => choose("join") }, "Join room")),
             h("button", { class: "nr-btn title-practice", onclick: () => choose("local") }, "Local play"),
             h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
+            ...(opts.quitGame ? [h("button", { class: "nr-btn title-practice", onclick: () => opts.quitGame!() }, "Quit game")] : []),
             h("p", { class: "nr-hint title-keys" }, "↑↓ select · Enter go · M mute"),
             h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
           ]),

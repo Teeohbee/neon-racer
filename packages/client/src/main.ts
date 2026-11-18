@@ -14,7 +14,8 @@ import { startAttract } from "./shell/attract";
 import { glitchSwap } from "./shell/transition";
 import { bindViewRect } from "./view-rect";
 import { startControllerHub } from "./controller/hub";
-import { bindControllerMenus, noController } from "./controller/menu-bridge";
+import { bindControllerMenus, KEYBOARD_CONTROLLER_ID, noController } from "./controller/menu-bridge";
+import { quitGame } from "./platform";
 import { browserGamepads } from "./controller/poller";
 import { combinePadSources, keyboardPadSource } from "./controller/keyboard-pad";
 
@@ -37,7 +38,7 @@ function menu(notice?: string) {
   releaseMenus();
   const attract = startAttract(app);
   let chosen = false;
-  const close = showMenu(ui, (choice) => {
+  const close = showMenu(ui, { quitGame }, (choice) => {
     if (chosen) return;
     chosen = true;
     void glitchSwap(() => {
@@ -52,7 +53,7 @@ function play(choice: MenuChoice) {
   releaseMenus();
   releaseMenus = controllerMenus.restrict(noController);
   if (choice.kind === "practice") {
-    const stop = startPractice(app, ui);
+    const stop = startPractice(app, ui, controllers);
     const settings = audioSettingsWidget();
     const displaySettings = displaySettingsWidget();
     const bar = h("div", { class: "practice-bar" }, h("button", { class: "back", onclick: () => exit() }, "← Menu (Esc)"), settings.el, displaySettings.el);
@@ -65,6 +66,7 @@ function play(choice: MenuChoice) {
       leaving = true;
       void glitchSwap(() => {
         window.removeEventListener("keydown", onEscape);
+        unsubscribeBack();
         stop();
         settings.dispose();
         displaySettings.dispose();
@@ -73,11 +75,14 @@ function play(choice: MenuChoice) {
       });
     };
     window.addEventListener("keydown", onEscape);
+    const unsubscribeBack = controllers.subscribe((frame) => {
+      if ([...frame.pads.keys()].some((id) => id !== KEYBOARD_CONTROLLER_ID && frame.pressed(id, "b"))) exit();
+    });
     ui.append(bar);
     return;
   }
   if (choice.kind === "local") {
-    const stop = startLocalPlay(app, ui, { controllers, menus: controllerMenus }, () =>
+    const stop = startLocalPlay(app, ui, { controllers, menus: controllerMenus, quitGame }, () =>
       glitchSwap(() => {
         stop();
         menu();
