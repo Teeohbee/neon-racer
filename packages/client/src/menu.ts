@@ -19,13 +19,15 @@ const logo = (word: string, cls: string, offset: number) =>
   h("span", { class: `title-word ${cls}` }, ...[...word].map((ch, i) => h("span", { class: "title-letter", style: `--i:${offset + i}` }, ch)));
 
 export interface MenuOptions {
+  /** Leave out Online play, for the Steam build. */
+  offline?: boolean;
   /** Offers a Quit game button, where the game can close itself (the Steam build). */
   quitGame?: () => void;
 }
 
 export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: MenuChoice) => void, notice?: string): () => void {
   const params = new URLSearchParams(location.search);
-  let invited = params.get("room")?.toUpperCase() ?? "";
+  let invited = opts.offline ? "" : (params.get("room")?.toUpperCase() ?? "");
   const settings = audioSettingsWidget();
   const displaySettings = displaySettingsWidget();
   const name = h("input", { value: localStorage.getItem(NAME_KEY) ?? "", placeholder: "Your name", maxLength: 16, ariaLabel: "Your name" });
@@ -59,7 +61,14 @@ export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: 
             h("p", { class: "nr-hint title-keys" }, "Enter join · M mute"),
             h("button", { class: "title-leave", onclick: () => leaveInvite() }, "Main menu"),
           ]
-        : [
+        : opts.offline
+          ? [
+              h("button", { class: "nr-btn primary big", onclick: () => choose("local") }, "Local play"),
+              h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
+              ...(opts.quitGame ? [h("button", { class: "nr-btn title-practice", onclick: () => opts.quitGame!() }, "Quit game")] : []),
+              h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
+            ]
+          : [
             field,
             h("button", { class: "nr-btn primary big", onclick: () => choose("create") }, "Create room"),
             h("div", { class: "title-join" }, code, h("button", { class: "nr-btn", onclick: () => choose("join") }, "Join room")),
@@ -85,7 +94,7 @@ export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: 
     h("h1", { class: "title-logo", ariaLabel: "High Rollers" }, logo("HIGH", "high", 0), logo("ROLLERS", "rollers", 4)),
     h("p", { class: "title-tagline" }, "Okay, let's go!"),
     panel,
-    h("p", { class: "nr-hint title-drive" }, "Drive: WASD / arrows · Shift handbrake"),
+    opts.offline ? null : h("p", { class: "nr-hint title-drive" }, "Drive: WASD / arrows · Shift handbrake"),
   );
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter" && e.target instanceof HTMLInputElement && e.target.type !== "range") choose(invited || code.value.trim() ? "join" : "create");
@@ -94,7 +103,8 @@ export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: 
   const unbindNav = createKeyNav(root, { onMove: audio.sfx.hover, onBack: () => invited && leaveInvite() });
   const unbindHover = bindHoverSound(root, audio.sfx.hover);
   ui.append(root);
-  (invited ? name : name.value ? code : name).focus();
+  if (opts.offline) panel.querySelector("button")?.focus();
+  else (invited ? name : name.value ? code : name).focus();
   if (notice) void dialog({ title: "Signal lost", body: notice, tone: "error", actions: [{ label: "OK", value: undefined, primary: true }], cancel: undefined });
   return () => {
     unbindNav();
