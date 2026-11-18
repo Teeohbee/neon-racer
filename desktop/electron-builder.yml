@@ -12,3 +12,4 @@ asar: true
 linux:
   target: AppImage
   category: Game
+  icon: ../steam/art/icon.png
