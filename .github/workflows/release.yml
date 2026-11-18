@@ -1,0 +1,30 @@
+# Builds the Steam build's AppImage for a version tag and attaches it to that tag's release.
+# steam-tools' launcher on the Steam Machine downloads HighRollers.AppImage from the latest release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run check
+      - run: bun install --frozen-lockfile
+        working-directory: desktop
+      - run: bun run dist
+        working-directory: desktop
+      - name: Attach the AppImage to the release
+        run: gh release create "$GITHUB_REF_NAME" desktop/release/HighRollers.AppImage --title "High Rollers $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
