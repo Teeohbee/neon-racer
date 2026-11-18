@@ -1,0 +1,16 @@
+{
+  "name": "high-rollers-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "High Rollers for the Steam Machine: Local play and Practice in an Electron window",
+  "main": "main.cjs",
+  "scripts": {
+    "client": "cd .. && VITE_STEAM_BUILD=1 bun run --filter '@neon/client' build && rm -rf desktop/client && cp -R packages/client/dist desktop/client",
+    "start": "bun run client && electron .",
+    "dist": "bun run client && electron-builder --linux AppImage --x64"
+  },
+  "devDependencies": {
+    "electron": "^45.3.4",
+    "electron-builder": "^26.18.0"
+  }
+}
