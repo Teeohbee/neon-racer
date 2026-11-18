@@ -31,6 +31,8 @@ export interface AimView {
   kind: HazardKind;
   radius: number;
   ready: boolean;
+  /** Colour of the cross hairs, when several players aim at once (Local play). Defaults to the hazard's colour. */
+  tint?: number;
 }
 
 export interface FrameView {
@@ -41,6 +43,8 @@ export interface FrameView {
   now: number;
   sketch?: SketchView;
   aim?: AimView | null;
+  /** More than one aim at once, one per knocked-out Seat in Local play. */
+  aims?: AimView[];
   dangerLine?: number | null;
   trackName?: string | null;
   contact?: boolean;
