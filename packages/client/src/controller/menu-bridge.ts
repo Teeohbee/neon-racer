@@ -13,6 +13,8 @@ export type MenuAction = { kind: "move"; dir: NavDir } | { kind: "activate" } | 
 export const FIRST_REPEAT_MS = 400;
 export const REPEAT_MS = 120;
 const STICK_THRESHOLD = 0.5;
+/** A slider moves this share of its range per d-pad press, so a controller can sweep it in a few presses. */
+const SLIDER_NUDGE = 0.05;
 
 interface HeldDirection {
   dir: NavDir;
@@ -72,8 +74,11 @@ export function applyMenuAction(action: MenuAction): void {
   if (action.kind === "back") return pressKey("Escape");
   if (action.kind === "move") {
     if (focused instanceof HTMLInputElement && focused.type === "range" && (action.dir === "left" || action.dir === "right")) {
-      if (action.dir === "left") focused.stepDown();
-      else focused.stepUp();
+      const min = Number(focused.min || 0);
+      const max = Number(focused.max || 100);
+      const nudge = Math.max(Number(focused.step) || 1, (max - min) * SLIDER_NUDGE);
+      const next = Number(focused.value) + (action.dir === "left" ? -nudge : nudge);
+      focused.value = String(Math.min(max, Math.max(min, next)));
       focused.dispatchEvent(new Event("input", { bubbles: true }));
       focused.dispatchEvent(new Event("change", { bubbles: true }));
       return;
