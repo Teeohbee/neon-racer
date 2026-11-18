@@ -1,4 +1,4 @@
-import { MAX_PLAYERS, Room, TICK_RATE, type ClientMsg, type PlayerInfo, type ServerMsg } from "@neon/sim";
+import { emptyInput, MAX_PLAYERS, Room, TICK_RATE, type ClientMsg, type PlayerInfo, type ServerMsg } from "@neon/sim";
 import { carInputFromPad } from "../controller/pad";
 import type { ControllerFrame } from "../controller/poller";
 import { PLAYER_COLOR_NAMES } from "../render/palette";
@@ -22,7 +22,12 @@ export interface Seat {
   color: number;
 }
 
-export type LocalNotice = { kind: "joined"; seat: Seat } | { kind: "left"; seat: Seat } | { kind: "needsRacers" };
+export type LocalNotice =
+  | { kind: "joined"; seat: Seat }
+  | { kind: "left"; seat: Seat }
+  | { kind: "needsRacers" }
+  | { kind: "disconnected"; seat: Seat }
+  | { kind: "reclaimed"; seat: Seat };
 
 export interface LocalMatchOptions {
   onMessage: (msg: ServerMsg) => void;
@@ -101,6 +106,23 @@ export class LocalMatch {
     this.pads = frame.pads;
     const notices: LocalNotice[] = [];
     const phase = this.roomState?.phase ?? "lobby";
+    for (const controllerId of frame.disconnected) {
+      const seat = this.seatOf(controllerId);
+      if (!seat) continue;
+      if (phase === "lobby") {
+        this.leave(seat);
+        notices.push({ kind: "left", seat });
+      } else {
+        this.bind(seat.playerId, null);
+        notices.push({ kind: "disconnected", seat: { ...seat, controllerId: null } });
+      }
+    }
+    for (const controllerId of frame.connected) {
+      const orphan = this.seats.find((s) => s.controllerId === null);
+      if (!orphan || this.seatOf(controllerId)) continue;
+      this.bind(orphan.playerId, controllerId);
+      notices.push({ kind: "reclaimed", seat: { ...orphan, controllerId } });
+    }
     for (const controllerId of frame.pads.keys()) {
       const seat = this.seatOf(controllerId);
       if (!seat) {
@@ -136,7 +158,8 @@ export class LocalMatch {
       this.inputSeq++;
       for (const seat of this.seatList) {
         const pad = seat.controllerId ? this.pads.get(seat.controllerId) : undefined;
-        if (pad) this.sim.handle(seat.playerId, { t: "input", seq: this.inputSeq, input: carInputFromPad(pad) });
+        const input = pad ? carInputFromPad(pad) : emptyInput;
+        this.sim.handle(seat.playerId, { t: "input", seq: this.inputSeq, input });
       }
     }
     this.sim.update(DT);
@@ -151,6 +174,11 @@ export class LocalMatch {
     if (!this.sim.join(playerId, name)) return undefined;
     this.seatList.push({ playerId, controllerId, name, color });
     return this.seatOf(controllerId);
+  }
+
+  private bind(playerId: string, controllerId: string | null): void {
+    const seat = this.seatList.find((s) => s.playerId === playerId);
+    if (seat) seat.controllerId = controllerId;
   }
 
   private leave(seat: Seat): void {
