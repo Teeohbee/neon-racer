@@ -119,3 +119,35 @@ describe("Local play match", () => {
     expect(r.events().some((e) => e.kind === "roundWon")).toBe(true);
   });
 });
+
+describe("Local play match end", () => {
+  function toMatchEnd() {
+    const r = localRig();
+    r.press("pad-0", "a");
+    r.press("pad-1", "a");
+    r.match.asHost({ t: "winCondition", kind: "score", target: 5 });
+    r.match.asHost({ t: "addBot", skill: "hard" });
+    r.press("pad-0", "start");
+    if (!r.tick(600, () => r.phase() === "matchEnd")) throw new Error("the match never ended");
+    return r;
+  }
+
+  it("lets any Seat's controller drive the podium", () => {
+    const r = toMatchEnd();
+    const drives = r.match.menuControllers();
+    expect(["pad-0", "pad-1", "pad-7"].map(drives)).toEqual([true, true, false]);
+  });
+
+  it("starts a rematch for every Seat at once", () => {
+    const r = toMatchEnd();
+    r.match.asEverySeat({ t: "rematch", in: true });
+    expect(r.phase()).toBe("countdown");
+  });
+
+  it("goes back to the lobby when the Host changes settings", () => {
+    const r = toMatchEnd();
+    r.match.asHost({ t: "again" });
+    expect(r.phase()).toBe("lobby");
+    expect(r.match.seats).toHaveLength(2);
+  });
+});
