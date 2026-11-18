@@ -15,6 +15,7 @@ import { bindViewRect } from "./view-rect";
 import { startControllerHub } from "./controller/hub";
 import { bindControllerMenus, noController } from "./controller/menu-bridge";
 import { browserGamepads } from "./controller/poller";
+import { combinePadSources, keyboardPadSource } from "./controller/keyboard-pad";
 
 const app = new Application();
 await app.init({ resizeTo: window, background: "#05060d", antialias: true });
@@ -26,7 +27,7 @@ bindViewRect(document.documentElement);
 bindAudioMuteKey();
 bindFpsOverlay(ui);
 
-const controllers = startControllerHub(browserGamepads());
+const controllers = startControllerHub(import.meta.env.DEV ? combinePadSources(browserGamepads(), keyboardPadSource()) : browserGamepads());
 const controllerMenus = bindControllerMenus(controllers);
 let releaseMenus = () => {};
 
