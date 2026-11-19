@@ -4,6 +4,7 @@ import {
   boostAt,
   bridgeAt,
   buildTrack,
+  COUNTDOWN_SECONDS,
   CUP_LEGS,
   HAZARD_SPECS,
   LAP_COUNTS,
@@ -90,7 +91,6 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   let heard: { cars: CarView[]; camera: Camera; line: number | null } | null = null;
   let lastCountdown = -1;
   let ended = false;
-  let roomReceivedAt = performance.now();
   let lastFrameAt = performance.now();
   let pauseShownFor: string | null = null;
   const hazardsSeen = new Map<number, boolean>();
@@ -144,7 +144,6 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
       case "room": {
         const prev = info?.phase;
         info = msg;
-        roomReceivedAt = performance.now();
         if (prev !== msg.phase) enterPhase();
         drawUI();
         break;
@@ -373,8 +372,10 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   function updateLive() {
     if (!info) return;
-    const remaining = Math.max(0, info.remaining - (performance.now() - roomReceivedAt) / 1000);
-    if (info.phase === "countdown" && !match.pausedBy()) {
+    // Counted on the Room's clock, not the wall's: the frame that builds the track can stall, and the Room
+    // doesn't catch all of that up, so a wall clock would rush past 3 and say GO before the race starts.
+    if (info.phase === "countdown" && snaps.latest()?.phase === "countdown") {
+      const remaining = COUNTDOWN_SECONDS - serverNow();
       const n = Math.ceil(remaining);
       countdown.show(countdownLabel(remaining));
       if (n !== lastCountdown && n > 0) audio.sfx.countdownTick();
