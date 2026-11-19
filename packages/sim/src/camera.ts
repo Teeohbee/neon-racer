@@ -26,17 +26,26 @@ export function stepCamera(cam: Camera, leader: { x: number; y: number; vx: numb
   return { x: cam.x + (tx - cam.x) * k, y: cam.y + (ty - cam.y) * k, scale };
 }
 
+/**
+ * Room kept around the leader: FRAME_MARGIN plus about what the eased camera trails a boosting leader by (speed / FRAME_FOLLOW).
+ * With an even margin, the camera at full zoom-out left the leader a car length or two from the edge it was driving at.
+ */
+const LEADER_MARGIN = FRAME_MARGIN + 150;
+
 export function frameTarget(leader: { x: number; y: number; vx: number; vy: number }, line: { x: number; y: number }): Camera {
-  const ahead = { x: leader.x + leader.vx * LOOK_AHEAD, y: leader.y + leader.vy * LOOK_AHEAD };
-  const fit = (points: { x: number; y: number }[]) => {
-    const xs = points.map((p) => p.x);
-    const ys = points.map((p) => p.y);
-    const [left, right, top, bottom] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-    const scale = Math.max(1, (right - left + FRAME_MARGIN * 2) / VIEW.width, (bottom - top + FRAME_MARGIN * 2) / VIEW.height);
+  const ahead = { x: leader.x + leader.vx * LOOK_AHEAD, y: leader.y + leader.vy * LOOK_AHEAD, margin: LEADER_MARGIN };
+  const fit = (points: { x: number; y: number; margin: number }[]) => {
+    const left = Math.min(...points.map((p) => p.x - p.margin));
+    const right = Math.max(...points.map((p) => p.x + p.margin));
+    const top = Math.min(...points.map((p) => p.y - p.margin));
+    const bottom = Math.max(...points.map((p) => p.y + p.margin));
+    const scale = Math.max(1, (right - left) / VIEW.width, (bottom - top) / VIEW.height);
     return { x: (left + right) / 2, y: (top + bottom) / 2, scale };
   };
-  const wide = fit([leader, ahead, line]);
-  const target = wide.scale <= MAX_SCALE ? wide : fit([leader, line]);
+  const at = { ...leader, margin: LEADER_MARGIN };
+  const end = { ...line, margin: FRAME_MARGIN };
+  const wide = fit([at, ahead, end]);
+  const target = wide.scale <= MAX_SCALE ? wide : fit([at, end]);
   return { ...target, scale: Math.min(MAX_SCALE, target.scale) };
 }
 
