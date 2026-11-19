@@ -30,7 +30,7 @@ class Link<T> {
 }
 
 /** A Contact race against a bot, played through a predicting client over a laggy link, as Online play does. */
-function raceOverLink(delay: number, stall: { chance: number; ticks: [number, number] }, seconds = 30) {
+function raceOverLink(delay: number, stall: { chance: number; ticks: [number, number] }, seconds = 30, easyBots = 0) {
   let tick = 0;
   const down = new Link<ServerMsg>(delay, stall, seededRng(11));
   const up = new Link<ClientMsg>(delay, stall, seededRng(12));
@@ -39,13 +39,17 @@ function raceOverLink(delay: number, stall: { chance: number; ticks: [number, nu
   room.join("me", "me");
   room.handle("me", { t: "mode", mode: "contact" });
   room.handle("me", { t: "addBot", skill: "hard" });
+  // Easy bots soon fall to the line, then throw hazards at the leader.
+  for (let i = 0; i < easyBots; i++) room.handle("me", { t: "addBot", skill: "easy" });
   room.handle("me", { t: "ready", ready: true });
 
   let track: Track | null = null;
-  let now = 0;
+  let latest: Extract<ServerMsg, { t: "snap" }> | null = null;
+  let arrivedAt = 0;
   let racing = false;
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
-  const ctx = () => ({ track, hazards: [], now, carId: "me", near: track ? nearestOnTrack(track, predictor.state.x, predictor.state.y).s : undefined });
+  // As Online play does: the newest snapshot's hazards, and its clock run on by the time since it arrived.
+  const ctx = () => ({ track, hazards: latest?.hazards ?? [], now: (latest?.now ?? 0) + (tick - arrivedAt) * DT, carId: "me", near: track ? nearestOnTrack(track, predictor.state.x, predictor.state.y).s : undefined });
   const corrections: number[] = [];
   const inFlight: number[] = [];
 
@@ -53,7 +57,8 @@ function raceOverLink(delay: number, stall: { chance: number; ticks: [number, nu
     for (const msg of down.arrived(tick)) {
       if (msg.t === "track") track = buildTrack(msg.raw, msg.features);
       if (msg.t !== "snap") continue;
-      now = msg.now;
+      latest = msg;
+      arrivedAt = tick;
       const mine = msg.cars.find((c) => c.id === "me");
       if (!mine || msg.phase !== "race" || !mine.alive) {
         racing = false;
@@ -66,7 +71,7 @@ function raceOverLink(delay: number, stall: { chance: number; ticks: [number, nu
         continue;
       }
       const before = predictor.state;
-      predictor.reconcile(car, mine.ack, DT, ctx());
+      predictor.reconcile(car, mine.ack, DT, { ...ctx(), now: msg.now });
       corrections.push(Math.hypot(before.x - predictor.state.x, before.y - predictor.state.y));
       inFlight.push(predictor.lastSeq - mine.ack);
     }
@@ -89,6 +94,12 @@ describe("driving Online over a laggy connection", () => {
     const { corrections, worst } = raceOverLink(3, hiccups);
     expect(corrections.length).toBeGreaterThan(300);
     expect(worst).toBeLessThan(32);
+  });
+
+  it("doesn't pull your car about when hazards switch on and off around it", () => {
+    const { corrections, worst } = raceOverLink(3, { chance: 0, ticks: [0, 0] }, 40, 3);
+    expect(corrections.length).toBeGreaterThan(400);
+    expect(worst).toBeLessThan(16);
   });
 
   it("gets back to the connection's own delay after a hiccup instead of carrying the backlog", () => {

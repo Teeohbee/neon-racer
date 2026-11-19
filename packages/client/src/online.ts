@@ -296,7 +296,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       resetFromSnap = false;
     }
     myAlive = mine.alive;
-    if (info?.mode === "contact" && mine.alive && snap.phase === "race") predictor.reconcile(carOf(mine), mine.ack, DT, stepContext());
+    if (info?.mode === "contact" && mine.alive && snap.phase === "race") predictor.reconcile(carOf(mine), mine.ack, DT, { ...stepContext(), now: snap.now });
   }
 
   function onEvent(event: GameEvent) {
@@ -359,7 +359,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       const input = keyboard.read();
       drafting.step(you, info.mode === "ghost" ? local : predictor.state, buffer.sample(performance.now())?.cars ?? [], DT);
       if (info.mode === "ghost") {
-        local = stepWorldCar(local, input, DT, stepContext()).car;
+        // The server meets this position a round trip on from the newest snapshot, so time hazards for then.
+        local = stepWorldCar(local, input, DT, { ...stepContext(), now: (buffer.latest()?.now ?? 0) + ticksInFlight() * DT }).car;
         if (steps % STATE_EVERY === 0) conn.send({ t: "state", seq: steps, car: local });
       } else {
         const entry = predictor.step(input, DT, stepContext());
