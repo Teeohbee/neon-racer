@@ -13,7 +13,7 @@ Several people on one screen, each with their own controller, with the whole mat
 _Avoid_: couch mode, local mode, splitscreen
 
 **Practice**:
-One person driving alone on any track, with no Room and no elimination.
+One person driving alone on any track, with no Room and no elimination. Hidden from the title menu since 2026-11-19; the code stays in `practice.ts`.
 
 ## People and places
 

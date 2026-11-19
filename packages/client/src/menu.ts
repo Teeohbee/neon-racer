@@ -64,7 +64,6 @@ export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: 
         : opts.offline
           ? [
               h("button", { class: "nr-btn primary big", onclick: () => choose("local") }, "Local play"),
-              h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
               ...(opts.quitGame ? [h("button", { class: "nr-btn title-practice", onclick: () => opts.quitGame!() }, "Quit game")] : []),
               h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
             ]
@@ -73,7 +72,6 @@ export function showMenu(ui: HTMLElement, opts: MenuOptions, onChoose: (choice: 
             h("button", { class: "nr-btn primary big", onclick: () => choose("create") }, "Create room"),
             h("div", { class: "title-join" }, code, h("button", { class: "nr-btn", onclick: () => choose("join") }, "Join room")),
             h("button", { class: "nr-btn title-practice", onclick: () => choose("local") }, "Local play"),
-            h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
             ...(opts.quitGame ? [h("button", { class: "nr-btn title-practice", onclick: () => opts.quitGame!() }, "Quit game")] : []),
             h("p", { class: "nr-hint title-keys" }, "↑↓ select · Enter go · M mute"),
             h("div", { class: "menu-audio" }, settings.el, displaySettings.el),
