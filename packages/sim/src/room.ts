@@ -553,7 +553,8 @@ export class Room {
     const track = this.track!;
     this.round++;
     const ranked = this.standings.flatMap((id) => this.players.get(id) ?? []);
-    const order = [...ranked, ...[...this.players.values()].filter((p) => !ranked.includes(p))];
+    // Last place takes pole and the winner starts at the back: the back of the grid is nearest the line, so the old order handed the winner a head start every round.
+    const order = [...[...ranked].reverse(), ...[...this.players.values()].filter((p) => !ranked.includes(p))];
     const lead = ranked.find((p) => p.car);
     const front = gridSlots(track, 1)[0]!.back;
     const s = lead ? nearestOnTrack(track, lead.car!.x, lead.car!.y, lead.progress.s).s : 0;

@@ -687,7 +687,7 @@ describe("rounds within a match", () => {
     expect(trackMessages(g)).toBe(1);
   });
 
-  it("restart the pack behind where the winner finished, keeping progress continuous", () => {
+  it("restart the pack behind where the winner finished, last place on pole and the winner at the back, keeping progress continuous", () => {
     const g = setup(["ann", "bob", "cat"]);
     g.toRace();
     g.driveForward(["ann"], 500);
@@ -696,10 +696,10 @@ describe("rounds within a match", () => {
     const lastRaceSnap = g.sent.filter((m) => m.msg.t === "snap" && m.msg.phase === "race").at(-1)!.msg as Extract<ServerMsg, { t: "snap" }>;
     g.run(ROUND_END_SECONDS + DT);
     expect(g.room.phase).toBe("countdown");
-    expect(Math.hypot(g.car("ann").x - finishedAt.x, g.car("ann").y - finishedAt.y)).toBeLessThan(TRACK_WIDTH / 2);
-    expect(g.gridOrder()).toEqual(["ann", "bob", "cat"]);
-    expect(g.arc("ann") - g.arc("cat")).toBeLessThan(250);
-    expect(isOutsideView(g.last("snap")!.camera, g.car("ann").x, g.car("ann").y)).toBe(false);
+    expect(Math.hypot(g.car("cat").x - finishedAt.x, g.car("cat").y - finishedAt.y)).toBeLessThan(TRACK_WIDTH / 2);
+    expect(g.gridOrder()).toEqual(["cat", "bob", "ann"]);
+    expect(g.arc("cat") - g.arc("ann")).toBeLessThan(250);
+    expect(isOutsideView(g.last("snap")!.camera, g.car("cat").x, g.car("cat").y)).toBe(false);
     g.run(COUNTDOWN_SECONDS + DT);
     expect(g.leaderProgress()).toBeCloseTo(lastRaceSnap.line! + LINE_GAP, 0);
   });
