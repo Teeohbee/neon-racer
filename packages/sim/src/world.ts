@@ -19,7 +19,8 @@ export interface StepContext {
 
 export function stepWorldCar(car: CarState, input: CarInput, dt: number, ctx: StepContext): { car: CarState; hazardHit: Hazard | null } {
   const frozen = ctx.carId ? freezeOn(ctx.carId, ctx.hazards, ctx.now) : undefined;
-  if (frozen) return { car: { ...car, vx: 0, vy: 0 }, hazardHit: frozen };
+  // Held where it is, speed and all, so it carries on when it thaws instead of starting again from a standstill.
+  if (frozen) return { car, hazardHit: frozen };
 
   const at = ctx.track ? nearestOnTrack(ctx.track, car.x, car.y, ctx.near) : null;
   const onRoad = !at || at.dist <= TRACK_WIDTH / 2;

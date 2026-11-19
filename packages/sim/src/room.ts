@@ -3,7 +3,7 @@ import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
 import { frameCamera, frameTarget, isOutsideView, lineGap, type Camera } from "./camera";
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
-import { HAZARD_KINDS, HAZARD_SPECS, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
+import { HAZARD_KINDS, HAZARD_SPECS, isFrozen, placeHazard, pruneHazards, touchingHazard, type Hazard, type HazardKind } from "./hazards";
 import { CUP_LEGS, EMOTES, LAP_COUNTS, SCORE_TARGETS, type ClientMsg, type CupLegs, type EliminationReason, type GameEvent, type Mode, type Phase, type ServerMsg, type WinCondition } from "./protocol";
 import { advanceProgress, bridgeAt, buildTrack, dropAt, fellOffAt, gridSlots, nearestOnTrack, pointAt, type FeatureSpec, type Point, type ProgressState, type Track } from "./track";
 import { PRESET_TRACKS } from "./tracks";
@@ -21,6 +21,8 @@ export const COUNTDOWN_SECONDS = 3;
 export const ROUND_END_SECONDS = 4;
 export const ELIMINATION_GRACE = 1;
 export const KILL_CREDIT_WINDOW = 3;
+/** How close the line comes to a frozen car before thawing it: a freeze costs places, never the race on its own. */
+export const THAW_GAP = 200;
 const MAX_PROGRESS_STEP = 200;
 const MAX_TRAVEL_SPEED = defaultCarParams.maxSpeed * BOOST_FACTOR * 1.5;
 const GRID_CLEAR_STEP = 20;
@@ -307,8 +309,10 @@ export class Room {
         }
         p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       }
-      const resolved = resolveCarCollisions(racers.map((p) => p.car!), racers.map((p) => bridgeAt(track, p.progress.s)));
-      racers.forEach((p, i) => (p.car = resolved[i]!));
+      // A frozen car holds its speed for later but stands still, so it takes a hit as a parked car would.
+      const frozen = racers.map((p) => isFrozen(p.id, this.hazards, now));
+      const resolved = resolveCarCollisions(racers.map((p, i) => (frozen[i] ? { ...p.car!, vx: 0, vy: 0 } : p.car!)), racers.map((p) => bridgeAt(track, p.progress.s)));
+      racers.forEach((p, i) => (p.car = frozen[i] ? { ...resolved[i]!, vx: p.car!.vx, vy: p.car!.vy } : resolved[i]!));
     }
 
     const fell = new Set<Player>();
@@ -326,6 +330,7 @@ export class Room {
     const leader = racers.reduce<Player | null>((best, p) => (!best || p.progress.progress > best.progress.progress ? p : best), null);
     if (leader) {
       this.line = leader.progress.progress - lineGap(now);
+      this.thawNearLine(racers, this.line, now);
       this.trackStats(racers, leader, now, dt);
       const [lx, ly] = pointAt(track, this.line);
       this.camera = frameCamera(this.camera, leader.car!, { x: lx, y: ly }, dt);
@@ -348,9 +353,15 @@ export class Room {
     if (alive.length <= (this.starters >= 2 ? 1 : 0)) this.endRound();
   }
 
+  private thawNearLine(racers: Player[], line: number, now: number): void {
+    const near = new Set(racers.filter((p) => p.progress.progress - line < THAW_GAP).map((p) => p.id));
+    if (!near.size) return;
+    this.hazards = this.hazards.map((h) => (h.kind === "freeze" && h.targetId && near.has(h.targetId) && now < h.expiresAt ? { ...h, expiresAt: now } : h));
+  }
+
   private trackStats(racers: Player[], leader: Player, now: number, dt: number): void {
     this.stats.leading(leader.id, dt);
-    for (const p of racers) this.stats.sample(p.id, p.car!, now > ELIMINATION_GRACE ? p.progress.progress - this.line! : null, dt);
+    for (const p of racers) this.stats.sample(p.id, isFrozen(p.id, this.hazards, now) ? { ...p.car!, vx: 0, vy: 0 } : p.car!, now > ELIMINATION_GRACE ? p.progress.progress - this.line! : null, dt);
   }
 
   private botHazards(leader: Player, now: number): void {

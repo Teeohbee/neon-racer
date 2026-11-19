@@ -478,6 +478,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const mine = snap.id === you && myAlive && local;
     const car = mine ? (info?.mode === "contact" ? predictor.rendered : local!) : snap;
     const lateral = -car.vx * Math.sin(car.angle) + car.vy * Math.cos(car.angle);
+    const frozen = isFrozen(snap.id, hazards, now);
     const p = player(snap.id);
     const at = track ? follower.follow(track, snap.id, car.x, car.y) : null;
     return {
@@ -487,13 +488,14 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       x: car.x,
       y: car.y,
       angle: car.angle,
-      speed: Math.hypot(car.vx, car.vy),
-      drifting: Math.abs(lateral) > DRIFT_LATERAL,
+      // A frozen car holds its speed for when it thaws, but stands still meanwhile.
+      speed: frozen ? 0 : Math.hypot(car.vx, car.vy),
+      drifting: !frozen && Math.abs(lateral) > DRIFT_LATERAL,
       boosting: snap.alive && !!at && at.dist <= TRACK_WIDTH / 2 && boostAt(track!, at.s),
       s: at?.s,
       upper: !!at && bridgeAt(track!, at.s),
       alive: snap.alive,
-      frozen: isFrozen(snap.id, hazards, now),
+      frozen,
       isYou: snap.id === you,
     };
   }

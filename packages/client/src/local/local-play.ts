@@ -314,6 +314,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   function carView(snap: CarSnap, hazards: Hazard[], now: number): CarView {
     const lateral = -snap.vx * Math.sin(snap.angle) + snap.vy * Math.cos(snap.angle);
+    const frozen = isFrozen(snap.id, hazards, now);
     const p = player(snap.id);
     const at = track ? follower.follow(track, snap.id, snap.x, snap.y) : null;
     return {
@@ -323,13 +324,14 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
       x: snap.x,
       y: snap.y,
       angle: snap.angle,
-      speed: Math.hypot(snap.vx, snap.vy),
-      drifting: Math.abs(lateral) > DRIFT_LATERAL,
+      // A frozen car holds its speed for when it thaws, but stands still meanwhile.
+      speed: frozen ? 0 : Math.hypot(snap.vx, snap.vy),
+      drifting: !frozen && Math.abs(lateral) > DRIFT_LATERAL,
       boosting: snap.alive && !!at && at.dist <= TRACK_WIDTH / 2 && boostAt(track!, at.s),
       s: at?.s,
       upper: !!at && bridgeAt(track!, at.s),
       alive: snap.alive,
-      frozen: isFrozen(snap.id, hazards, now),
+      frozen,
       isYou: false,
     };
   }

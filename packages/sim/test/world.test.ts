@@ -33,6 +33,16 @@ describe("stepWorldCar", () => {
     expect(hit?.owner).toBe("ghost");
   });
 
+  it("holds a frozen car's speed and lets it carry on at that speed when it thaws", () => {
+    const moving = drive(onRoad, {}, 1).car;
+    const freeze = { id: 1, kind: "freeze" as const, x: moving.x, y: moving.y, radius: 150, owner: "ghost", armsAt: 0, expiresAt: 99, targetId: "me" };
+    const held = stepWorldCar(moving, throttle, 1 / 60, { track, hazards: [freeze], now: 1, carId: "me" }).car;
+    expect(held.x).toBe(moving.x);
+    expect(speedOf(held)).toBeCloseTo(speedOf(moving));
+    const thawed = stepWorldCar(held, throttle, 1 / 60, { track, hazards: [{ ...freeze, expiresAt: 1 }], now: 1, carId: "me" }).car;
+    expect(Math.hypot(thawed.x - held.x, thawed.y - held.y)).toBeGreaterThan(speedOf(moving) / 60 / 2);
+  });
+
   it("reports slow zones it drives through", () => {
     const slow = { id: 2, kind: "slow" as const, x: sx, y: sy, radius: HAZARD_SPECS.slow.radius, owner: "ghost", armsAt: 0, expiresAt: 99 };
     expect(drive(onRoad, { hazards: [slow] }, 0.2).hit?.id).toBe(2);
