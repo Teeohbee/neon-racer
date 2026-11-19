@@ -95,14 +95,17 @@ export class Room {
   private stats = new MatchStats();
   private readonly rng: () => number;
   private readonly sketching: boolean;
+  private readonly snapEvery: number;
 
+  /** `snapEvery` is how many ticks apart race snapshots go out: sparse for the network, every tick for Local play's same-page drawing. */
   constructor(
     readonly code: string,
     private readonly io: RoomIO,
-    opts: { rng?: () => number; sketching?: boolean } = {},
+    opts: { rng?: () => number; sketching?: boolean; snapEvery?: number } = {},
   ) {
     this.rng = opts.rng ?? Math.random;
     this.sketching = opts.sketching ?? false;
+    this.snapEvery = opts.snapEvery ?? SNAP_EVERY;
   }
 
   get size(): number {
@@ -273,7 +276,7 @@ export class Room {
         if (this.phaseTime >= ROUND_END_SECONDS) this.nextRound();
         break;
     }
-    if ((this.phase === "countdown" || this.phase === "race" || this.phase === "roundEnd") && this.tick % SNAP_EVERY === 0) {
+    if ((this.phase === "countdown" || this.phase === "race" || this.phase === "roundEnd") && this.tick % this.snapEvery === 0) {
       this.io.broadcast(this.snapshot());
     }
   }

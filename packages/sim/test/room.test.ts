@@ -30,11 +30,11 @@ afterEach(() => {
   savedPresets = null;
 });
 
-function setup(names = ["ann", "bob"], seed = 1, sketching = true, mode: Mode = "ghost") {
+function setup(names = ["ann", "bob"], seed = 1, sketching = true, mode: Mode = "ghost", snapEvery?: number) {
   const sent: { to: string | "*"; msg: ServerMsg }[] = [];
   let s = seed;
   const rng = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
-  const room = new Room("ABCD", { send: (to, msg) => sent.push({ to, msg }), broadcast: (msg) => sent.push({ to: "*", msg }) }, { rng, sketching });
+  const room = new Room("ABCD", { send: (to, msg) => sent.push({ to, msg }), broadcast: (msg) => sent.push({ to: "*", msg }) }, { rng, sketching, snapEvery });
   names.forEach((n) => room.join(n, n));
   room.handle(names[0]!, { t: "mode", mode });
   const run = (seconds: number, each?: () => void) => {
@@ -190,6 +190,20 @@ describe("sketching", () => {
     const after = g.last("snap")!.camera;
     expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(20);
     expect(after.scale).toBeCloseTo(before.scale, 1);
+  });
+
+  it.each([
+    [undefined, SNAP_EVERY],
+    [1, 1],
+  ])("sends a snapshot every %s tick(s) in a race (default %s)", (snapEvery, expected) => {
+    const g = setup(["ann", "bob"], 1, true, "ghost", snapEvery);
+    g.toRace();
+    const ticks = () => g.sent.filter((m) => m.msg.t === "snap").map((m) => (m.msg as Extract<ServerMsg, { t: "snap" }>).tick);
+    const before = ticks().length;
+    g.run(DT * 12);
+    const sent = ticks().slice(before);
+    expect(sent).toHaveLength(12 / expected);
+    expect(sent.slice(1).map((t, i) => t - sent[i]!)).toEqual(Array(12 / expected - 1).fill(expected));
   });
 
   it("puts the drawer at the back of the grid", () => {
