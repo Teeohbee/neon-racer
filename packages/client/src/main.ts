@@ -16,13 +16,15 @@ import { bindViewRect } from "./view-rect";
 import { startControllerHub } from "./controller/hub";
 import { bindControllerMenus, KEYBOARD_CONTROLLER_ID, noController } from "./controller/menu-bridge";
 import { quitGame } from "./platform";
+import { STEAM_BUILD } from "./build-flags";
 import { browserGamepads } from "./controller/poller";
 import { combinePadSources, keyboardPadSource } from "./controller/keyboard-pad";
 
 const app = new Application();
 await app.init({ resizeTo: window, background: "#05060d", antialias: true });
 document.getElementById("stage")!.appendChild(app.canvas);
-bindReporting(app);
+// Reports go to the game server, which the Steam build doesn't have.
+if (!STEAM_BUILD) bindReporting(app);
 const ui = document.getElementById("ui")!;
 bindViewRect(document.documentElement);
 
@@ -38,7 +40,7 @@ function menu(notice?: string) {
   releaseMenus();
   const attract = startAttract(app);
   let chosen = false;
-  const close = showMenu(ui, { quitGame }, (choice) => {
+  const close = showMenu(ui, { quitGame, offline: STEAM_BUILD }, (choice) => {
     if (chosen) return;
     chosen = true;
     void glitchSwap(() => {

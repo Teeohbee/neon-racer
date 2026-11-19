@@ -1,0 +1,15 @@
+appId: io.github.teeohbee.highrollers
+productName: High Rollers
+artifactName: HighRollers.${ext}
+directories:
+  output: release
+files:
+  - main.cjs
+  - preload.cjs
+  - package.json
+  - client/**
+asar: true
+linux:
+  target: AppImage
+  category: Game
+  icon: ../steam/art/icon.png
