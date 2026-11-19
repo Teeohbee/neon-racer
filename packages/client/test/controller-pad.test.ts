@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUTTON, carInputFromPad, emptyPad, type PadSnapshot } from "../src/controller/pad";
+import { anyInput, BUTTON, carInputFromPad, emptyPad, type PadSnapshot } from "../src/controller/pad";
 
 function pad(changes: { buttons?: Partial<Record<keyof typeof BUTTON, number>>; leftStickX?: number; leftStickY?: number } = {}): PadSnapshot {
   const snapshot = emptyPad();
@@ -45,5 +45,13 @@ describe("carInputFromPad", () => {
 
   it("copes with a pad that reports fewer buttons and axes than the standard layout", () => {
     expect(carInputFromPad({ buttons: [1], axes: [] })).toEqual({ throttle: false, brake: false, left: false, right: false, handbrake: true });
+  });
+});
+
+describe("anyInput", () => {
+  it("presses whatever any of the inputs presses", () => {
+    const none = carInputFromPad(pad());
+    expect(anyInput([])).toEqual(none);
+    expect(anyInput([{ ...none, throttle: true }, { ...none, left: true }, none])).toEqual({ ...none, throttle: true, left: true });
   });
 });

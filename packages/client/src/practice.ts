@@ -29,6 +29,9 @@ import {
 import { audio } from "./audio";
 import { createDebugPanel, loadCarParams } from "./debug-panel";
 import { createKeyboard, isTyping } from "./input";
+import type { ControllerHub } from "./controller/hub";
+import { KEYBOARD_CONTROLLER_ID } from "./controller/menu-bridge";
+import { anyInput, carInputFromPad, type PadSnapshot } from "./controller/pad";
 import { PLAYER_COLORS } from "./render/palette";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
@@ -120,7 +123,7 @@ function createHud(ui: HTMLElement) {
   };
 }
 
-export function startPractice(app: Application, ui: HTMLElement): () => void {
+export function startPractice(app: Application, ui: HTMLElement, controllers?: ControllerHub): () => void {
   const renderer = createRenderer(app);
   const keyboard = createKeyboard();
   const params = loadCarParams();
@@ -205,6 +208,24 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
     sketchDirty = true;
   });
 
+  const nextTrack = () => {
+    presetIndex = (presetIndex + 1) % PRESET_TRACKS.length;
+    const preset = PRESET_TRACKS[presetIndex]!;
+    if (mode === "sketch") exitSketch();
+    useTrack(buildTrack(preset.points, preset.features));
+    trackName = preset.name;
+    hud.flash(`${presetIndex + 1}/${PRESET_TRACKS.length} ${preset.name}`);
+  };
+
+  // Controllers drive too: Select resets like R, Y changes track like N. The keyboard already has its keys.
+  let pads: PadSnapshot[] = [];
+  const unsubscribeControllers = controllers?.subscribe((frame) => {
+    const ids = [...frame.pads.keys()].filter((id) => id !== KEYBOARD_CONTROLLER_ID);
+    pads = ids.map((id) => frame.pads.get(id)!);
+    if (ids.some((id) => frame.pressed(id, "select")) && mode === "drive") reset();
+    if (ids.some((id) => frame.pressed(id, "y"))) nextTrack();
+  });
+
   const onKey = (e: KeyboardEvent) => {
     if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     switch (e.code) {
@@ -217,15 +238,9 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
         sketchDirty = true;
         draw(0);
         break;
-      case "KeyN": {
-        presetIndex = (presetIndex + 1) % PRESET_TRACKS.length;
-        const preset = PRESET_TRACKS[presetIndex]!;
-        if (mode === "sketch") exitSketch();
-        useTrack(buildTrack(preset.points, preset.features));
-        trackName = preset.name;
-        hud.flash(`${presetIndex + 1}/${PRESET_TRACKS.length} ${preset.name}`);
+      case "KeyN":
+        nextTrack();
         break;
-      }
       case "Enter":
         if (mode !== "sketch") return;
         refreshSketch();
@@ -356,7 +371,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
 
   const tick = (ticker: Ticker) => {
     const frame = Math.min(MAX_FRAME, ticker.deltaMS / 1000);
-    input = keyboard.read();
+    input = anyInput([keyboard.read(), ...pads.map(carInputFromPad)]);
     if (mode === "drive") {
       acc += frame;
       while (acc >= DT) {
@@ -376,6 +391,7 @@ export function startPractice(app: Application, ui: HTMLElement): () => void {
   return () => {
     app.ticker.remove(tick);
     window.removeEventListener("keydown", onKey);
+    unsubscribeControllers?.();
     offChange();
     sketch.dispose();
     keyboard.dispose();

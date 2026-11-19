@@ -73,3 +73,14 @@ export function carInputFromPad(pad: PadSnapshot): CarInput {
     handbrake: isHeld(pad, "a"),
   };
 }
+
+/** One car driven from several places at once, like the keyboard and any controller in Practice. */
+export function anyInput(inputs: CarInput[]): CarInput {
+  return {
+    throttle: inputs.some((i) => i.throttle),
+    brake: inputs.some((i) => i.brake),
+    left: inputs.some((i) => i.left),
+    right: inputs.some((i) => i.right),
+    handbrake: inputs.some((i) => i.handbrake),
+  };
+}
