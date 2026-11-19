@@ -9,8 +9,8 @@ const KEEP = 40;
 const DELAY_WINDOW_MS = 2000;
 /** How fast drawn time may run fast or slow while it eases to a new delay, so it never visibly jumps. */
 const EASE_RATE = 0.05;
-/** The furthest ahead, in ticks, the line is drawn: half a second, past which the connection is too far gone to trust. */
-export const MAX_LINE_LEAD = 30;
+/** The furthest ahead, in ticks, the line and camera are drawn: half a second, past which the connection is too far gone to trust. */
+export const MAX_LEAD = 30;
 
 export interface Sampled {
   snap: Snap;
@@ -68,10 +68,27 @@ export class SnapshotBuffer {
   lineAhead(ticks: number): number | null {
     const b = this.latest();
     if (!b || b.line === null) return null;
+    return this.runOn(ticks, (s) => s.line) ?? b.line;
+  }
+
+  /** The camera `ticks` past the newest snapshot, as `lineAhead`: framing your car where it is drawn, not where it was. */
+  cameraAhead(ticks: number): Camera | null {
+    const b = this.latest();
+    if (!b) return null;
+    const x = this.runOn(ticks, (s) => s.camera.x) ?? b.camera.x;
+    const y = this.runOn(ticks, (s) => s.camera.y) ?? b.camera.y;
+    return { x, y, scale: b.camera.scale };
+  }
+
+  /** `value` `ticks` past the newest snapshot at its last speed, or null with no speed to go on in this phase. */
+  private runOn(ticks: number, value: (s: Snap) => number | null): number | null {
+    const b = this.latest();
     const a = this.snaps[this.snaps.length - 2];
-    if (!a || a.line === null || a.phase !== b.phase || b.tick <= a.tick) return b.line;
-    const lead = Math.min(MAX_LINE_LEAD, Math.max(0, ticks));
-    return b.line + ((b.line - a.line) / (b.tick - a.tick)) * lead;
+    if (!b || !a || a.phase !== b.phase || b.tick <= a.tick) return null;
+    const [va, vb] = [value(a), value(b)];
+    if (va === null || vb === null) return null;
+    const lead = Math.min(MAX_LEAD, Math.max(0, ticks));
+    return vb + ((vb - va) / (b.tick - a.tick)) * lead;
   }
 
   sample(nowMs: number): Sampled | null {

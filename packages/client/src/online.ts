@@ -40,6 +40,7 @@ import { cupTable, isLegEnd, rematchLabel, stillWaiting, tallyLine } from "./ui/
 import { createKeyboard, isTyping } from "./input";
 import { connect } from "./net/connection";
 import { createDrafting } from "./net/drafting";
+import { CameraLead } from "./net/camera-lead";
 import { SnapshotBuffer } from "./net/interpolation";
 import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
@@ -96,6 +97,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const keyboard = createKeyboard();
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
+  const cameraLead = new CameraLead();
   const follower = new TrackFollower();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
   const drafting = createDrafting(() => audio.sfx.slipstream());
@@ -293,6 +295,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     if (resetFromSnap) {
       local = carOf(mine);
       predictor.reset(carOf(mine));
+      cameraLead.reset();
       resetFromSnap = false;
     }
     myAlive = mine.alive;
@@ -436,14 +439,14 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       step();
       acc -= DT;
     }
-    render();
+    render(ticker.deltaMS / 1000);
     updateLive();
     updateAudio();
     stream.update(track, heard, serverNow());
   };
   app.ticker.add(tick);
 
-  function render() {
+  function render(frameDt: number) {
     const phase = info?.phase ?? "lobby";
     const now = serverNow();
     if (phase === "sketch") {
@@ -470,12 +473,15 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       phase === "race" && !myAlive && mouse
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
-    // Your car is drawn ahead of the snapshots, where your inputs will put it, so draw the line that far ahead too:
-    // the one the server will judge you against. Watching, everything is drawn as the snapshots have it.
-    const line = phase === "race" && myAlive ? buffer.lineAhead(ticksInFlight()) : sampled.line;
-    heard = { cars, camera: sampled.camera, line };
-    renderer.render({ camera: sampled.camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: line, contact: info?.mode === "contact" });
-    minimap.update(track, cars, sampled.camera, line);
+    // Your car is drawn ahead of the snapshots, where your inputs will put it, so draw the line and camera that far
+    // ahead too: the line the server will judge you against, and a frame that keeps you in it when you lead.
+    // Watching, everything is drawn as the snapshots have it, the camera easing back there once you are out.
+    const ahead = phase === "race" && myAlive;
+    const line = ahead ? buffer.lineAhead(ticksInFlight()) : sampled.line;
+    const camera = cameraLead.frame(sampled.camera, ahead ? buffer.cameraAhead(ticksInFlight()) : null, frameDt);
+    heard = { cars, camera, line };
+    renderer.render({ camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: line, contact: info?.mode === "contact" });
+    minimap.update(track, cars, camera, line);
   }
 
   /** Ticks of your driving the server hasn't applied yet as of the newest snapshot: inputs (contact) or states (ghost). */
