@@ -6,6 +6,7 @@ import { PLAYER_COLORS } from "../render/palette";
 import { createRenderer } from "../render/renderer";
 import type { CarView } from "../render/types";
 import { ATTRACT, attractShot } from "./attract-plan";
+import { blendCar, createFixedStep } from "./fixed-step";
 
 const DT = 1 / 60;
 const MAX_FRAME = 0.1;
@@ -24,10 +25,12 @@ export function startAttract(app: Application): { stop(): void } {
   const firstTrack = Math.floor(Math.random() * PRESET_TRACKS.length);
   const field = FIELD.slice(0, ATTRACT.cars);
   let elapsed = 0;
-  let acc = 0;
+  const clock = createFixedStep(DT, MAX_FRAME);
   let round = -1;
   let track: Track;
   let cars: CarState[] = [];
+  // Each car's state one step back, to draw between: a car that respawns starts both at its new spot.
+  let prev: CarState[] = [];
   let camera: Camera = { x: 0, y: 0, scale: SCALE };
   const follower = new TrackFollower();
 
@@ -35,10 +38,13 @@ export function startAttract(app: Application): { stop(): void } {
     const preset = PRESET_TRACKS[index]!;
     track = buildTrack(preset.points, preset.features);
     cars = gridSlots(track, field.length).map((s) => ({ x: s.x, y: s.y, angle: s.angle, vx: 0, vy: 0 }));
+    prev = cars;
     camera = { x: cars[0]!.x, y: cars[0]!.y, scale: SCALE };
   };
 
   const step = () => {
+    const respawned = new Set<number>();
+    prev = cars;
     cars = cars.map((car, i) => {
       const id = field[i]!.name;
       const near = follower.near(id);
@@ -46,8 +52,10 @@ export function startAttract(app: Application): { stop(): void } {
       const at = follower.follow(track, id, next.x, next.y);
       if (!fellOffAt(track, at)) return next;
       const [x, y, angle] = pointAt(track, at.s - RESPAWN_BACK);
+      respawned.add(i);
       return { x, y, angle, vx: 0, vy: 0 };
     });
+    if (respawned.size) prev = prev.map((p, i) => (respawned.has(i) ? cars[i]! : p));
   };
 
   const view = (car: CarState, i: number): CarView => ({
@@ -74,14 +82,13 @@ export function startAttract(app: Application): { stop(): void } {
       round = shot.round;
       load(shot.track);
     }
-    acc += frame;
-    while (acc >= DT) {
+    const t = clock.advance(frame, () => {
       step();
       elapsed += DT;
-      acc -= DT;
-    }
-    camera = stepCamera(camera, cars[shot.focus]!, frame, SCALE);
-    renderer.render({ camera, track, trackName: null, cars: cars.map(view), hazards: [], now: elapsed, aim: null, dangerLine: null });
+    });
+    const drawn = cars.map((car, i) => blendCar(prev[i] ?? car, car, t));
+    camera = stepCamera(camera, drawn[shot.focus]!, frame, SCALE);
+    renderer.render({ camera, track, trackName: null, cars: drawn.map(view), hazards: [], now: elapsed, aim: null, dangerLine: null });
   };
 
   app.ticker.add(tick);
