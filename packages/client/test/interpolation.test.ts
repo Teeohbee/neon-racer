@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lerpAngle, MAX_LINE_LEAD, SnapshotBuffer, type Snap } from "../src/net/interpolation";
+import { lerpAngle, MAX_LEAD, SnapshotBuffer, type Snap } from "../src/net/interpolation";
 
 const snap = (tick: number, x: number, phase: Snap["phase"] = "race", line: number | null = null): Snap => ({
   t: "snap", tick, phase, now: tick / 60, camera: { x, y: 0, scale: 1 }, line, lap: null,
@@ -67,7 +67,7 @@ describe("SnapshotBuffer", () => {
   it("reaches no further ahead than a cap, however far behind the acks are", () => {
     const buf = new SnapshotBuffer();
     [0, 3].forEach((tick, i) => buf.push(snap(tick, 0, "race", tick * 10), 1000 + i * 50));
-    expect(buf.lineAhead(10_000)).toBeCloseTo(30 + MAX_LINE_LEAD * 10);
+    expect(buf.lineAhead(10_000)).toBeCloseTo(30 + MAX_LEAD * 10);
     expect(buf.lineAhead(-5)).toBeCloseTo(30);
   });
 
@@ -78,6 +78,22 @@ describe("SnapshotBuffer", () => {
     buf.push(snap(3, 0, "countdown", 500), 1050);
     buf.push(snap(6, 0, "race", 100), 1100);
     expect(buf.lineAhead(6)).toBe(100);
+  });
+
+  it("runs the camera on with your car, at the speed it was last seen moving", () => {
+    const buf = new SnapshotBuffer();
+    [0, 3, 6, 9].forEach((tick, i) => buf.push(snap(tick, tick * 10, "race", 0), 1000 + i * 50));
+    expect(buf.cameraAhead(6)).toEqual({ x: 90 + 6 * 10, y: 0, scale: 1 });
+    expect(buf.cameraAhead(0)).toEqual({ x: 90, y: 0, scale: 1 });
+    expect(buf.cameraAhead(10_000)!.x).toBeCloseTo(90 + MAX_LEAD * 10);
+  });
+
+  it("doesn't run the camera on from the last phase", () => {
+    const buf = new SnapshotBuffer();
+    buf.push(snap(0, 500, "countdown"), 1000);
+    buf.push(snap(3, 100, "race"), 1050);
+    expect(buf.cameraAhead(6)).toEqual({ x: 100, y: 0, scale: 1 });
+    expect(new SnapshotBuffer().cameraAhead(6)).toBeNull();
   });
 
   it("settles within a few seconds when the connection's delay goes up for good", () => {
