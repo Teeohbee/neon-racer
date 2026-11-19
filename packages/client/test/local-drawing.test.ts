@@ -1,6 +1,7 @@
-import { TICK_RATE, type ServerMsg } from "@neon/sim";
+import { COUNTDOWN_SECONDS, TICK_RATE, type ServerMsg } from "@neon/sim";
 import { describe, expect, it } from "vitest";
 import { StepSnaps } from "../src/local/step-snaps";
+import { countdownLabel } from "../src/ui/countdown";
 import { localRig } from "./local-helpers";
 
 const DT = 1 / TICK_RATE;
@@ -65,5 +66,34 @@ describe("drawing a Local race", () => {
     snaps.push({ ...base, tick: 2, phase: "race", now: 0, camera: { x: 50, y: 0, scale: 1 } } as Snap);
     expect(snaps.sample(0.5)!.camera.x).toBe(50);
     expect(snaps.time(0.5)).toBe(0);
+  });
+});
+
+describe("the Local countdown", () => {
+  it("gives 3, 2 and 1 a second each and says GO as the race starts, even when the first frame stalls", () => {
+    const r = localRig();
+    r.press("pad-0", "a");
+    r.match.asHost({ t: "addBot", skill: "medium" });
+    r.press("pad-0", "start");
+    r.tick(4, () => r.phase() === "countdown");
+    const snaps = new StepSnaps();
+    let seen = 0;
+    const frame = (seconds: number) => {
+      r.frame();
+      r.match.step(seconds);
+      for (const msg of snapsIn(r.messages.slice(seen))) snaps.push(msg);
+      seen = r.messages.length;
+      const t = r.match.blend();
+      return snaps.latest()!.phase === "race" ? "race" : countdownLabel(COUNTDOWN_SECONDS - snaps.time(t));
+    };
+    // Building the track and drawing its first frame can hold the page up for a second.
+    const shown = [frame(1)];
+    while (shown.at(-1) !== "race") shown.push(frame(1 / 60));
+    const seconds = (label: string) => shown.filter((l) => l === label).length / 60;
+    expect(shown[0]).toBe("3");
+    expect(seconds("3")).toBeGreaterThan(0.8);
+    expect(seconds("2")).toBeCloseTo(1, 1);
+    expect(seconds("1")).toBeCloseTo(1, 1);
+    expect(shown).not.toContain("GO");
   });
 });
