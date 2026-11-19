@@ -82,8 +82,11 @@ describe("chatLine", () => {
 
   it("never leaves a placeholder unfilled", () => {
     const events: StreamEvent[] = [
+      { kind: "eliminated", name: "A", reason: "fell" },
       { kind: "eliminated", name: "A", reason: "line" },
       { kind: "eliminated", name: "A", reason: "left" },
+      { kind: "hazardKill", by: "A", victim: "B" },
+      { kind: "lead", name: "A" },
       { kind: "roundWon", name: null },
       { kind: "roundWon", name: "A" },
       { kind: "matchWon", name: "A" },
@@ -92,7 +95,28 @@ describe("chatLine", () => {
       { kind: "suddenDeath" },
       { kind: "ambient" },
     ];
-    for (const e of events) for (let n = 0; n < 30; n++) expect(chatLine(e, 5, n).text).not.toMatch(/[{}]/);
+    for (const e of events) for (let n = 0; n < 500; n++) expect(chatLine(e, 5, n).text).not.toMatch(/[{}]/);
+  });
+
+  it("has plenty to say about each moment, so the chat rarely repeats itself", () => {
+    const events: StreamEvent[] = [
+      { kind: "eliminated", name: "A", reason: "fell" },
+      { kind: "eliminated", name: "A", reason: "line" },
+      { kind: "eliminated", name: "A", reason: "left" },
+      { kind: "hazardKill", by: "A", victim: "B" },
+      { kind: "lead", name: "A" },
+      { kind: "shave", name: "A" },
+      { kind: "roundWon", name: "A" },
+      { kind: "roundWon", name: null },
+      { kind: "matchWon", name: "A" },
+      { kind: "go" },
+      { kind: "suddenDeath" },
+      { kind: "ambient" },
+    ];
+    for (const e of events) {
+      const said = new Set(Array.from({ length: 500 }, (_, n) => chatLine(e, 5, n).text));
+      expect(said.size, e.kind + (e.kind === "eliminated" ? ` (${e.reason})` : "")).toBeGreaterThanOrEqual(6);
+    }
   });
 
   it("slips city ads into the ambient chatter", () => {
