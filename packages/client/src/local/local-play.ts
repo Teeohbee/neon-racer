@@ -337,6 +337,14 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   function updateAudio() {
     const phase = info?.phase ?? "lobby";
+    // Paused, the music holds its place and the race goes quiet; the pause menu's own clicks still sound.
+    const paused = !!match.pausedBy();
+    audio.music.setPaused(paused);
+    if (paused) {
+      audio.engines.update([], heard?.camera ?? worldCamera);
+      audio.danger(0);
+      return;
+    }
     audio.music.setMood(phase === "race" && serverNow() > SUDDEN_DEATH_AT ? "suddenDeath" : MOODS[phase]);
     audio.engines.update(heard && (phase === "race" || phase === "countdown") ? heard.cars : [], heard?.camera ?? worldCamera);
     audio.music.setIntensity(phase === "race" ? 0.6 : phase === "countdown" ? 0.25 : 0.2);
@@ -536,6 +544,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     unbindPauseNav();
     unbindHover();
     app.ticker.remove(tick);
+    audio.music.setPaused(false);
     audio.engines.stop();
     audio.danger(0);
     audioWidget.dispose();

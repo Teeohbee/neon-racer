@@ -14,11 +14,15 @@ const STOP_AFTER = 3;
 const INTENSITY_TAU = 1.5;
 const LAYER_TAU = 0.35;
 const LATE = 0.03;
+const PAUSE_FADE = 0.06;
+const RESUME_LEAD = 0.05;
 
 export interface Music {
   setMood(mood: Mood): void;
   setIntensity(value: number): void;
   readonly mood: Mood;
+  /** Hold the music where it is, and carry on from the same step. */
+  setPaused(paused: boolean): void;
   pump(until: number): void;
   dispose(): void;
 }
@@ -69,6 +73,7 @@ export function createMusic(o: Out, now: () => number, seed = Math.floor(Math.ra
   let stopAt: number | null = null;
   let intensity = 0;
   let intensityTarget = 0;
+  let paused = false;
 
   const setDelayTime = (bpm: number, at: number) => delay.delayTime.setTargetAtTime(stepDuration(bpm) * 3, at, 0.05);
 
@@ -105,7 +110,7 @@ export function createMusic(o: Out, now: () => number, seed = Math.floor(Math.ra
       }
       stopAt = null;
       master.gain.cancelScheduledValues(t);
-      master.gain.setTargetAtTime(1, t, FADE_IN);
+      if (!paused) master.gain.setTargetAtTime(1, t, FADE_IN);
       if (!transport) {
         transport = new Transport(t + 0.05, MOODS[mood].bpm);
         apply(mood, t);
@@ -116,7 +121,20 @@ export function createMusic(o: Out, now: () => number, seed = Math.floor(Math.ra
     setIntensity(value) {
       intensityTarget = Math.max(0, Math.min(1, value));
     },
+    setPaused(next) {
+      if (next === paused) return;
+      paused = next;
+      const t = now();
+      master.gain.cancelScheduledValues(t);
+      if (paused) {
+        master.gain.setTargetAtTime(0, t, PAUSE_FADE);
+        return;
+      }
+      transport?.resumeAt(t + RESUME_LEAD);
+      if (target !== "off") master.gain.setTargetAtTime(1, t, PAUSE_FADE);
+    },
     pump(until) {
+      if (paused) return;
       if (stopAt !== null && now() >= stopAt) {
         transport = null;
         playing = null;

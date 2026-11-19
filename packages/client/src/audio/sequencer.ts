@@ -114,6 +114,12 @@ export class Transport {
     this.bpm = bpm;
   }
 
+  /** Carry on after a pause: the next unplayed step plays at `time`. */
+  resumeAt(time: number): void {
+    this.anchorTime = time;
+    this.anchorStep = this.step;
+  }
+
   due(until: number): { step: number; time: number } | null {
     const time = this.timeOf(this.step);
     if (time >= until) return null;

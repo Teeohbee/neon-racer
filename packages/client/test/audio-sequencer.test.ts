@@ -34,6 +34,15 @@ describe("Transport", () => {
     expect(t.timeOf(t.step + 1) - t.timeOf(t.step)).toBeCloseTo(stepDuration(60));
   });
 
+  it("resumes from the next unplayed step at the time it is told, keeping the tempo", () => {
+    const t = new Transport(0, 120);
+    while (t.due(1)) {}
+    const next = t.step;
+    t.resumeAt(30);
+    expect(t.due(30.01)).toEqual({ step: next, time: 30 });
+    expect(t.timeOf(t.step) - 30).toBeCloseTo(stepDuration(120));
+  });
+
   it("quantises mood switches to the next beat", () => {
     expect(nextBoundary(0)).toBe(0);
     expect(nextBoundary(5)).toBe(8);

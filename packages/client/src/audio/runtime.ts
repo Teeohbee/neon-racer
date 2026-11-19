@@ -17,6 +17,7 @@ export function createAudio(storage: Storage | null = safeLocalStorage()) {
   let graph: Graph | null = null;
   let mood: Mood = "off";
   let intensity = 0;
+  let paused = false;
 
   const running = () => (ctx?.state === "running" ? graph : null);
 
@@ -32,6 +33,7 @@ export function createAudio(storage: Storage | null = safeLocalStorage()) {
       graph.apply(settings.get());
       graph.music.setIntensity(intensity);
       graph.music.setMood(mood);
+      graph.music.setPaused(paused);
       settings.subscribe((s) => graph?.apply(s));
       setInterval(() => {
         if (!ctx || ctx.state !== "running") return;
@@ -61,6 +63,11 @@ export function createAudio(storage: Storage | null = safeLocalStorage()) {
       setIntensity(value: number) {
         intensity = value;
         graph?.music.setIntensity(value);
+      },
+      /** Hold the music mid-phrase, as the pause menu does to a race. */
+      setPaused(value: boolean) {
+        paused = value;
+        graph?.music.setPaused(value);
       },
       get mood() {
         return mood;
