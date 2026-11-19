@@ -4,10 +4,13 @@ import {
   boostAt,
   bridgeAt,
   buildTrack,
+  CUP_LEGS,
   HAZARD_SPECS,
+  LAP_COUNTS,
   isFrozen,
   MAX_PLAYERS,
   pointAt,
+  SCORE_TARGETS,
   SUDDEN_DEATH_AT,
   TRACK_WIDTH,
   VIEW,
@@ -15,6 +18,7 @@ import {
   type Award,
   type Camera,
   type CarSnap,
+  type ClientMsg,
   type GameEvent,
   type Hazard,
   type ServerMsg,
@@ -41,10 +45,12 @@ import { countdownLabel, createCountdown } from "../ui/countdown";
 import { EMOTE_GLYPHS, floatEmote } from "../ui/emotes";
 import { formatDelta, formatScore, raceName } from "../ui/format";
 import { hazardIcon } from "../ui/hazard-icons";
-import { cupPicker, trackPicker, trackThumbs, winPicker } from "../ui/lobby-settings";
+import { trackThumbs } from "../ui/lobby-settings";
 import { cupTable, isLegEnd, tallyLine } from "../ui/match-end";
 import { createPodium, finalStandings } from "../ui/podium";
+import { selector } from "../ui/selector";
 import { createStreamHud } from "../ui/stream-hud";
+import { cupMessages, modeWin, RANDOM_TRACK, trackChoice, trackChoices, tracksFor } from "./lobby-choices";
 import { LocalMatch, type LocalNotice, type RoomInfo } from "./local-match";
 import "../online.css";
 import "./local.css";
@@ -123,7 +129,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   // Menus only take the arrow keys in the lobby and on the podium; in a race they steer.
   const inMenus = () => !match.pausedBy() && (info?.phase === "lobby" || info?.phase === "matchEnd");
-  const unbindNav = createKeyNav(root, { enabled: inMenus, start: ".local-start, .podium-actions button", onMove: audio.sfx.hover });
+  const unbindNav = createKeyNav(root, { enabled: inMenus, start: ".local-settings .selector, .podium-actions button", onMove: audio.sfx.hover });
   const unbindPauseNav = createKeyNav(pauseLayer, { enabled: () => !!match.pausedBy(), onMove: audio.sfx.hover });
   const unbindHover = bindHoverSound(root, audio.sfx.hover, inMenus);
   const releaseMenus = opts.menus.restrict((id) => match.menuControllers()(id));
@@ -397,49 +403,57 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   function lobbyPanel(i: RoomInfo): HTMLElement {
     const host = match.hostSeat();
-    const hasHost = host !== undefined;
-    const seats = match.seats;
-    const slots = Array.from({ length: MAX_PLAYERS }, (_, n) => i.players[n] ?? null);
+    const disabled = host === undefined;
+    const bots = match.bots();
+    const changed = () => audio.sfx.click();
+    const asHost = (...msgs: ClientMsg[]) => {
+      for (const msg of msgs) match.asHost(msg);
+      changed();
+    };
+    const win = i.win;
+    const count =
+      win.kind === "laps"
+        ? selector({ label: "Laps", options: LAP_COUNTS, value: win.laps, disabled, onChange: (laps) => asHost({ t: "winCondition", kind: "laps", laps }) })
+        : selector({ label: "Points", options: SCORE_TARGETS, value: win.target, disabled, onChange: (target) => asHost({ t: "winCondition", kind: "score", target }) });
+    const settings = h(
+      "div",
+      { class: "local-settings" },
+      selector({ label: "Mode", options: ["laps", "score"] as const, value: win.kind, format: (k) => (k === "laps" ? "Laps" : "Points"), disabled, onChange: (kind) => asHost({ t: "winCondition", ...modeWin(kind) }) }),
+      count,
+      selector({ label: "Cup", options: CUP_LEGS, value: i.cup, format: (legs) => (legs ? `${legs} tracks` : "Off"), disabled, onChange: (legs) => asHost(...cupMessages(legs, i.tracks)) }),
+      selector({ label: "Track", options: trackChoices(i.cup), value: trackChoice(i.tracks), format: trackLabel, disabled, onChange: (choice) => asHost(tracksFor(choice)) }),
+      selector({ label: "Bots", options: Array.from({ length: bots.max + 1 }, (_, n) => n), value: bots.count, format: (n) => (n ? String(n) : "None"), wrap: false, disabled, onChange: (n) => (match.setBots(n, bots.skill), changed()) }),
+      selector({ label: "Bot skill", options: BOT_SKILLS, value: bots.skill, format: (skill) => skill[0]!.toUpperCase() + skill.slice(1), disabled, onChange: (skill) => (match.setBots(bots.count, skill), changed()) }),
+      h("button", { class: "selector local-menu", onclick: () => exit() }, h("span", { class: "selector-label" }, "Main menu")),
+    );
     return h(
       "div",
       { class: "panel lobby local-lobby" },
-      h("div", { class: "lobby-head" }, h("h1", {}, "Local play"), h("span", { class: "hint" }, host ? `${host.name} is the Host` : "First to join is the Host")),
-      h(
-        "div",
-        { class: "lobby-cols" },
-        h("div", { class: "lobby-settings" }, winPicker(i.win, hasHost, (win) => match.asHost({ t: "winCondition", ...win })), cupPicker(i.cup, hasHost, (legs) => match.asHost({ t: "cup", legs })), trackPicker(i.tracks, hasHost, thumbs, (names) => match.asHost({ t: "tracks", names }))),
-        h(
-          "div",
-          { class: "lobby-players" },
-          h(
-            "ul",
-            { class: "players slots" },
-            ...slots.map((p) => {
-              if (!p) {
-                return h(
-                  "li",
-                  { class: "open" },
-                  h("span", { class: "dot" }),
-                  h("span", { class: "name" }, padPrompt("a", "Join")),
-                  hasHost ? h("span", { class: "add-bot" }, ...BOT_SKILLS.map((skill) => h("button", { title: `Add a ${skill} bot`, onclick: () => match.asHost({ t: "addBot", skill }) }, `+ ${skill}`))) : null,
-                );
-              }
-              const seat = seats.find((s) => s.playerId === p.id);
-              return h(
-                "li",
-                { style: `--c:${css(playerColor(p.color))}` },
-                h("span", { class: "dot" }),
-                h("span", { class: "name" }, `${p.name}${p.id === i.hostId ? " ★" : ""}${p.wins ? ` · 🏆${p.wins}` : ""}`),
-                h("span", { class: "ready" }, p.bot ? "bot" : seat ? `Seat ${seat.number}` : ""),
-                p.bot && hasHost ? h("button", { class: "remove", title: "Remove bot", onclick: () => match.asHost({ t: "removeBot", id: p.id }) }, "×") : null,
-              );
-            }),
-          ),
-          h("div", { class: "pad-prompts" }, padPrompt("a", "Join"), padPrompt("b", "Leave"), padPrompt("start", "Host starts")),
-          h("p", { class: "hint" }, hasHost ? "The Host's controller picks the settings and bots." : "Press A on a controller to take a Seat."),
-          h("button", { class: "local-start nr-btn", onclick: () => exit() }, "Main menu"),
-        ),
-      ),
+      h("div", { class: "lobby-head" }, h("h1", {}, "Local play"), h("span", { class: "hint" }, host ? `${host.name} is the Host - their controller picks the settings` : "Press A on a controller to take a Seat")),
+      settings,
+      h("div", { class: "local-seats" }, ...Array.from({ length: MAX_PLAYERS }, (_, n) => seatCard(i, i.players[n] ?? null))),
+      h("div", { class: "pad-prompts" }, padPrompt("start", "Host starts"), padPrompt("b", "Leave")),
+    );
+  }
+
+  function trackLabel(choice: string): string | Node {
+    if (choice === RANDOM_TRACK) return "Random";
+    const thumb = thumbs.get(choice);
+    return h("span", { class: "local-track" }, thumb ?? null, h("span", {}, choice));
+  }
+
+  function seatCard(i: RoomInfo, p: RoomInfo["players"][number] | null): HTMLElement {
+    if (!p) return h("div", { class: "local-seat open" }, padPrompt("a", "Join"));
+    const seat = match.seats.find((s) => s.playerId === p.id);
+    const isHost = p.id === i.hostId;
+    const skill = p.bot ? (p.name.match(/\((\w+)\)$/)?.[1] ?? "") : "";
+    return h(
+      "div",
+      { class: `local-seat${isHost ? " host" : ""}`, style: `--c:${css(playerColor(p.color))}` },
+      h("span", { class: "local-seat-tag" }, seat ? `Seat ${seat.number}${isHost ? " ★" : ""}` : `Bot · ${skill}`),
+      h("span", { class: "local-seat-name" }, raceName(p)),
+      p.wins ? h("span", { class: "local-seat-wins" }, `🏆 ${p.wins}`) : null,
+      seat ? h("span", { class: "local-seat-prompt" }, isHost ? padPrompt("start", "Start") : padPrompt("b", "Leave")) : null,
     );
   }
 
