@@ -56,14 +56,16 @@ export class SnapshotBuffer {
     while (i > 0 && this.snaps[i]!.tick > renderTick) i--;
     const a = this.snaps[i]!;
     const b = this.snaps[Math.min(i + 1, n - 1)]!;
-    if (a === b || a.phase !== b.phase || renderTick <= a.tick) {
-      const s = renderTick <= a.tick ? a : b;
-      return { snap: s, camera: s.camera, line: s.line, cars: s.cars };
-    }
-    const t = Math.min(1, (renderTick - a.tick) / (b.tick - a.tick));
-    const line = a.line !== null && b.line !== null ? lerp(a.line, b.line, t) : b.line;
-    return { snap: b, camera: lerpCamera(a.camera, b.camera, t), line, cars: lerpCars(a.cars, b.cars, t) };
+    if (renderTick <= a.tick) return blendSnaps(a, a, 0);
+    return blendSnaps(a, b, a === b ? 1 : Math.min(1, (renderTick - a.tick) / (b.tick - a.tick)));
   }
+}
+
+/** What to draw `t` (0..1) of the way from snapshot `a` to `b`; across a phase change, `b` as it is. */
+export function blendSnaps(a: Snap, b: Snap, t: number): Sampled {
+  if (a === b || a.phase !== b.phase) return { snap: b, camera: b.camera, line: b.line, cars: b.cars };
+  const line = a.line !== null && b.line !== null ? lerp(a.line, b.line, t) : b.line;
+  return { snap: b, camera: lerpCamera(a.camera, b.camera, t), line, cars: lerpCars(a.cars, b.cars, t) };
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
