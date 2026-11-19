@@ -5,7 +5,10 @@ export type Snap = Extract<ServerMsg, { t: "snap" }>;
 const TICK_MS = 1000 / TICK_RATE;
 const DELAY_TICKS = 6;
 const KEEP = 40;
-const DRIFT_PER_MS = 0.002;
+/** How long the quickest recent snapshot sets the delay for: a stall shorter than this doesn't move it, a lasting change does. */
+const DELAY_WINDOW_MS = 2000;
+/** How fast drawn time may run fast or slow while it eases to a new delay, so it never visibly jumps. */
+const EASE_RATE = 0.05;
 /** The furthest ahead, in ticks, the line is drawn: half a second, past which the connection is too far gone to trust. */
 export const MAX_LINE_LEAD = 30;
 
@@ -19,8 +22,10 @@ export interface Sampled {
 export class SnapshotBuffer {
   private snaps: Snap[] = [];
   private arrivals: number[] = [];
+  /** Wall time minus server time, as drawn: eases towards the quickest arrival seen in the last DELAY_WINDOW_MS. */
   private offset = Infinity;
   private lastArrival = 0;
+  private recent: { arrivalMs: number; offset: number }[] = [];
 
   push(snap: Snap, arrivalMs: number): void {
     this.snaps.push(snap);
@@ -29,15 +34,21 @@ export class SnapshotBuffer {
       this.snaps.shift();
       this.arrivals.shift();
     }
-    const sample = arrivalMs - snap.tick * TICK_MS;
-    const relaxed = this.offset === Infinity ? sample : this.offset + (arrivalMs - this.lastArrival) * DRIFT_PER_MS;
-    this.offset = Math.min(relaxed, sample);
+    this.recent.push({ arrivalMs, offset: arrivalMs - snap.tick * TICK_MS });
+    while (this.recent[0]!.arrivalMs < arrivalMs - DELAY_WINDOW_MS) this.recent.shift();
+    const target = Math.min(...this.recent.map((r) => r.offset));
+    if (this.offset === Infinity) this.offset = target;
+    else {
+      const most = (arrivalMs - this.lastArrival) * EASE_RATE;
+      this.offset += Math.max(-most, Math.min(most, target - this.offset));
+    }
     this.lastArrival = arrivalMs;
   }
 
   clear(): void {
     this.snaps = [];
     this.arrivals = [];
+    this.recent = [];
   }
 
   latest(): Snap | undefined {
