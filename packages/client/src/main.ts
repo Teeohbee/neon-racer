@@ -34,6 +34,9 @@ bindFpsOverlay(ui);
 const controllers = startControllerHub(import.meta.env.DEV ? combinePadSources(browserGamepads(), keyboardPadSource()) : browserGamepads());
 const controllerMenus = bindControllerMenus(controllers);
 let releaseMenus = () => {};
+// Browsers hold sound until the first click or key, so the web waits for one. The Steam build's Electron
+// allows it from the start (desktop/main.cjs), and a controller press is no gesture, so start it now.
+if (STEAM_BUILD) audio.unlock();
 
 function menu(notice?: string) {
   audio.music.setMood("lobby");
