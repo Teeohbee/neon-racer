@@ -10,7 +10,7 @@ import "./ui/menu.css";
 const NAME_KEY = "neon-racer:name";
 
 export interface MenuChoice {
-  kind: "practice" | "create" | "join";
+  kind: "practice" | "local" | "create" | "join";
   name: string;
   room?: string;
 }
@@ -28,7 +28,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
 
   const choose = (kind: MenuChoice["kind"]) => {
     const trimmed = name.value.trim();
-    if (kind !== "practice" && !trimmed) {
+    if ((kind === "create" || kind === "join") && !trimmed) {
       notify("Pick a name first", "error");
       name.focus();
       return;
@@ -58,6 +58,7 @@ export function showMenu(ui: HTMLElement, onChoose: (choice: MenuChoice) => void
             field,
             h("button", { class: "nr-btn primary big", onclick: () => choose("create") }, "Create room"),
             h("div", { class: "title-join" }, code, h("button", { class: "nr-btn", onclick: () => choose("join") }, "Join room")),
+            h("button", { class: "nr-btn title-practice", onclick: () => choose("local") }, "Local play"),
             h("button", { class: "nr-btn title-practice", onclick: () => choose("practice") }, "Solo practice"),
             h("p", { class: "nr-hint title-keys" }, "↑↓ select · Enter go · M mute"),
             h("div", { class: "menu-audio" }, settings.el, displaySettings.el),

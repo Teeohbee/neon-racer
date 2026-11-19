@@ -500,17 +500,20 @@ export function createRenderer(app: Application): Renderer {
     if (first) sketchG.circle(first[0], first[1], 6 * px).fill({ color: UI.sketchStroke });
   };
 
-  const drawAim = (aim: AimView | null | undefined, now: number) => {
+  const drawAims = (aims: (AimView | null | undefined)[], now: number) => {
     aimG.clear();
-    if (!aim) return;
+    for (const aim of aims) if (aim) drawAim(aim, now);
+  };
+
+  const drawAim = (aim: AimView, now: number) => {
     const color = HAZARD_COLORS[aim.kind];
     const alpha = aim.ready ? 0.9 : 0.3;
     const px = camera.scale;
     if (aim.ready) aimG.circle(aim.x, aim.y, aim.radius).stroke({ width: 3 * px, color, alpha });
     else dashedCircle(aimG, aim.x, aim.y, aim.radius, now);
     if (!aim.ready) aimG.stroke({ width: 3 * px, color, alpha });
-    const arm = 12 * px;
-    aimG.moveTo(aim.x - arm, aim.y).lineTo(aim.x + arm, aim.y).moveTo(aim.x, aim.y - arm).lineTo(aim.x, aim.y + arm).stroke({ width: 2 * px, color, alpha });
+    const arm = (aim.tint === undefined ? 12 : 24) * px;
+    aimG.moveTo(aim.x - arm, aim.y).lineTo(aim.x + arm, aim.y).moveTo(aim.x, aim.y - arm).lineTo(aim.x, aim.y + arm).stroke({ width: 2 * px, color: aim.tint ?? color, alpha: aim.tint === undefined ? alpha : 1 });
   };
 
   const updateSparks = (dt: number) => {
@@ -575,7 +578,7 @@ export function createRenderer(app: Application): Renderer {
       for (const [id, sprite] of cars) sprite.label.text = id === corrupt?.id ? corrupt.text : sprite.name;
       drawSlipstream(slipstreamG, frame.cars, t);
       drawSketch(frame.sketch);
-      drawAim(frame.aim, t);
+      drawAims([frame.aim, ...(frame.aims ?? [])], t);
       const contacts = trackContacts(frame.cars, frame.hazards, frame.now, frame.contact === true, dt);
       sparks.push(...contacts.sparks);
       for (const c of contacts.impacts) impactAt(c.x, c.y, c.strength);
@@ -595,7 +598,7 @@ export function createRenderer(app: Application): Renderer {
       }
       reflections.update({ wet: !frame.sketch && scenery.weather()?.rain === true, track: frame.track, edges, cars: frame.cars, lights: extraLights, brakeOf: lighting.brakeOf, t });
       postfx.update({ w: fit.sw, h: fit.sh }, { x: fit.vx, y: fit.vy, w: fit.vw, h: fit.vh }, dt);
-      lighting.update({ edges, ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim, bright: frame.sketch !== undefined, dt });
+      lighting.update({ edges, ambient: scenery.ambient(), extra: extraLights, dangerLine: frame.dangerLine ?? null, t, camera, base: fit.base, sw: fit.sw, sh: fit.sh, track: frame.track, cars: frame.cars, hazards: frame.hazards, now: frame.now, aim: frame.aim ?? frame.aims?.[0], bright: frame.sketch !== undefined, dt });
       jolt = release(jolt);
     },
 

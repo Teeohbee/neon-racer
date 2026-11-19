@@ -4,7 +4,6 @@ import {
   boostAt,
   bridgeAt,
   buildTrack,
-  CUP_LEGS,
   describeProblem,
   EMOTES,
   HAZARD_KINDS,
@@ -12,15 +11,11 @@ import {
   isFrozen,
   nearestOnTrack,
   pointAt,
-  LAP_COUNTS,
   MAX_PLAYERS,
-  PRESET_TRACKS,
-  SCORE_TARGETS,
   smoothLoop,
   stepWorldCar,
   SLOW_FACTOR,
   SUDDEN_DEATH_AT,
-  TARGET_SCORE,
   TICK_RATE,
   TRACK_WIDTH,
   validateDrawing,
@@ -30,7 +25,6 @@ import {
   type Camera,
   type CarSnap,
   type CarState,
-  type CupLegs,
   type EliminationReason,
   type Emote,
   type GameEvent,
@@ -39,7 +33,6 @@ import {
   type ServerMsg,
   type Track,
   type TrackProblem,
-  type WinCondition,
 } from "@neon/sim";
 import { h } from "./dom";
 import { TrackFollower } from "./net/track-follower";
@@ -58,7 +51,7 @@ import { PULSE } from "./render/envelopes";
 import { GLITCH } from "./render/glitch-math";
 import { createRenderer } from "./render/renderer";
 import type { CarView, SketchView } from "./render/types";
-import { createMinimap, drawTrackShape } from "./minimap";
+import { createMinimap } from "./minimap";
 import { displaySettingsWidget } from "./display-widget";
 import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
@@ -67,6 +60,7 @@ import { formatDelta, formatScore, raceName } from "./ui/format";
 import { createPodium, finalStandings } from "./ui/podium";
 import { createStreamHud } from "./ui/stream-hud";
 import { bindLobbyShell, copyInvite } from "./shell/lobby-shell";
+import { cupPicker, trackPicker, trackThumbs, winPicker } from "./ui/lobby-settings";
 import "./online.css";
 
 type RoomMsg = Extract<ServerMsg, { t: "room" }>;
@@ -85,8 +79,6 @@ const HAZARD_EFFECTS: Record<HazardKind, string> = {
 const YOUR_OUT_REASONS: Record<EliminationReason, string> = { line: "The line caught you", fell: "You fell off", left: "You left" };
 const HAZARD_HELP_KEY = "neon-racer:hazard-help-seen";
 const worldCamera: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, scale: WORLD.width / VIEW.width };
-const THUMB = { width: 84, height: 50, pad: 200 };
-const DEFAULT_LAPS = 3;
 const BUMP_DV = 150;
 const BUMP_FULL = 500;
 const BUMP_GAP_MS = 150;
@@ -155,7 +147,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const bottom = h("div", { class: "online-bottom" });
   const toastBox = h("div", { class: "online-toasts" });
   const live = { timer: h("span"), goal: h("span"), sudden: h("div", { class: "sudden" }), cooldowns: new Map<HazardKind, HTMLElement>() };
-  const thumbs = new Map(PRESET_TRACKS.map((t) => [t.name, trackThumb(buildTrack(t.points, t.features))]));
+  const thumbs = trackThumbs();
   root.append(top, center, bottom, toastBox);
   const countdown = createCountdown(root);
   const podium = createPodium(root, { click: audio.sfx.click, reveal: audio.sfx.reveal });
@@ -679,9 +671,14 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                     ),
                   ),
                 ),
-                winPicker(i.win, isHost),
-                cupPicker(i.cup, isHost),
-                trackPicker(i.tracks, isHost),
+                winPicker(i.win, isHost, (win) => conn.send({ t: "winCondition", ...win })),
+                cupPicker(i.cup, isHost, (legs) => conn.send({ t: "cup", legs })),
+                trackPicker(i.tracks, isHost, thumbs, (names) => {
+                  if (!info) return;
+                  info = { ...info, tracks: names };
+                  conn.send({ t: "tracks", names });
+                  drawUI();
+                }),
               ),
               h(
                 "div",
@@ -748,78 +745,6 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     }
   }
 
-  function winPicker(win: WinCondition, isHost: boolean): HTMLElement {
-    const values: WinCondition[] = win.kind === "laps" ? LAP_COUNTS.map((laps) => ({ kind: "laps", laps })) : SCORE_TARGETS.map((target) => ({ kind: "score", target }));
-    const pick = (next: WinCondition) => conn.send({ t: "winCondition", ...next });
-    return h(
-      "div",
-      { class: "modes" },
-      "Win: ",
-      h(
-        "span",
-        { class: "seg" },
-        h("button", { class: win.kind === "laps" ? "on" : "", disabled: !isHost, onclick: () => pick({ kind: "laps", laps: DEFAULT_LAPS }) }, "Laps"),
-        h("button", { class: win.kind === "score" ? "on" : "", disabled: !isHost, onclick: () => pick({ kind: "score", target: TARGET_SCORE }) }, "Points"),
-      ),
-      h(
-        "span",
-        { class: "seg" },
-        ...values.map((v) => {
-          const n = v.kind === "laps" ? v.laps : v.target;
-          const on = win.kind === "laps" ? win.laps === n : win.target === n;
-          return h("button", { class: on ? "on" : "", disabled: !isHost, onclick: () => pick(v) }, String(n));
-        }),
-      ),
-      h("span", { class: "hint" }, win.kind === "laps" ? "laps per track" : "points per track"),
-    );
-  }
-
-  function cupPicker(cup: CupLegs, isHost: boolean): HTMLElement {
-    return h(
-      "div",
-      { class: "modes" },
-      "Cup: ",
-      h(
-        "span",
-        { class: "seg" },
-        ...CUP_LEGS.map((legs) => h("button", { class: cup === legs ? "on" : "", disabled: !isHost, onclick: () => conn.send({ t: "cup", legs }) }, legs ? `${legs} tracks` : "Off")),
-      ),
-      h("span", { class: "hint" }, cup ? "points carry across tracks" : "one track per match"),
-    );
-  }
-
-  function trackPicker(selected: string[], isHost: boolean): HTMLElement {
-    const choose = (names: string[]) => {
-      if (!names.length || !info) return;
-      info = { ...info, tracks: names };
-      conn.send({ t: "tracks", names });
-      drawUI();
-    };
-    const toggle = (name: string) => choose(selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name]);
-    return h(
-      "div",
-      { class: "track-picker" },
-      h(
-        "div",
-        { class: "modes" },
-        `Tracks (${selected.length}/${PRESET_TRACKS.length})`,
-        isHost ? h("button", { disabled: selected.length === PRESET_TRACKS.length, onclick: () => choose(PRESET_TRACKS.map((t) => t.name)) }, "All") : null,
-      ),
-      h(
-        "div",
-        { class: "track-grid" },
-        ...PRESET_TRACKS.map((t) =>
-          h(
-            "button",
-            { class: `track-card${selected.includes(t.name) ? " on" : ""}`, disabled: !isHost, title: t.name, onclick: () => toggle(t.name) },
-            thumbs.get(t.name)!,
-            h("span", {}, t.name),
-          ),
-        ),
-      ),
-    );
-  }
-
   function hazardBar(): HTMLElement[] {
     live.cooldowns.clear();
     if (info?.phase !== "race" || myAlive) return [];
@@ -878,19 +803,6 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     renderer.destroy();
     root.remove();
   };
-}
-
-function trackThumb(track: Track): HTMLCanvasElement {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const canvas = h("canvas", { width: THUMB.width * dpr, height: THUMB.height * dpr });
-  canvas.style.width = `${THUMB.width}px`;
-  canvas.style.height = `${THUMB.height}px`;
-  const ctx = canvas.getContext("2d")!;
-  const [minX, maxX, minY, maxY] = [Math.min(...track.xs), Math.max(...track.xs), Math.min(...track.ys), Math.max(...track.ys)];
-  const scale = Math.min(THUMB.width / (maxX - minX + THUMB.pad * 2), THUMB.height / (maxY - minY + THUMB.pad * 2));
-  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (THUMB.width / 2 - ((minX + maxX) / 2) * scale), dpr * (THUMB.height / 2 - ((minY + maxY) / 2) * scale));
-  drawTrackShape(ctx, track, scale);
-  return canvas;
 }
 
 function carOf(c: CarState): CarState {
