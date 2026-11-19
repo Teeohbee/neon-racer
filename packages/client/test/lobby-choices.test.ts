@@ -1,6 +1,7 @@
 import { PRESET_TRACKS } from "@neon/sim";
 import { describe, expect, it } from "vitest";
-import { cupMessages, modeWin, RANDOM_TRACK, stepOption, trackChoice, trackChoices, tracksFor } from "../src/local/lobby-choices";
+import { cupMessages, modeWin, RANDOM_TRACK, trackChoice, trackChoices, tracksFor } from "../src/local/lobby-choices";
+import { stepOption } from "../src/ui/selector";
 
 const ALL = PRESET_TRACKS.map((t) => t.name);
 

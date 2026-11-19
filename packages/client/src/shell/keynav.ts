@@ -19,7 +19,8 @@ export function createKeyNav(root: HTMLElement, opts: KeyNavOptions = {}): () =>
   const owns = (el: Element | null) => !el || el === document.body || root.contains(el);
 
   const onKey = (e: KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || !root.isConnected || !(opts.enabled?.() ?? true)) return;
+    // Something focused already used the key, like a selector row changing its value with left/right.
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || !root.isConnected || !(opts.enabled?.() ?? true)) return;
     const active = document.activeElement;
     if (!owns(active)) return;
     if (e.key === "Escape") {

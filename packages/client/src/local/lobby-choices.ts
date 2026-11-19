@@ -9,14 +9,6 @@ export const RANDOM_TRACK = "Random";
 const DEFAULT_LAPS = 3;
 const ALL_TRACKS = PRESET_TRACKS.map((t) => t.name);
 
-export function stepOption<T>(options: readonly T[], current: T, delta: 1 | -1, opts: { wrap?: boolean } = {}): T {
-  const at = options.indexOf(current);
-  if (at < 0) return options[0]!;
-  const next = at + delta;
-  if (opts.wrap === false) return options[Math.max(0, Math.min(options.length - 1, next))]!;
-  return options[(next + options.length) % options.length]!;
-}
-
 export function modeWin(kind: WinCondition["kind"]): WinCondition {
   return kind === "laps" ? { kind: "laps", laps: DEFAULT_LAPS } : { kind: "score", target: TARGET_SCORE };
 }
