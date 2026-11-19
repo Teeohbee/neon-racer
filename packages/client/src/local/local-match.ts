@@ -93,6 +93,7 @@ export class LocalMatch {
   private latestSnap: Snap | null = null;
   private cursors = new Map<string, ScreenCursor>();
   private botSkills = new Map<string, BotSkill>();
+  private botSkill: BotSkill = "medium";
   private sim: Room;
 
   constructor(private readonly opts: LocalMatchOptions) {
@@ -185,6 +186,28 @@ export class LocalMatch {
     if (msg.t === "addBot") {
       const added = this.roomState?.players.find((p) => p.bot && !before.has(p.id));
       if (added) this.botSkills.set(added.id, msg.skill);
+    }
+  }
+
+  /** The lobby's bots: how many, the one skill they share, and how many fit beside the Seats. */
+  bots(): { count: number; skill: BotSkill; max: number } {
+    const count = this.roomState.players.filter((p) => p.bot).length;
+    return { count, skill: this.botSkill, max: MAX_PLAYERS - this.seatList.length };
+  }
+
+  /** Add or remove bots to reach `count`, all of `skill`; a new skill swaps every bot. */
+  setBots(count: number, skill: BotSkill): void {
+    if (!this.hostSeat()) return;
+    const target = Math.max(0, Math.min(count, this.bots().max));
+    this.botSkill = skill;
+    const current = () => this.roomState.players.filter((p) => p.bot);
+    for (const bot of current()) {
+      if (this.botSkills.get(bot.id) !== skill || current().length > target) this.asHost({ t: "removeBot", id: bot.id });
+    }
+    while (current().length < target) {
+      const before = current().length;
+      this.asHost({ t: "addBot", skill });
+      if (current().length === before) return;
     }
   }
 
