@@ -11,6 +11,13 @@ app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 // An AppImage can't ship Chromium's setuid sandbox helper, and the window only ever loads the game from disk.
 app.commandLine.appendSwitch("no-sandbox");
 
+// On SteamOS, Chromium's default OpenGL-over-X11 path isn't in step with gamescope's display: frames go out on
+// Chromium's own timer and judder at 90 Hz. Through Vulkan, gamescope paces presentation to the display.
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("use-angle", "vulkan");
+  app.commandLine.appendSwitch("enable-features", "Vulkan,DefaultANGLEVulkan,VulkanFromANGLE");
+}
+
 // Serve the built client from app://game/ rather than file://, so its module scripts and absolute asset paths load as they do on the web.
 protocol.registerSchemesAsPrivileged([{ scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
