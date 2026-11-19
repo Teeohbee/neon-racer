@@ -90,12 +90,10 @@ export function createStreamHud(root: HTMLElement, top: HTMLElement, nameOf: (id
         channel.textContent = `/${code}`;
       }
       root.classList.toggle("streaming", STREAMING.has(next));
+      // Chat carries on from one round to the next, like a stream that never cut; only the race watch starts over.
       if (next === "countdown") {
         watch.reset();
         suddenSaid = false;
-        feed.clear();
-        pending = [];
-        drawChat();
       }
       if (next === "race" && phase !== "race") say({ kind: "go" });
       if (!STREAMING.has(next)) {
