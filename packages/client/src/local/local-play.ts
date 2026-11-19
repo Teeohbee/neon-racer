@@ -31,7 +31,7 @@ import { padPrompt } from "../controller/glyphs";
 import { displaySettingsWidget } from "../display-widget";
 import { h } from "../dom";
 import { createMinimap } from "../minimap";
-import { SnapshotBuffer } from "../net/interpolation";
+import { StepSnaps } from "./step-snaps";
 import { TrackFollower } from "../net/track-follower";
 import { IMPACT } from "../render/impact";
 import { GLITCH } from "../render/glitch-math";
@@ -69,7 +69,7 @@ export interface LocalPlayOptions {
 
 export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPlayOptions, onExit: () => void): () => void {
   const renderer = createRenderer(app);
-  const buffer = new SnapshotBuffer();
+  const snaps = new StepSnaps();
   const follower = new TrackFollower();
   const minimap = createMinimap(ui);
   const audioWidget = audioSettingsWidget();
@@ -119,7 +119,8 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   };
   const entry = (id: string, value: string) => ({ name: shortName(id), color: css(playerColor(player(id)?.color ?? 0)), value });
   const isSeat = (id: string) => match.seats.some((s) => s.playerId === id);
-  const serverNow = () => buffer.serverNow(performance.now());
+  // The Room's clock at what's drawn, for countdowns, cooldowns and hazard animations.
+  const serverNow = () => snaps.time(match.blend());
 
   const exit = () => {
     if (ended) return;
@@ -152,10 +153,10 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
         track = buildTrack(msg.raw, msg.features);
         trackName = msg.name;
         notify(`Track: ${msg.name}`);
-        buffer.clear();
+        snaps.clear();
         break;
       case "snap":
-        buffer.push(msg, performance.now());
+        snaps.push(msg);
         hazardSounds(msg);
         break;
       case "event":
@@ -197,7 +198,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
       cupWinner = null;
       awards = [];
       track = null;
-      buffer.clear();
+      snaps.clear();
     }
     if (info.phase === "countdown") {
       renderer.glitch(GLITCH.phase);
@@ -241,7 +242,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
         break;
       }
       case "eliminated": {
-        const car = buffer.latest()?.cars.find((c) => c.id === event.id);
+        const car = snaps.latest()?.cars.find((c) => c.id === event.id);
         const color = playerColor(player(event.id)?.color ?? 0);
         if (car && event.reason === "fell") renderer.fall({ ...car, color });
         else if (car) renderer.explode(car.x, car.y, color);
@@ -286,7 +287,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   function render() {
     const phase = info?.phase ?? "lobby";
     const now = serverNow();
-    const sampled = phase === "lobby" ? null : buffer.sample(performance.now());
+    const sampled = phase === "lobby" ? null : snaps.sample(match.blend());
     if (!sampled) {
       heard = null;
       renderer.render({ camera: worldCamera, track: phase === "matchEnd" ? track : null, trackName: phase === "matchEnd" && track ? trackName : null, cars: [], hazards: [], now });
@@ -301,7 +302,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   }
 
   function aims(now: number): AimView[] {
-    const cooldowns = buffer.latest()?.cooldowns ?? {};
+    const cooldowns = snaps.latest()?.cooldowns ?? {};
     return match.allCursors().map(({ seat, cursor }) => ({
       x: cursor.x,
       y: cursor.y,
@@ -371,7 +372,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
       if (n !== lastCountdown && n > 0) audio.sfx.countdownTick();
       lastCountdown = n;
     }
-    live.goal.textContent = info.win.kind === "laps" ? `Lap ${buffer.latest()?.lap ?? 1}/${info.win.laps}` : `First to ${info.win.target}`;
+    live.goal.textContent = info.win.kind === "laps" ? `Lap ${snaps.latest()?.lap ?? 1}/${info.win.laps}` : `First to ${info.win.target}`;
     live.sudden.textContent = info.phase === "race" && serverNow() > SUDDEN_DEATH_AT ? "SUDDEN DEATH - the line is closing in" : "";
     drawKnockedOut();
   }
@@ -380,7 +381,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     if (!info) return;
     root.classList.toggle("local-racing", info.phase !== "lobby" && info.phase !== "matchEnd");
     const players = [...info.players].sort((a, b) => b.score - a.score);
-    const snapCars = new Map(buffer.latest()?.cars.map((c) => [c.id, c]) ?? []);
+    const snapCars = new Map(snaps.latest()?.cars.map((c) => [c.id, c]) ?? []);
     const racing = info.phase === "race" || info.phase === "roundEnd";
     topInfo.replaceChildren(
       h("div", { class: "code" }, "Local play"),
@@ -483,7 +484,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   }
 
   function updateCooldowns() {
-    const latest = buffer.latest();
+    const latest = snaps.latest();
     if (!latest) return;
     const now = serverNow();
     for (const el of bottom.querySelectorAll<HTMLElement>(".local-aim")) {

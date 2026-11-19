@@ -107,7 +107,8 @@ export class LocalMatch {
         send: (_playerId, msg) => this.receive(msg),
         broadcast: (msg) => this.receive(msg),
       },
-      { rng: this.opts.rng },
+      // Every tick, so the race can be drawn between the last two (see StepSnaps).
+      { rng: this.opts.rng, snapEvery: 1 },
     );
   }
 
@@ -356,15 +357,18 @@ export class LocalMatch {
 
   /** Advance the match by real elapsed time, in whole Room ticks. */
   step(elapsedSeconds: number): void {
-    if (this.pauser) {
-      this.carry = 0;
-      return;
-    }
+    // Paused, keep the carry, so the race stays drawn where it stopped.
+    if (this.pauser) return;
     this.carry = Math.min(this.carry + elapsedSeconds, MAX_CATCH_UP);
     while (this.carry >= DT - 1e-9) {
       this.carry -= DT;
       this.tick();
     }
+  }
+
+  /** How far real time is into the next tick, 0..1, for drawing between the last two. */
+  blend(): number {
+    return Math.min(1, Math.max(0, this.carry / DT));
   }
 
   private tick(): void {
