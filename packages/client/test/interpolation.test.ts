@@ -6,6 +6,31 @@ const snap = (tick: number, x: number, phase: Snap["phase"] = "race", line: numb
   cars: [{ id: "a", x, y: 0, angle: 0, vx: 0, vy: 0, alive: true, ack: 0 }], hazards: [], cooldowns: {},
 });
 
+/** When the snapshot sent at `sentMs` arrives: 50 ms later, plus whatever the connection does. */
+type Arrival = (sentMs: number) => number;
+const laggier = (fromMs: number, extraMs: number): Arrival => (sent) => sent + 50 + (sent >= fromMs ? extraMs : 0);
+const stalled = (atMs: number, forMs: number): Arrival => (sent) => Math.max(sent + 50, sent >= atMs && sent < atMs + forMs ? atMs + forMs + 50 : 0);
+
+/** A car moving one unit a tick, snapshotted every 3 ticks (20 Hz) and drawn at 120 Hz for a minute. */
+function drawnOver(arrival: Arrival): { ms: number; x: number }[] {
+  const buf = new SnapshotBuffer();
+  const drawn: { ms: number; x: number }[] = [];
+  let sent = 0;
+  for (let ms = 0; ms < 60_000; ms += 1000 / 120) {
+    while (arrival(sent * 50) <= ms) {
+      buf.push(snap(sent * 3, sent * 3), arrival(sent * 50));
+      sent++;
+    }
+    const s = buf.sample(ms);
+    if (s) drawn.push({ ms, x: s.cars[0]!.x });
+  }
+  return drawn;
+}
+
+/** Frames between `fromMs` and `toMs` where the car didn't move: drawing has caught up with the newest snapshot. */
+const frozenFrames = (drawn: { ms: number; x: number }[], fromMs: number, toMs: number) =>
+  drawn.filter((d, i) => i > 0 && d.ms >= fromMs && d.ms < toMs && d.x === drawn[i - 1]!.x).length;
+
 describe("SnapshotBuffer", () => {
   it("renders 100ms in the past, interpolating between snapshots", () => {
     const buf = new SnapshotBuffer();
@@ -53,6 +78,24 @@ describe("SnapshotBuffer", () => {
     buf.push(snap(3, 0, "countdown", 500), 1050);
     buf.push(snap(6, 0, "race", 100), 1100);
     expect(buf.lineAhead(6)).toBe(100);
+  });
+
+  it("settles within a few seconds when the connection's delay goes up for good", () => {
+    const drawn = drawnOver(laggier(20_000, 100));
+    expect(frozenFrames(drawn, 20_000, 25_000)).toBeLessThan(400);
+    expect(frozenFrames(drawn, 25_000, 60_000)).toBe(0);
+  });
+
+  it("rides out a one-off stall without changing how far behind it draws", () => {
+    const drawn = drawnOver(stalled(20_000, 300));
+    expect(frozenFrames(drawn, 21_000, 60_000)).toBe(0);
+  });
+
+  it("never draws time running backwards, whatever the connection does", () => {
+    for (const arrival of [laggier(20_000, 100), laggier(20_000, -100), stalled(20_000, 300)]) {
+      const drawn = drawnOver(arrival);
+      for (let i = 1; i < drawn.length; i++) expect(drawn[i]!.x).toBeGreaterThanOrEqual(drawn[i - 1]!.x);
+    }
   });
 
   it("does not extrapolate past the newest snapshot", () => {
