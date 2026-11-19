@@ -6,6 +6,8 @@ const TICK_MS = 1000 / TICK_RATE;
 const DELAY_TICKS = 6;
 const KEEP = 40;
 const DRIFT_PER_MS = 0.002;
+/** The furthest ahead, in ticks, the line is drawn: half a second, past which the connection is too far gone to trust. */
+export const MAX_LINE_LEAD = 30;
 
 export interface Sampled {
   snap: Snap;
@@ -46,6 +48,19 @@ export class SnapshotBuffer {
     const latest = this.latest();
     if (!latest) return 0;
     return latest.now + (nowMs - this.arrivals[this.arrivals.length - 1]!) / 1000;
+  }
+
+  /**
+   * The line `ticks` past the newest snapshot, at the speed it was last seen moving. Your own car is drawn
+   * where it will be once your inputs still in flight land, so this is the line it will be judged against.
+   */
+  lineAhead(ticks: number): number | null {
+    const b = this.latest();
+    if (!b || b.line === null) return null;
+    const a = this.snaps[this.snaps.length - 2];
+    if (!a || a.line === null || a.phase !== b.phase || b.tick <= a.tick) return b.line;
+    const lead = Math.min(MAX_LINE_LEAD, Math.max(0, ticks));
+    return b.line + ((b.line - a.line) / (b.tick - a.tick)) * lead;
   }
 
   sample(nowMs: number): Sampled | null {
