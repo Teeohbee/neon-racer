@@ -27,7 +27,10 @@ const GRID_CLEAR_STEP = 20;
 const PLACE_POINTS = [2, 1];
 const LAST_PLACE_POINTS = -1;
 export const LEG_POINTS = [10, 6, 4, 3, 2, 1];
-const MAX_INPUT_QUEUE = 8;
+/** Half a second of a player's inputs: past that their connection has stalled too long to replay it all. */
+const MAX_INPUT_QUEUE = 30;
+/** How fast a player's car catches up on inputs that arrived in a clump, as inputs applied per tick. */
+const MAX_INPUTS_PER_TICK = 3;
 export const EMOTE_COOLDOWN = 0.1;
 const MAX_SKETCH_POINTS = 4000;
 const BOT_NAMES = ["Bolt", "Glitch", "Nova", "Pixel", "Sprocket", "Turbo"];
@@ -49,6 +52,8 @@ interface Player {
   movedAt: number;
   lastInput: CarInput;
   inputs: { seq: number; input: CarInput }[];
+  /** Inputs this player may still apply: one more each tick, banked up to MAX_INPUT_QUEUE while their car waits. */
+  inputCredit: number;
   ack: number;
   lastHit: { owner: string; at: number } | null;
   cooldowns: Record<HazardKind, number>;
@@ -128,6 +133,7 @@ export class Room {
       movedAt: 0,
       lastInput: emptyInput,
       inputs: [],
+      inputCredit: 0,
       ack: 0,
       lastHit: null,
       cooldowns: freshCooldowns(),
@@ -299,13 +305,25 @@ export class Room {
     }
 
     if (this.mode === "contact") {
+      // Each input is one step, applied exactly once and in order, as the player's own client predicted it: with
+      // none arrived the car waits for them, and when a late clump lands it catches up a few a tick. Repeating the
+      // last input instead would be steps the client never took, and it would see its car pulled off its line.
       for (const p of racers) {
-        const next = p.inputs.shift();
-        if (next) {
+        const step = (input: CarInput) => (p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car);
+        if (p.bot) {
+          step(p.lastInput);
+          continue;
+        }
+        // Credit keeps it honest: catching up spends ticks the car spent waiting, never more, so a client
+        // sending inputs faster than the race runs can't drive faster than it.
+        p.inputCredit = Math.min(MAX_INPUT_QUEUE, p.inputCredit + 1);
+        const take = Math.min(MAX_INPUTS_PER_TICK, p.inputCredit, p.inputs.length);
+        p.inputCredit -= take;
+        for (const next of p.inputs.splice(0, take)) {
           p.lastInput = next.input;
           p.ack = next.seq;
+          step(next.input);
         }
-        p.car = stepWorldCar(p.car!, p.lastInput, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       }
       const resolved = resolveCarCollisions(racers.map((p) => p.car!), racers.map((p) => bridgeAt(track, p.progress.s)));
       racers.forEach((p, i) => (p.car = resolved[i]!));

@@ -471,6 +471,39 @@ describe("contact mode", () => {
     expect(Math.hypot(moved.x - start.x, moved.y - start.y)).toBeGreaterThan(30);
     expect(moved.ack).toBeGreaterThan(20);
   });
+
+  it("applies each input once: waits for late inputs, then catches up on a clump a few a tick", () => {
+    const g = setup(["ann", "bob"], 1, true, "contact", 1);
+    g.toRace();
+    const throttle = { ...emptyInput, throttle: true };
+    let seq = 0;
+    g.run(0.2, () => g.send("ann", { t: "input", seq: ++seq, input: throttle }));
+    g.run(DT);
+    const stalled = g.car("ann");
+    g.run(0.1);
+    expect(g.car("ann")).toMatchObject({ x: stalled.x, y: stalled.y, ack: seq });
+    for (let i = 0; i < 9; i++) g.send("ann", { t: "input", seq: ++seq, input: throttle });
+    g.run(DT);
+    expect(g.car("ann").ack).toBe(seq - 6);
+    g.run(2 * DT);
+    expect(g.car("ann").ack).toBe(seq);
+  });
+
+  it("never applies inputs faster than the race runs, however fast a client sends them", () => {
+    const drive = (perTick: number) => {
+      const g = setup(["ann", "bob"], 1, true, "contact", 1);
+      g.toRace();
+      const from = g.car("ann");
+      let seq = 0;
+      g.run(1.5, () => {
+        for (let i = 0; i < perTick; i++) g.send("ann", { t: "input", seq: ++seq, input: { ...emptyInput, throttle: true } });
+      });
+      return Math.hypot(g.car("ann").x - from.x, g.car("ann").y - from.y);
+    };
+    const honest = drive(1);
+    expect(honest).toBeGreaterThan(300);
+    expect(drive(3)).toBeCloseTo(honest, 0);
+  });
 });
 
 describe("match flow", () => {
