@@ -8,7 +8,15 @@ const SLOW_TICK_MS = STEP_MS / 2;
 export interface Client {
   // Bun returns -1 when the message was queued behind a slow socket and 0 when it was dropped.
   send(data: string): number | void;
+  /** Bytes sent but still waiting to go out on this socket. */
+  getBufferedAmount?(): number;
 }
+
+/**
+ * About six snapshots: more than this still waiting to go out and a player's connection isn't keeping up. Each
+ * snapshot replaces the last, so skip theirs until it clears rather than queue up ever older ones.
+ */
+const SNAPSHOT_BACKLOG_BYTES = 8 * 1024;
 
 interface Stats {
   maxTickMs: number;
@@ -19,6 +27,7 @@ interface Stats {
   badMessages: number;
   backpressured: number;
   dropped: number;
+  skippedSnaps: number;
 }
 
 // What the logs know about a room, kept beside it rather than read out of the sim.
@@ -41,7 +50,7 @@ interface Entry {
   watch: Watch;
 }
 
-const freshStats = (): Stats => ({ maxTickMs: 0, slowTicks: 0, lagResets: 0, tickErrors: 0, handleErrors: 0, badMessages: 0, backpressured: 0, dropped: 0 });
+const freshStats = (): Stats => ({ maxTickMs: 0, slowTicks: 0, lagResets: 0, tickErrors: 0, handleErrors: 0, badMessages: 0, backpressured: 0, dropped: 0, skippedSnaps: 0 });
 const allowed = rateLimiter(5);
 
 export class Lobby {
@@ -54,7 +63,11 @@ export class Lobby {
 
     const clients = new Map<string, Client>();
     const watch: Watch = { createdAt: Date.now(), joinedAt: new Map(), names: new Map(), phase: "lobby", round: 0, track: null, players: 0, bots: 0, stats: freshStats() };
-    const deliver = (id: string, client: Client, data: string) => {
+    const deliver = (id: string, client: Client, data: string, snapshot = false) => {
+      if (snapshot && (client.getBufferedAmount?.() ?? 0) > SNAPSHOT_BACKLOG_BYTES) {
+        watch.stats.skippedSnaps++;
+        return;
+      }
       const result = client.send(data);
       if (result === -1) watch.stats.backpressured++;
       if (result === 0) {
@@ -71,7 +84,7 @@ export class Lobby {
       broadcast: (msg: ServerMsg) => {
         this.observe(code, watch, msg);
         const data = JSON.stringify(msg);
-        for (const [id, c] of clients) deliver(id, c, data);
+        for (const [id, c] of clients) deliver(id, c, data, msg.t === "snap");
       },
     };
     const room = new Room(code, io);
@@ -201,6 +214,7 @@ export class Lobby {
         handleErrors: s.handleErrors || undefined,
         badMessages: s.badMessages || undefined,
         backpressured: s.backpressured || undefined,
+        skippedSnaps: s.skippedSnaps || undefined,
         dropped: s.dropped || undefined,
       });
       entry.watch.stats = freshStats();
