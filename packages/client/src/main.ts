@@ -12,6 +12,9 @@ import { startPractice } from "./practice";
 import { startAttract } from "./shell/attract";
 import { glitchSwap } from "./shell/transition";
 import { bindViewRect } from "./view-rect";
+import { startControllerHub } from "./controller/hub";
+import { bindControllerMenus, noController } from "./controller/menu-bridge";
+import { browserGamepads } from "./controller/poller";
 
 const app = new Application();
 await app.init({ resizeTo: window, background: "#05060d", antialias: true });
@@ -23,8 +26,13 @@ bindViewRect(document.documentElement);
 bindAudioMuteKey();
 bindFpsOverlay(ui);
 
+const controllers = startControllerHub(browserGamepads());
+const controllerMenus = bindControllerMenus(controllers);
+let releaseMenus = () => {};
+
 function menu(notice?: string) {
   audio.music.setMood("lobby");
+  releaseMenus();
   const attract = startAttract(app);
   let chosen = false;
   const close = showMenu(ui, (choice) => {
@@ -39,6 +47,8 @@ function menu(notice?: string) {
 }
 
 function play(choice: MenuChoice) {
+  releaseMenus();
+  releaseMenus = controllerMenus.restrict(noController);
   if (choice.kind === "practice") {
     const stop = startPractice(app, ui);
     const settings = audioSettingsWidget();

@@ -1,0 +1,4 @@
+.pad-glyph { display: inline-flex; vertical-align: middle; line-height: 0; }
+.pad-glyph svg { width: auto; height: 1.6em; }
+.pad-prompt { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+.pad-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4em 1.2em; }
