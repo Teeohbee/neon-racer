@@ -29,7 +29,7 @@ Roll back with `fly releases` then `fly deploy --image <previous image>`.
 
 ## Steam build
 
-The Steam Machine gets an Electron AppImage that runs Local play and Practice with no server ([ADR 0001](docs/adr/0001-steam-build-is-an-electron-appimage.md)). It lives in `desktop/`, outside the bun workspaces, so the Fly image never installs Electron.
+The Steam Machine gets an Electron AppImage that runs Local play with no server ([ADR 0001](docs/adr/0001-steam-build-is-an-electron-appimage.md)). It lives in `desktop/`, outside the bun workspaces, so the Fly image never installs Electron.
 
 ```sh
 cd desktop && bun install
@@ -59,7 +59,7 @@ bun run check
 |---------|------|
 | `packages/sim` | All game rules: car physics, tracks, validation, hazards, camera, collisions, the `Room` state machine and protocol. No platform imports. |
 | `packages/server` | Thin bun WebSocket adapter around `Room`, room codes, static serving. |
-| `packages/client` | PixiJS renderer, practice mode, online play, interpolation and prediction, and Local play (`src/local/`), which runs a `Room` in the browser with a controller per Seat. |
+| `packages/client` | PixiJS renderer, practice mode (hidden from the title menu), online play, interpolation and prediction, and Local play (`src/local/`), which runs a `Room` in the browser with a controller per Seat. |
 | `desktop` | Electron wrapper for the Steam build. Not a workspace. |
 
 ## Controls
@@ -69,7 +69,6 @@ bun run check
 | Drive | WASD / arrows |
 | Handbrake | Shift |
 | Hazards (when out) | 1 Block, 2 Slow, 3 Freeze, click to place |
-| Practice | R reset, N next track, ` tuning panel |
 
 Local play, and anywhere else on a controller (Steam Deck names):
 
@@ -83,4 +82,3 @@ Local play, and anywhere else on a controller (Steam Deck names):
 | Hazards (when out) | Left stick aims, L1 / R1 switch, A drops |
 | Emotes (when out) | D-pad |
 | Menus | D-pad or stick moves, A chooses, B backs out |
-| Practice | View reset, Y next track, B back to the menu |
