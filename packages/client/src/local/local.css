@@ -1,10 +1,21 @@
 .local .lobby-head .hint { margin-left: auto; }
-.local-lobby .pad-prompts { margin: var(--nr-space-2) 0; font-size: var(--nr-text-sm); }
-.local-lobby .slots .open .name { flex: none; opacity: 0.8; }
-.local-lobby .slots .open .pad-glyph svg { height: 1.3em; }
-.local-lobby .players .add-bot { min-width: 0; }
-.local-lobby .players .add-bot button { white-space: nowrap; }
-.local-lobby .local-start { width: 100%; margin-top: var(--nr-space-2); pointer-events: auto; }
+.local-lobby { max-width: 760px; }
+.local-lobby > .pad-prompts { margin-top: var(--nr-space-3); font-size: var(--nr-text-sm); }
+.local-settings { display: flex; flex-direction: column; gap: 2px; margin: var(--nr-space-3) 0; font-size: var(--nr-text-lg); }
+.local-settings .local-menu { margin-top: var(--nr-space-2); font-size: var(--nr-text-md); }
+.local-track { display: inline-flex; align-items: center; gap: var(--nr-space-3); }
+.local-track canvas { height: 1.8em !important; width: auto !important; }
+
+.local-seats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--nr-space-2); }
+.local-seat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--nr-space-1); min-height: 92px; padding: var(--nr-space-2); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-top-width: 3px; border-radius: var(--nr-radius); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 16%, transparent), transparent 80%); color: var(--c); text-align: center; overflow: hidden; }
+.local-seat.host { box-shadow: 0 0 14px color-mix(in srgb, var(--c) 40%, transparent); }
+.local-seat.open { --c: var(--nr-line); border-style: dashed; color: var(--nr-text-dim); background: none; }
+.local-seat-tag { font-size: var(--nr-text-xs); letter-spacing: var(--nr-tracking); text-transform: uppercase; opacity: 0.8; }
+.local-seat-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: var(--nr-text-md); text-shadow: 0 0 6px var(--c); }
+.local-seat-wins { font-size: var(--nr-text-xs); }
+.local-seat-prompt { font-size: var(--nr-text-xs); color: var(--nr-text); }
+.local-seat .pad-glyph svg { height: 1.3em; }
+@media (max-width: 640px) { .local-seats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .local-bottom { gap: 12px; flex-wrap: wrap; align-items: flex-end; padding: 0 12px; }
 .local-aim { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 2px solid var(--c); border-radius: 8px; background: #05060de6; color: var(--c); text-shadow: 0 0 6px var(--c); opacity: 0.6; }
