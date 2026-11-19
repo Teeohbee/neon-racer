@@ -1,8 +1,10 @@
 import {
+  DEFAULT_WIN,
   emptyInput,
   EMOTES,
   HAZARD_KINDS,
   MAX_PLAYERS,
+  PRESET_TRACKS,
   Room,
   TICK_RATE,
   VIEW,
@@ -81,7 +83,7 @@ const EMOTE_BUTTONS: [ButtonName, Emote][] = [
 ];
 
 export class LocalMatch {
-  private roomState: RoomInfo | null = null;
+  private roomState: RoomInfo = emptyLobby();
   private seatList: Omit<Seat, "number">[] = [];
   private seatSeq = 0;
   private inputSeq = 0;
@@ -123,7 +125,7 @@ export class LocalMatch {
     return this.seatList.map((seat, i) => ({ ...seat, number: i + 1 }));
   }
 
-  room(): RoomInfo | null {
+  room(): RoomInfo {
     return this.roomState;
   }
 
@@ -203,7 +205,7 @@ export class LocalMatch {
     this.carry = 0;
     this.cursors.clear();
     this.latestSnap = null;
-    this.roomState = null;
+    this.roomState = emptyLobby();
     this.seatList = [];
     this.sim = this.createRoom();
     for (const seat of seats) {
@@ -381,6 +383,28 @@ export class LocalMatch {
     for (const seat of this.seatList) this.sim.handle(seat.playerId, { t: "ready", ready: true });
     return true;
   }
+}
+
+/**
+ * What the lobby looks like before anyone has joined. The Room only says what it looks like once it
+ * has a player to tell, but the screen needs a lobby to show so the first person knows to press A.
+ */
+function emptyLobby(): RoomInfo {
+  return {
+    t: "room",
+    code: LOCAL_ROOM_CODE,
+    players: [],
+    hostId: null,
+    mode: "contact",
+    phase: "lobby",
+    drawerId: null,
+    win: DEFAULT_WIN,
+    tracks: PRESET_TRACKS.map((t) => t.name),
+    remaining: 0,
+    round: 0,
+    cup: 0,
+    leg: 0,
+  };
 }
 
 /** The colour the Room will give the next player to join: the lowest one nobody has. */

@@ -501,6 +501,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     resume.focus({ preventScroll: true });
   }
 
+  info = match.room();
   drawUI();
 
   return () => {
