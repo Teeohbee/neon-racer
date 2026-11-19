@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { isOutsideView, LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
 import { emptyInput } from "../src/car";
+import { ARM_DELAY, HAZARD_SPECS, isFrozen } from "../src/hazards";
 import type { ClientMsg, GameEvent, Mode, ServerMsg, WinCondition } from "../src/protocol";
-import { COUNTDOWN_SECONDS, DEFAULT_WIN, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, SNAP_EVERY, TICK_RATE } from "../src/room";
+import { COUNTDOWN_SECONDS, DEFAULT_WIN, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, SNAP_EVERY, THAW_GAP, TICK_RATE } from "../src/room";
 import { buildTrack, dropAt, nearestOnTrack, ovalPoints, pointAt, TRACK_WIDTH, type Point, type Track } from "../src/track";
 import { PRESET_TRACKS, type PresetTrack } from "../src/tracks";
 
@@ -400,6 +401,32 @@ describe("hazards", () => {
     expect(g.events()).toContainEqual({ kind: "hazardKill", by: back, victim: middle });
     expect(g.room.phase).toBe("race");
     expect(g.score(back!)).toBe(0.5);
+  });
+
+  it("thaws a frozen car when the line comes near, so a freeze can't knock anyone out on its own", () => {
+    const g = setup(["ann", "bob", "cat"], 1, true, "ghost", 1);
+    g.toRace();
+    g.run(ELIMINATION_GRACE);
+    const [front, middle, back] = g.gridOrder();
+    g.knockOut(back!);
+    const victim = g.car(middle!);
+    g.send(back!, { t: "hazard", kind: "freeze", x: victim.x, y: victim.y });
+    g.run(ARM_DELAY + DT);
+    const frozen = () => isFrozen(middle!, g.last("snap")!.hazards, g.last("snap")!.now);
+    expect(frozen()).toBe(true);
+    // The leader races off, dragging the line up behind the frozen car well inside the freeze's 1.2 s.
+    const from = g.arc(front!);
+    let thawedAlive = false;
+    for (let seq = 1; seq < HAZARD_SPECS.freeze.duration * TICK_RATE && !thawedAlive; seq++) {
+      const [x, y, angle] = pointAt(g.track(), from + seq * 40);
+      g.send(front!, { t: "state", seq: 10_000 + seq, car: { x, y, angle, vx: 0, vy: 0 } });
+      g.run(DT);
+      thawedAlive = g.car(middle!).alive && !frozen();
+    }
+    expect(thawedAlive).toBe(true);
+    const gap = nearestOnTrack(g.track(), g.car(middle!).x, g.car(middle!).y).s - (((g.last("snap")!.line! % g.track().length) + g.track().length) % g.track().length);
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThanOrEqual(THAW_GAP);
   });
 });
 
