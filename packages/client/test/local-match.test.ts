@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { localRig } from "./local-helpers";
 
 describe("Local play seats", () => {
+  it("has an empty lobby to show before anyone has joined", () => {
+    const r = localRig();
+    expect(r.room()).toMatchObject({ phase: "lobby", players: [], hostId: null, mode: "contact" });
+    expect(r.room()!.tracks.length).toBeGreaterThan(0);
+  });
+
+  it("has an empty lobby to show after going back to it with no Seats", () => {
+    const r = localRig();
+    r.match.backToLobby();
+    expect(r.room()).toMatchObject({ phase: "lobby", players: [] });
+  });
+
   it("gives an unbound controller the next Seat when it presses A, named by its car colour", () => {
     const r = localRig();
     r.press("pad-0", "a");
