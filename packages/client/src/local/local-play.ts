@@ -68,6 +68,9 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   const minimap = createMinimap(ui);
   const audioWidget = audioSettingsWidget();
   const displayWidget = displaySettingsWidget();
+  // Mid-race the sound and display settings live in the pause menu, out of the way of steering.
+  const pauseAudioWidget = audioSettingsWidget();
+  const pauseDisplayWidget = displaySettingsWidget();
   const thumbs = trackThumbs();
 
   let info: RoomInfo | null = null;
@@ -118,9 +121,11 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     onExit();
   };
 
-  const unbindNav = createKeyNav(root, { enabled: () => !match.pausedBy(), start: ".local-start, .podium-actions button", onMove: audio.sfx.hover });
+  // Menus only take the arrow keys in the lobby and on the podium; in a race they steer.
+  const inMenus = () => !match.pausedBy() && (info?.phase === "lobby" || info?.phase === "matchEnd");
+  const unbindNav = createKeyNav(root, { enabled: inMenus, start: ".local-start, .podium-actions button", onMove: audio.sfx.hover });
   const unbindPauseNav = createKeyNav(pauseLayer, { enabled: () => !!match.pausedBy(), onMove: audio.sfx.hover });
-  const unbindHover = bindHoverSound(root, audio.sfx.hover);
+  const unbindHover = bindHoverSound(root, audio.sfx.hover, inMenus);
   const releaseMenus = opts.menus.restrict((id) => match.menuControllers()(id));
   const unsubscribe = opts.controllers.subscribe((frame) => {
     for (const notice of match.controllers(frame)) onNotice(notice);
@@ -179,6 +184,8 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   function enterPhase() {
     if (!info) return;
+    // Leave nothing focused when a race starts, so Enter or Space can't press a button mid-race.
+    if (info.phase === "countdown" && document.activeElement instanceof HTMLElement && root.contains(document.activeElement)) document.activeElement.blur();
     if (info.phase === "lobby") {
       matchWinner = null;
       cupWinner = null;
@@ -365,6 +372,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
 
   function drawUI() {
     if (!info) return;
+    root.classList.toggle("local-racing", info.phase !== "lobby" && info.phase !== "matchEnd");
     const players = [...info.players].sort((a, b) => b.score - a.score);
     const snapCars = new Map(buffer.latest()?.cars.map((c) => [c.id, c]) ?? []);
     const racing = info.phase === "race" || info.phase === "roundEnd";
@@ -494,6 +502,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
         resume,
         h("button", { class: "nr-btn", onclick: () => match.backToLobby() }, "Back to lobby"),
         quit ? h("button", { class: "nr-btn", onclick: () => quit() }, "Quit game") : h("button", { class: "nr-btn", onclick: () => exit() }, "Main menu"),
+        h("div", { class: "local-pause-settings" }, pauseAudioWidget.el, pauseDisplayWidget.el),
         h("div", { class: "pad-prompts" }, padPrompt("a", "Choose"), padPrompt("b", "Resume")),
       ),
     );
@@ -516,6 +525,8 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     audio.danger(0);
     audioWidget.dispose();
     displayWidget.dispose();
+    pauseAudioWidget.dispose();
+    pauseDisplayWidget.dispose();
     minimap.dispose();
     stream.dispose();
     renderer.destroy();

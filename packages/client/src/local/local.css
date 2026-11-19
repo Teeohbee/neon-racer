@@ -17,3 +17,6 @@
 .local-pause.open { display: grid; }
 .local-pause-card { display: flex; flex-direction: column; gap: var(--nr-space-2); min-width: 280px; padding: var(--nr-space-5); border-color: var(--c); text-align: center; }
 .local-pause-card h2 { margin: 0; color: var(--c); }
+
+.local-racing .online-top .audio-settings, .local-racing .online-top .display-settings { display: none; }
+.local-pause-settings { display: flex; flex-direction: column; align-items: center; gap: var(--nr-space-2); margin-top: var(--nr-space-2); padding-top: var(--nr-space-3); border-top: 1px solid var(--nr-line-dim); }
