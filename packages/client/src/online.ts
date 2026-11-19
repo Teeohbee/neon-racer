@@ -469,9 +469,18 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       phase === "race" && !myAlive && mouse
         ? { x: mouse[0], y: mouse[1], kind: hazardKind, radius: HAZARD_SPECS[hazardKind].radius, ready: now >= cooldown }
         : null;
-    heard = { cars, camera: sampled.camera, line: sampled.line };
-    renderer.render({ camera: sampled.camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: sampled.line, contact: info?.mode === "contact" });
-    minimap.update(track, cars, sampled.camera, sampled.line);
+    // Your car is drawn ahead of the snapshots, where your inputs will put it, so draw the line that far ahead too:
+    // the one the server will judge you against. Watching, everything is drawn as the snapshots have it.
+    const line = phase === "race" && myAlive ? buffer.lineAhead(ticksInFlight()) : sampled.line;
+    heard = { cars, camera: sampled.camera, line };
+    renderer.render({ camera: sampled.camera, track, trackName: track ? trackName : null, cars, hazards, now, aim, dangerLine: line, contact: info?.mode === "contact" });
+    minimap.update(track, cars, sampled.camera, line);
+  }
+
+  /** Ticks of your driving the server hasn't applied yet as of the newest snapshot: inputs (contact) or states (ghost). */
+  function ticksInFlight(): number {
+    const ack = buffer.latest()?.cars.find((c) => c.id === you)?.ack ?? 0;
+    return (info?.mode === "contact" ? predictor.lastSeq : steps) - ack;
   }
 
   function carView(snap: CarSnap, hazards: Extract<ServerMsg, { t: "snap" }>["hazards"], now: number): CarView {

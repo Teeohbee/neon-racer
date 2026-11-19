@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lerpAngle, SnapshotBuffer, type Snap } from "../src/net/interpolation";
+import { lerpAngle, MAX_LINE_LEAD, SnapshotBuffer, type Snap } from "../src/net/interpolation";
 
 const snap = (tick: number, x: number, phase: Snap["phase"] = "race", line: number | null = null): Snap => ({
   t: "snap", tick, phase, now: tick / 60, camera: { x, y: 0, scale: 1 }, line, lap: null,
@@ -30,6 +30,29 @@ describe("SnapshotBuffer", () => {
     const buf = new SnapshotBuffer();
     [100, 100, null, null].forEach((line, i) => buf.push(snap(i * 3, 0, "race", line), 1000 + i * 50));
     expect(buf.sample(1150 + 1000 / 60 * 1.5)!.line).toBeNull();
+  });
+
+  it("puts the line where the server will have it once your car's inputs in flight land", () => {
+    const buf = new SnapshotBuffer();
+    [0, 3, 6, 9].forEach((tick, i) => buf.push(snap(tick, 0, "race", tick * 10), 1000 + i * 50));
+    expect(buf.lineAhead(6)).toBeCloseTo(90 + 6 * 10);
+    expect(buf.lineAhead(0)).toBeCloseTo(90);
+  });
+
+  it("reaches no further ahead than a cap, however far behind the acks are", () => {
+    const buf = new SnapshotBuffer();
+    [0, 3].forEach((tick, i) => buf.push(snap(tick, 0, "race", tick * 10), 1000 + i * 50));
+    expect(buf.lineAhead(10_000)).toBeCloseTo(30 + MAX_LINE_LEAD * 10);
+    expect(buf.lineAhead(-5)).toBeCloseTo(30);
+  });
+
+  it("has no line ahead when there is none, and doesn't guess a speed from the last phase", () => {
+    const buf = new SnapshotBuffer();
+    buf.push(snap(0, 0, "race", null), 1000);
+    expect(buf.lineAhead(6)).toBeNull();
+    buf.push(snap(3, 0, "countdown", 500), 1050);
+    buf.push(snap(6, 0, "race", 100), 1100);
+    expect(buf.lineAhead(6)).toBe(100);
   });
 
   it("does not extrapolate past the newest snapshot", () => {
