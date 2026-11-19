@@ -5,6 +5,7 @@ const { pathToFileURL } = require("node:url");
 
 const CLIENT_DIR = path.join(__dirname, "client");
 const SCHEME = "app";
+const CRASH_RELOAD_GAP_MS = 30_000;
 
 // Music starts without a click: on the Machine there is no mouse to give one.
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
@@ -40,6 +41,17 @@ function openWindow() {
   });
   win.setMenu(null);
   win.webContents.on("did-finish-load", () => void win.webContents.insertCSS("*, *::before, *::after { cursor: none !important; }"));
+  // A crashed page leaves a black window that a pad can't get out of, so start the game again.
+  // Not when it crashed moments ago too: then it would only crash again.
+  let lastCrashAt = 0;
+  win.webContents.on("render-process-gone", (_event, details) => {
+    console.error(`page gone: ${details.reason} (exit ${details.exitCode})`);
+    if (details.reason === "clean-exit") return;
+    const now = Date.now();
+    if (now - lastCrashAt < CRASH_RELOAD_GAP_MS) return;
+    lastCrashAt = now;
+    void win.loadURL(`${SCHEME}://game/`);
+  });
   void win.loadURL(`${SCHEME}://game/`);
 }
 
