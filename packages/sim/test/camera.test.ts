@@ -88,4 +88,10 @@ describe("camera", () => {
     expect(lineGap(500)).toBe(lineGap(1000));
     expect(lineGap(500)).toBeLessThan(LINE_GAP / 2);
   });
+
+  it("starts sudden death 30 seconds in and is fully tight by 60", () => {
+    expect(lineGap(30)).toBe(LINE_GAP);
+    expect(lineGap(31)).toBeLessThan(LINE_GAP);
+    expect(lineGap(60)).toBe(lineGap(1000));
+  });
 });
