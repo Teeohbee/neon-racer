@@ -27,7 +27,8 @@ export class SnapshotBuffer {
   private lastArrival = 0;
   private recent: { arrivalMs: number; offset: number }[] = [];
 
-  push(snap: Snap, arrivalMs: number): void {
+  /** Returns how many ms later this snapshot came than the quickest in the window. */
+  push(snap: Snap, arrivalMs: number): number {
     this.snaps.push(snap);
     this.arrivals.push(arrivalMs);
     if (this.snaps.length > KEEP) {
@@ -43,6 +44,7 @@ export class SnapshotBuffer {
       this.offset += Math.max(-most, Math.min(most, target - this.offset));
     }
     this.lastArrival = arrivalMs;
+    return arrivalMs - snap.tick * TICK_MS - target;
   }
 
   clear(): void {
@@ -91,10 +93,19 @@ export class SnapshotBuffer {
     return vb + ((vb - va) / (b.tick - a.tick)) * lead;
   }
 
+  starved(nowMs: number): boolean {
+    const latest = this.latest();
+    return !!latest && this.renderTick(nowMs) > latest.tick;
+  }
+
+  private renderTick(nowMs: number): number {
+    return (nowMs - this.offset) / TICK_MS - DELAY_TICKS;
+  }
+
   sample(nowMs: number): Sampled | null {
     const n = this.snaps.length;
     if (n === 0) return null;
-    const renderTick = (nowMs - this.offset) / TICK_MS - DELAY_TICKS;
+    const renderTick = this.renderTick(nowMs);
     let i = n - 1;
     while (i > 0 && this.snaps[i]!.tick > renderTick) i--;
     const a = this.snaps[i]!;

@@ -129,6 +129,21 @@ describe("SnapshotBuffer", () => {
     expect([0, 500]).toContain(x);
   });
 
+  it("says how much later each snapshot came than the quickest of the last two seconds", () => {
+    const buf = new SnapshotBuffer();
+    expect(buf.push(snap(0, 0), 1000)).toBe(0);
+    expect(buf.push(snap(3, 30), 1050)).toBe(0);
+    expect(buf.push(snap(6, 60), 1130)).toBe(30);
+  });
+
+  it("says when drawing has run past the newest snapshot, with nothing left to blend towards", () => {
+    const buf = new SnapshotBuffer();
+    buf.push(snap(0, 0), 1000);
+    buf.push(snap(3, 30), 1050);
+    expect(buf.starved(1000 + 8 * (1000 / 60))).toBe(false);
+    expect(buf.starved(1000 + 10 * (1000 / 60))).toBe(true);
+  });
+
   it("is robust to jittery arrival times", () => {
     const buf = new SnapshotBuffer();
     [1000, 1080, 1100, 1190, 1200].forEach((at, i) => buf.push(snap(i * 3, i * 30), at));
