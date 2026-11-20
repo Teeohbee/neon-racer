@@ -1,7 +1,7 @@
 import { CAR_RADIUS } from "./car";
 
 export const VIEW = { width: 1600, height: 1000 };
-export const SUDDEN_DEATH_AT = 90;
+export const SUDDEN_DEATH_AT = 30;
 const SUDDEN_DEATH_SPAN = 30;
 export const LINE_GAP = 1000;
 const MIN_LINE_GAP = 350;
