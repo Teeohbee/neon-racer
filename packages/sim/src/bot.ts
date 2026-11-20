@@ -18,15 +18,11 @@ export interface DrivingStyle {
   dropNerve: number;
   /** Chance, each stretch of road, of attacking the bends ahead: cutting the apex with more speed. */
   commit: number;
-  /** Chance, each stretch of road, of chasing the slipstream of a car ahead. */
-  hunt: number;
-  /** Chance, each stretch of road, of carrying boost speed into the next bend instead of braking. */
-  greed: number;
-  /** Lapses per second: a moment of lifting off and not steering. */
+  /** Lapses per second: half a second of keeping the foot down and not steering. */
   lapse: number;
 }
 
-const NO_RISKS = { dropNerve: 0, commit: 0, hunt: 0, greed: 0, lapse: 0 };
+const NO_RISKS = { dropNerve: 0, commit: 0, lapse: 0 };
 
 export const BOT_STYLES: Record<BotSkill, DrivingStyle> = {
   easy: { pace: 0.6, cornering: 0.7, wobble: 0.25, ...NO_RISKS },
@@ -39,9 +35,11 @@ export interface BotMind {
   stretch: number;
   brave: boolean;
   hot: boolean;
+  /** Ticks left of a lapse in concentration. */
+  lapse: number;
 }
 
-export const newBotMind = (): BotMind => ({ stretch: Number.NaN, brave: false, hot: false });
+export const newBotMind = (): BotMind => ({ stretch: Number.NaN, brave: false, hot: false, lapse: 0 });
 
 /** How far a bot drives before it decides again whether to take each risk. */
 const STRETCH = 400;
@@ -67,6 +65,9 @@ export interface BotContext {
 }
 
 const STEER_DEADZONE = 0.04;
+// Bots are asked for an input once per 60 Hz tick; a lapse lasts half a second.
+const TICKS_PER_SECOND = 60;
+const LAPSE_TICKS = 30;
 const DROP_CAUTION = 0.95;
 // Edging along a drop: how far ahead it aims, and how much faster it takes the bend. Survive it and it's well up the road.
 const EDGE_LOOK = 200;
@@ -82,7 +83,15 @@ const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 export function botInput(car: CarState, track: Track, style: DrivingStyle, rng: () => number, { draft = 0, near, mind }: BotContext = {}): CarInput {
   const speed = speedOf(car);
   const { s } = nearestOnTrack(track, car.x, car.y, near);
-  if (mind) decide(mind, s, style, rng);
+  if (mind) {
+    decide(mind, s, style, rng);
+    if (mind.lapse === 0 && roll(style.lapse / TICKS_PER_SECOND, rng)) mind.lapse = LAPSE_TICKS;
+    // A lapse: foot down and not steering, so it runs straight on wherever the road goes.
+    if (mind.lapse > 0) {
+      mind.lapse--;
+      return { ...emptyInput, throttle: true };
+    }
+  }
 
   const dropAhead = [0, 200, 400].some((d) => dropAt(track, s + d + speed * 0.3));
   // Brave near a drop: no extra care, and a longer look ahead that cuts the corner along the edge.

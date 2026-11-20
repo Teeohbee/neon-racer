@@ -66,7 +66,7 @@ describe("botInput", () => {
 
 // Each of these drives every track a few times per style, so they need longer than the default.
 describe("Driving style risks", { timeout: 30_000 }, () => {
-  const calm: DrivingStyle = { ...BOT_STYLES.hard, dropNerve: 0, commit: 0, hunt: 0, greed: 0, lapse: 0 };
+  const calm: DrivingStyle = { ...BOT_STYLES.hard, dropNerve: 0, commit: 0, lapse: 0 };
   const tracks = PRESET_TRACKS.map((t) => buildTrack(t.points, t.features));
 
   /** Drive one car alone for `seconds` with its own mind, the way the Room does. */
@@ -105,5 +105,9 @@ describe("Driving style risks", { timeout: 30_000 }, () => {
     const attacking = runs({ ...calm, commit: 1 });
     expect(mean(attacking.map((r) => r.distance))).toBeGreaterThan(mean(steady.map((r) => r.distance)));
     expect(mean(attacking.map((r) => r.offRoad))).toBeGreaterThan(mean(steady.map((r) => r.offRoad)) + 0.02);
+  });
+
+  it("a driver prone to lapses falls off more often", () => {
+    expect(falls({ ...calm, lapse: 0.3 })).toBeGreaterThan(falls(calm) + 3);
   });
 });
