@@ -16,7 +16,7 @@ export interface DrivingStyle {
   wobble: number;
   /** Chance, each stretch of road, of skipping the usual caution near a drop and cutting along its edge. */
   dropNerve: number;
-  /** Chance, each stretch of road, of going into the bends ahead too hot. */
+  /** Chance, each stretch of road, of attacking the bends ahead: cutting the apex with more speed. */
   commit: number;
   /** Chance, each stretch of road, of chasing the slipstream of a car ahead. */
   hunt: number;
@@ -38,9 +38,10 @@ export const BOT_STYLES: Record<BotSkill, DrivingStyle> = {
 export interface BotMind {
   stretch: number;
   brave: boolean;
+  hot: boolean;
 }
 
-export const newBotMind = (): BotMind => ({ stretch: Number.NaN, brave: false });
+export const newBotMind = (): BotMind => ({ stretch: Number.NaN, brave: false, hot: false });
 
 /** How far a bot drives before it decides again whether to take each risk. */
 const STRETCH = 400;
@@ -53,6 +54,7 @@ function decide(mind: BotMind, s: number, style: DrivingStyle, rng: () => number
   if (stretch === mind.stretch) return;
   mind.stretch = stretch;
   mind.brave = roll(style.dropNerve, rng);
+  mind.hot = roll(style.commit, rng);
 }
 
 export interface BotContext {
@@ -70,6 +72,10 @@ const DROP_CAUTION = 0.95;
 const EDGE_LOOK = 200;
 const EDGE_LOOK_SPEED = 0.5;
 const EDGE_CORNERING = 1.25;
+// Going in hot: it aims further ahead, cutting the apex, and carries more speed in. Quicker on average,
+// but now and then it clips the grass and loses half its speed.
+const HOT_CORNERING = 1.3;
+const HOT_LOOK = 1.5;
 
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -82,7 +88,7 @@ export function botInput(car: CarState, track: Track, style: DrivingStyle, rng: 
   // Brave near a drop: no extra care, and a longer look ahead that cuts the corner along the edge.
   const edging = dropAhead && !!mind?.brave;
   const nearDrop = dropAhead && !edging;
-  const lookAhead = edging ? EDGE_LOOK + speed * EDGE_LOOK_SPEED : nearDrop ? 90 + speed * 0.25 : 120 + speed * 0.35;
+  const lookAhead = edging ? EDGE_LOOK + speed * EDGE_LOOK_SPEED : nearDrop ? 90 + speed * 0.25 : (120 + speed * 0.35) * (mind?.hot ? HOT_LOOK : 1);
   const [tx, ty] = pointAt(track, s + lookAhead);
   const wanted = Math.atan2(ty - car.y, tx - car.x);
   const error = wrapAngle(wanted - car.angle) + (rng() - 0.5) * style.wobble;
@@ -94,7 +100,7 @@ export function botInput(car: CarState, track: Track, style: DrivingStyle, rng: 
     bend = Math.max(bend, Math.abs(wrapAngle(b - a)));
   }
   const surface = (boostAt(track, s) ? BOOST_FACTOR : 1) * (nearDrop ? DROP_CAUTION : 1) * draftFactor(draft);
-  const target = defaultCarParams.maxSpeed * style.pace * surface * Math.max(0.3, 1 - (bend * 1.6) / (style.cornering * (edging ? EDGE_CORNERING : 1)));
+  const target = defaultCarParams.maxSpeed * style.pace * surface * Math.max(0.3, 1 - (bend * 1.6) / (style.cornering * (edging ? EDGE_CORNERING : 1) * (mind?.hot ? HOT_CORNERING : 1)));
 
   return {
     ...emptyInput,

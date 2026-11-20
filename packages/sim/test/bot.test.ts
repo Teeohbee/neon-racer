@@ -64,7 +64,8 @@ describe("botInput", () => {
   });
 });
 
-describe("Driving style risks", () => {
+// Each of these drives every track a few times per style, so they need longer than the default.
+describe("Driving style risks", { timeout: 30_000 }, () => {
   const calm: DrivingStyle = { ...BOT_STYLES.hard, dropNerve: 0, commit: 0, hunt: 0, greed: 0, lapse: 0 };
   const tracks = PRESET_TRACKS.map((t) => buildTrack(t.points, t.features));
 
@@ -89,9 +90,20 @@ describe("Driving style risks", () => {
 
   /** Every preset track, a few seeds each. */
   const runs = (style: DrivingStyle, seconds = 40) => tracks.flatMap((track) => [1, 2, 3].map((seed) => drive(style, track, seconds, seed * 7919)));
-  const falls = (style: DrivingStyle) => runs(style).filter((r) => r.fell).length;
+  let calmRuns: ReturnType<typeof runs> | undefined;
+  const steadyRuns = () => (calmRuns ??= runs(calm));
+  const falls = (style: DrivingStyle) => (style === calm ? steadyRuns() : runs(style)).filter((r) => r.fell).length;
+
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
   it("a driver with more nerve near drops falls off more often", () => {
     expect(falls({ ...calm, dropNerve: 1 })).toBeGreaterThan(falls(calm) + 3);
+  });
+
+  it("a driver who attacks the bends is quicker on average but spends more time off the road", () => {
+    const steady = steadyRuns();
+    const attacking = runs({ ...calm, commit: 1 });
+    expect(mean(attacking.map((r) => r.distance))).toBeGreaterThan(mean(steady.map((r) => r.distance)));
+    expect(mean(attacking.map((r) => r.offRoad))).toBeGreaterThan(mean(steady.map((r) => r.offRoad)) + 0.02);
   });
 });
