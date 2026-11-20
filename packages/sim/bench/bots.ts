@@ -5,7 +5,6 @@
 declare const process: { argv: string[]; exit(code: number): never };
 declare const console: { log(...args: unknown[]): void };
 
-import type { BotSkill } from "../src/bot";
 import type { ServerMsg } from "../src/protocol";
 import { Room, TICK_RATE } from "../src/room";
 import { PRESET_TRACKS } from "../src/tracks";
@@ -15,7 +14,8 @@ const ROUNDS_PER_TRACK = Number(process.argv[2] ?? 30);
 const STALL_SECONDS = 300;
 // Two cars side by side swap the lead every tick; only a pass by more than this counts.
 const LEAD_HYSTERESIS = 60;
-const FIELD: BotSkill[] = ["easy", "medium", "medium", "hard", "hard"];
+// The Room's host is a person, so five Runners fit beside them, and the Room picks which five.
+const FIELD_SIZE = 5;
 
 const TARGETS = {
   leadChanges: 3,
@@ -73,8 +73,7 @@ function benchTrack(track: string, rounds: number) {
     };
     const room = new Room("BNCH", { send: (_, m) => on(m), broadcast: on }, { rng, sketching: false });
     room.join("host", "host");
-    // Rotate the field so each seed seats bots in a different order on the grid.
-    FIELD.forEach((_, i) => room.handle("host", { t: "addBot", skill: FIELD[(i + seed) % FIELD.length]! }));
+    for (let i = 0; i < FIELD_SIZE; i++) room.handle("host", { t: "addBot" });
     room.handle("host", { t: "tracks", names: [track] });
     room.handle("host", { t: "winCondition", kind: "score", target: 12 });
     room.handle("host", { t: "ready", ready: true });
@@ -123,7 +122,7 @@ function summarise(results: RoundResult[], reasons: Record<string, number>) {
 const all: RoundResult[] = [];
 const allReasons: Record<string, number> = {};
 const misses: string[] = [];
-console.log(`Bot bench: ${ROUNDS_PER_TRACK} Rounds per track, field ${FIELD.join(", ")}\n`);
+console.log(`Bot bench: ${ROUNDS_PER_TRACK} Rounds per track, ${FIELD_SIZE} random Runners and an idle host\n`);
 console.log("track            rounds  median   p10   p90  leads  drops  stalled  top winner");
 for (const { name } of PRESET_TRACKS) {
   const { results, reasons } = benchTrack(name, ROUNDS_PER_TRACK);

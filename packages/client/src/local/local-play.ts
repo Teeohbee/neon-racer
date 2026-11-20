@@ -1,6 +1,5 @@
 import type { Application, Ticker } from "pixi.js";
 import {
-  BOT_SKILLS,
   boostAt,
   bridgeAt,
   buildTrack,
@@ -44,7 +43,7 @@ import { notify } from "../shell/notice";
 import { bindHoverSound } from "../shell/ui-sounds";
 import { countdownLabel, createCountdown } from "../ui/countdown";
 import { EMOTE_GLYPHS, floatEmote } from "../ui/emotes";
-import { formatDelta, formatScore, raceName } from "../ui/format";
+import { formatDelta, formatScore } from "../ui/format";
 import { hazardIcon } from "../ui/hazard-icons";
 import { trackThumbs } from "../ui/lobby-settings";
 import { isLegEnd, matchStandings, tallyLine } from "../ui/match-end";
@@ -115,7 +114,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
   const nameOf = (id: string | null | undefined) => player(id)?.name ?? "Someone";
   const shortName = (id: string | null | undefined) => {
     const p = player(id);
-    return p ? raceName(p) : "Someone";
+    return p ? p.name : "Someone";
   };
   const entry = (id: string, value: string) => ({ name: shortName(id), color: css(playerColor(player(id)?.color ?? 0)), value });
   const isSeat = (id: string) => match.seats.some((s) => s.playerId === id);
@@ -320,7 +319,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     const at = track ? follower.follow(track, snap.id, snap.x, snap.y) : null;
     return {
       id: snap.id,
-      name: p ? raceName(p) : "",
+      name: p ? p.name : "",
       color: playerColor(p?.color ?? 0),
       x: snap.x,
       y: snap.y,
@@ -405,7 +404,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
           h(
             "span",
             { class: `score${racing && snapCars.get(p.id)?.alive === false ? " out" : ""}`, style: `--c:${css(playerColor(p.color))}` },
-            h("span", { class: "name" }, raceName(p)),
+            h("span", { class: "name" }, p.name),
             h("span", { class: "pts" }, formatScore(p.score)),
           ),
         ),
@@ -435,8 +434,7 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
       count,
       selector({ label: "Cup", options: CUP_LEGS, value: i.cup, format: (legs) => (legs ? `${legs} tracks` : "Off"), disabled, onChange: (legs) => asHost(...cupMessages(legs, i.tracks)) }),
       selector({ label: "Track", options: trackChoices(i.cup), value: trackChoice(i.tracks), format: trackLabel, disabled, onChange: (choice) => asHost(tracksFor(choice)) }),
-      selector({ label: "Bots", options: Array.from({ length: bots.max + 1 }, (_, n) => n), value: bots.count, format: (n) => (n ? String(n) : "None"), wrap: false, disabled, onChange: (n) => (match.setBots(n, bots.skill), changed()) }),
-      selector({ label: "Bot skill", options: BOT_SKILLS, value: bots.skill, format: (skill) => skill[0]!.toUpperCase() + skill.slice(1), disabled, onChange: (skill) => (match.setBots(bots.count, skill), changed()) }),
+      selector({ label: "Bots", options: Array.from({ length: bots.max + 1 }, (_, n) => n), value: bots.count, format: (n) => (n ? String(n) : "None"), wrap: false, disabled, onChange: (n) => (match.setBots(n), changed()) }),
       h("button", { class: "selector local-menu", onclick: () => exit() }, h("span", { class: "selector-label" }, "Main menu")),
     );
     return h(
@@ -459,12 +457,11 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     if (!p) return h("div", { class: "local-seat open" }, padPrompt("a", "Join"));
     const seat = match.seats.find((s) => s.playerId === p.id);
     const isHost = p.id === i.hostId;
-    const skill = p.bot ? (p.name.match(/\((\w+)\)$/)?.[1] ?? "") : "";
     return h(
       "div",
       { class: `local-seat${isHost ? " host" : ""}`, style: `--c:${css(playerColor(p.color))}` },
-      h("span", { class: "local-seat-tag" }, seat ? `Seat ${seat.number}${isHost ? " ★" : ""}` : `Bot · ${skill}`),
-      h("span", { class: "local-seat-name" }, raceName(p)),
+      h("span", { class: "local-seat-tag" }, seat ? `Seat ${seat.number}${isHost ? " ★" : ""}` : "Runner"),
+      h("span", { class: "local-seat-name" }, p.name),
       p.wins ? h("span", { class: "local-seat-wins" }, `🏆 ${p.wins}`) : null,
       seat ? h("span", { class: "local-seat-prompt" }, isHost ? padPrompt("start", "Start") : padPrompt("b", "Leave")) : null,
     );

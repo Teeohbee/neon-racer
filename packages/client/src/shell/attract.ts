@@ -1,5 +1,5 @@
 import type { Application, Ticker } from "pixi.js";
-import { botInput, BOT_STYLES, bridgeAt, buildTrack, fellOffAt, gridSlots, pointAt, PRESET_TRACKS, speedOf, stepCamera, stepWorldCar, type BotSkill, type Camera, type CarState, type Track } from "@neon/sim";
+import { botInput, bridgeAt, buildTrack, fellOffAt, gridSlots, newBotMind, pointAt, PRESET_TRACKS, RUNNERS, speedOf, stepCamera, stepWorldCar, type Camera, type CarState, type Track } from "@neon/sim";
 import { TrackFollower } from "../net/track-follower";
 import { onBoostPad } from "../render/boost-fx";
 import { PLAYER_COLORS } from "../render/palette";
@@ -13,17 +13,14 @@ const MAX_FRAME = 0.1;
 const SCALE = 1.35;
 const RESPAWN_BACK = 220;
 const DRIFT_LATERAL = 120;
-const FIELD: { name: string; skill: BotSkill }[] = [
-  { name: "VOLT", skill: "hard" },
-  { name: "NOVA", skill: "medium" },
-  { name: "HEX", skill: "hard" },
-  { name: "BYTE", skill: "easy" },
-];
+// A few Runners picked at random, so the title screen shows the bots you'll race.
+const FIELD = [...RUNNERS].sort(() => Math.random() - 0.5);
 
 export function startAttract(app: Application): { stop(): void } {
   const renderer = createRenderer(app);
   const firstTrack = Math.floor(Math.random() * PRESET_TRACKS.length);
   const field = FIELD.slice(0, ATTRACT.cars);
+  const minds = field.map(() => newBotMind());
   let elapsed = 0;
   const clock = createFixedStep(DT, MAX_FRAME);
   let round = -1;
@@ -48,7 +45,7 @@ export function startAttract(app: Application): { stop(): void } {
     cars = cars.map((car, i) => {
       const id = field[i]!.name;
       const near = follower.near(id);
-      const next = stepWorldCar(car, botInput(car, track, BOT_STYLES[field[i]!.skill], Math.random, { near }), DT, { track, hazards: [], now: elapsed, carId: id, near }).car;
+      const next = stepWorldCar(car, botInput(car, track, field[i]!.style, Math.random, { near, mind: minds[i] }), DT, { track, hazards: [], now: elapsed, carId: id, near }).car;
       const at = follower.follow(track, id, next.x, next.y);
       if (!fellOffAt(track, at)) return next;
       const [x, y, angle] = pointAt(track, at.s - RESPAWN_BACK);

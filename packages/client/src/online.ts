@@ -1,6 +1,5 @@
 import type { Application, Ticker } from "pixi.js";
 import {
-  BOT_SKILLS,
   boostAt,
   bridgeAt,
   buildTrack,
@@ -58,7 +57,7 @@ import { displaySettingsWidget } from "./display-widget";
 import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
 import { countdownLabel, createCountdown } from "./ui/countdown";
-import { formatDelta, formatScore, raceName } from "./ui/format";
+import { formatDelta, formatScore } from "./ui/format";
 import { createPodium } from "./ui/podium";
 import { createStreamHud } from "./ui/stream-hud";
 import { bindLobbyShell, copyInvite } from "./shell/lobby-shell";
@@ -169,7 +168,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const nameOf = (id: string | null | undefined) => player(id)?.name ?? "Someone";
   const shortName = (id: string | null | undefined) => {
     const p = player(id);
-    return p ? raceName(p) : "Someone";
+    return p ? p.name : "Someone";
   };
   const entry = (id: string, value: string) => ({ name: shortName(id), color: css(playerColor(player(id)?.color ?? 0)), value });
   const isDrawer = () => info?.phase === "sketch" && info.drawerId === you;
@@ -503,7 +502,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
     const at = track ? follower.follow(track, snap.id, car.x, car.y) : null;
     return {
       id: snap.id,
-      name: p ? raceName(p) : "",
+      name: p ? p.name : "",
       color: playerColor(p?.color ?? 0),
       x: car.x,
       y: car.y,
@@ -643,7 +642,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
           h(
             "span",
             { class: `score${racing && snapCars.get(p.id)?.alive === false ? " out" : ""}`, style: `--c:${css(playerColor(p.color))}`, title: `${p.name} ${formatScore(p.score)}` },
-            h("span", { class: "name" }, raceName(p)),
+            h("span", { class: "name" }, p.name),
             h("span", { class: "pts" }, formatScore(p.score)),
           ),
         ),
@@ -723,7 +722,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
                           { class: "open" },
                           h("span", { class: "dot" }),
                           h("span", { class: "name" }, "Open slot"),
-                          isHost ? h("span", { class: "add-bot" }, ...BOT_SKILLS.map((skill) => h("button", { title: `Add a ${skill} bot`, onclick: () => conn.send({ t: "addBot", skill }) }, `+ ${skill}`))) : null,
+                          isHost ? h("span", { class: "add-bot" }, h("button", { title: "Add a Runner", onclick: () => conn.send({ t: "addBot" }) }, "+ bot")) : null,
                         ),
                   ),
                 ),

@@ -1,5 +1,5 @@
 import { MatchStats } from "./awards";
-import { botInput, BOT_SKILLS, BOT_STYLES, type BotSkill } from "./bot";
+import { botInput, newBotMind, RUNNERS, runnerNamed, type BotMind, type Runner } from "./bot";
 import { frameCamera, frameTarget, isOutsideView, lineGap, type Camera } from "./camera";
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
@@ -23,6 +23,8 @@ export const ELIMINATION_GRACE = 1;
 export const KILL_CREDIT_WINDOW = 3;
 /** How close the line comes to a frozen car before thawing it: a freeze costs places, never the race on its own. */
 export const THAW_GAP = 200;
+/** How close the line has to be behind a bot before it gets desperate. */
+const PRESSURE_GAP = 400;
 const MAX_PROGRESS_STEP = 200;
 const MAX_TRAVEL_SPEED = defaultCarParams.maxSpeed * BOOST_FACTOR * 1.5;
 const GRID_CLEAR_STEP = 20;
@@ -35,8 +37,6 @@ const MAX_INPUT_QUEUE = 30;
 const MAX_INPUTS_PER_TICK = 3;
 export const EMOTE_COOLDOWN = 0.1;
 const MAX_SKETCH_POINTS = 4000;
-const BOT_NAMES = ["Bolt", "Glitch", "Nova", "Pixel", "Sprocket", "Turbo"];
-
 export interface RoomIO {
   send(playerId: string, msg: ServerMsg): void;
   broadcast(msg: ServerMsg): void;
@@ -59,7 +59,9 @@ interface Player {
   ack: number;
   lastHit: { owner: string; at: number } | null;
   cooldowns: Record<HazardKind, number>;
-  bot: BotSkill | null;
+  bot: Runner | null;
+  /** A bot's decisions this Round. */
+  mind: BotMind;
   nextBotHazardAt: number;
   wins: number;
   rematch: boolean;
@@ -119,7 +121,7 @@ export class Room {
     return [...this.players.values()].filter((p) => !p.bot).length;
   }
 
-  join(id: string, name: string, bot: BotSkill | null = null): boolean {
+  join(id: string, name: string, bot: Runner | null = null): boolean {
     if (this.players.size >= MAX_PLAYERS) return false;
     const used = new Set([...this.players.values()].map((p) => p.color));
     const color = [...Array(MAX_PLAYERS).keys()].find((c) => !used.has(c)) ?? 0;
@@ -140,6 +142,7 @@ export class Room {
       lastHit: null,
       cooldowns: freshCooldowns(),
       bot,
+      mind: newBotMind(),
       nextBotHazardAt: 0,
       emoteAt: -Infinity,
       wins: 0,
@@ -220,9 +223,13 @@ export class Room {
         this.emit({ kind: "emote", id, emote: msg.emote });
         return;
       case "addBot": {
-        if (this.phase !== "lobby" || id !== this.hostId || !BOT_SKILLS.includes(msg.skill)) return;
-        const n = ++this.botSeq;
-        this.join(`bot-${n}`, `${BOT_NAMES[(n - 1) % BOT_NAMES.length]} (${msg.skill})`, msg.skill);
+        if (this.phase !== "lobby" || id !== this.hostId) return;
+        const taken = new Set([...this.players.values()].flatMap((p) => (p.bot ? [p.bot.name] : [])));
+        const free = RUNNERS.filter((r) => !taken.has(r.name));
+        const asked = typeof msg.runner === "string" ? runnerNamed(msg.runner) : undefined;
+        const runner = asked && !taken.has(asked.name) ? asked : free[Math.floor(this.rng() * free.length)];
+        if (!runner) return;
+        this.join(`bot-${++this.botSeq}`, runner.name, runner);
         return;
       }
       case "tracks": {
@@ -298,7 +305,8 @@ export class Room {
 
     for (const p of racers) {
       if (!p.bot) continue;
-      const input = botInput(p.car!, track, BOT_STYLES[p.bot], this.rng, { draft: drafts.get(p.id), near: p.progress.s });
+      const pressed = this.line !== null && p.progress.progress - this.line < PRESSURE_GAP;
+      const input = botInput(p.car!, track, p.bot.style, this.rng, { draft: drafts.get(p.id), near: p.progress.s, mind: p.mind, pressed });
       if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       else {
         p.inputs = [];
@@ -579,6 +587,7 @@ export class Room {
       p.lastInput = emptyInput;
       p.lastHit = null;
       p.cooldowns = freshCooldowns();
+      p.mind = newBotMind();
     });
     this.starters = order.length;
     this.eliminationOrder = [];

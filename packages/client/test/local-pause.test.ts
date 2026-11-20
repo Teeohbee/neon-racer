@@ -65,7 +65,8 @@ describe("Local play pause", () => {
     r.press("pad-0", "a");
     r.press("pad-1", "a");
     r.match.asHost({ t: "cup", legs: 3 });
-    r.match.asHost({ t: "addBot", skill: "hard" });
+    r.match.asHost({ t: "addBot" });
+    const runner = r.room()!.players.find((p) => p.bot)!.name;
     r.press("pad-0", "start");
     r.tick(4, () => r.phase() === "race");
     r.press("pad-1", "start");
@@ -78,6 +79,6 @@ describe("Local play pause", () => {
     ]);
     expect(r.match.hostSeat()?.controllerId).toBe("pad-0");
     expect(r.room()!.cup).toBe(3);
-    expect(r.room()!.players.map((p) => p.name)).toEqual(["Cyan", "Pink", expect.stringContaining("(hard)")]);
+    expect(r.room()!.players.map((p) => p.name)).toEqual(["Cyan", "Pink", runner]);
   });
 });
