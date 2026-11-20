@@ -1,4 +1,4 @@
-import { botInput, buildTrack, nearestOnTrack, Room, TICK_RATE, type ClientMsg, type ServerMsg, type Track } from "@neon/sim";
+import { botInput, BOT_STYLES, buildTrack, nearestOnTrack, Room, TICK_RATE, type ClientMsg, type ServerMsg, type Track } from "@neon/sim";
 import { describe, expect, it } from "vitest";
 import { Predictor } from "../src/net/prediction";
 import { seededRng } from "./local-helpers";
@@ -85,7 +85,7 @@ function raceOverLink(delay: number, stall: { chance: number; ticks: [number, nu
       inFlight.push(predictor.lastSeq - mine.ack);
     }
     if (racing && track) {
-      const sent = predictor.step(botInput(predictor.state, track, "hard", rng), DT, ctx());
+      const sent = predictor.step(botInput(predictor.state, track, BOT_STYLES.hard, rng), DT, ctx());
       up.send(tick, { t: "input", seq: sent.seq, input: sent.input });
     }
     for (const msg of up.arrived(tick)) room.handle("me", msg);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botInput, BOT_SKILLS, type BotSkill } from "../src/bot";
+import { botInput, BOT_SKILLS, BOT_STYLES, newBotMind, type BotSkill, type DrivingStyle } from "../src/bot";
 import { advanceProgress, buildTrack, fellOff, gridSlots, isOnRoad, nearestOnTrack, type Track } from "../src/track";
 import { PRESET_TRACKS } from "../src/tracks";
 import { stepWorldCar } from "../src/world";
@@ -24,7 +24,7 @@ function race(skill: BotSkill, trackIndex: number | Track, seconds: number, seed
   const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const steps = seconds * 60;
   for (let i = 0; i < steps && !fell; i++) {
-    car = stepWorldCar(car, botInput(car, track, skill, rng, 0, progress.s), DT, { track, hazards: [], now: i * DT, near: progress.s }).car;
+    car = stepWorldCar(car, botInput(car, track, BOT_STYLES[skill], rng, { near: progress.s }), DT, { track, hazards: [], now: i * DT, near: progress.s }).car;
     progress = advanceProgress(progress, nearestOnTrack(track, car.x, car.y, progress.s).s, track.length, 200);
     if (!isOnRoad(track, car.x, car.y)) offRoad++;
     fell = fellOff(track, car.x, car.y);
@@ -59,7 +59,55 @@ describe("botInput", () => {
     const at = (speed: number) => ({ x: slot.x, y: slot.y, angle: slot.angle, vx: speed * Math.cos(slot.angle), vy: speed * Math.sin(slot.angle) });
     const steady = () => 0.5;
     let speed = 0;
-    while (botInput(at(speed), track, "hard", steady).throttle) speed += 5;
-    expect(botInput(at(speed), track, "hard", steady, 1).throttle).toBe(true);
+    while (botInput(at(speed), track, BOT_STYLES.hard, steady).throttle) speed += 5;
+    expect(botInput(at(speed), track, BOT_STYLES.hard, steady, { draft: 1 }).throttle).toBe(true);
+  });
+});
+
+// Each of these drives every track a few times per style, so they need longer than the default.
+describe("Driving style risks", { timeout: 30_000 }, () => {
+  const calm: DrivingStyle = { ...BOT_STYLES.hard, dropNerve: 0, commit: 0, lapse: 0 };
+  const tracks = PRESET_TRACKS.map((t) => buildTrack(t.points, t.features));
+
+  /** Drive one car alone for `seconds` with its own mind, the way the Room does. */
+  function drive(style: DrivingStyle, track: Track, seconds: number, seed: number) {
+    const slot = gridSlots(track, 1)[0]!;
+    let car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
+    let progress = { s: nearestOnTrack(track, car.x, car.y).s, progress: 0 };
+    const mind = newBotMind();
+    const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    let fell = false;
+    let offRoad = 0;
+    let ticks = 0;
+    for (; ticks < seconds * 60 && !fell; ticks++) {
+      car = stepWorldCar(car, botInput(car, track, style, rng, { near: progress.s, mind }), DT, { track, hazards: [], now: ticks * DT, near: progress.s }).car;
+      progress = advanceProgress(progress, nearestOnTrack(track, car.x, car.y, progress.s).s, track.length, 200);
+      if (!isOnRoad(track, car.x, car.y)) offRoad++;
+      fell = fellOff(track, car.x, car.y);
+    }
+    return { distance: progress.progress, fell, offRoad: offRoad / ticks };
+  }
+
+  /** Every preset track, a few seeds each. */
+  const runs = (style: DrivingStyle, seconds = 40) => tracks.flatMap((track) => [1, 2, 3].map((seed) => drive(style, track, seconds, seed * 7919)));
+  let calmRuns: ReturnType<typeof runs> | undefined;
+  const steadyRuns = () => (calmRuns ??= runs(calm));
+  const falls = (style: DrivingStyle) => (style === calm ? steadyRuns() : runs(style)).filter((r) => r.fell).length;
+
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+  it("a driver with more nerve near drops falls off more often", () => {
+    expect(falls({ ...calm, dropNerve: 1 })).toBeGreaterThan(falls(calm) + 3);
+  });
+
+  it("a driver who attacks the bends is quicker on average but spends more time off the road", () => {
+    const steady = steadyRuns();
+    const attacking = runs({ ...calm, commit: 1 });
+    expect(mean(attacking.map((r) => r.distance))).toBeGreaterThan(mean(steady.map((r) => r.distance)));
+    expect(mean(attacking.map((r) => r.offRoad))).toBeGreaterThan(mean(steady.map((r) => r.offRoad)) + 0.02);
+  });
+
+  it("a driver prone to lapses falls off more often", () => {
+    expect(falls({ ...calm, lapse: 0.3 })).toBeGreaterThan(falls(calm) + 3);
   });
 });

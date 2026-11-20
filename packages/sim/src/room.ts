@@ -1,5 +1,5 @@
 import { MatchStats } from "./awards";
-import { botInput, BOT_SKILLS, type BotSkill } from "./bot";
+import { botInput, BOT_SKILLS, BOT_STYLES, type BotSkill } from "./bot";
 import { frameCamera, frameTarget, isOutsideView, lineGap, type Camera } from "./camera";
 import { defaultCarParams, emptyInput, type CarInput, type CarState } from "./car";
 import { resolveCarCollisions } from "./collision";
@@ -298,7 +298,7 @@ export class Room {
 
     for (const p of racers) {
       if (!p.bot) continue;
-      const input = botInput(p.car!, track, p.bot, this.rng, drafts.get(p.id), p.progress.s);
+      const input = botInput(p.car!, track, BOT_STYLES[p.bot], this.rng, { draft: drafts.get(p.id), near: p.progress.s });
       if (this.mode === "ghost") p.car = stepWorldCar(p.car!, input, dt, { track, hazards: this.hazards, now, carId: p.id, draft: drafts.get(p.id), near: p.progress.s }).car;
       else {
         p.inputs = [];
