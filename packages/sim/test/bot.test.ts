@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botInput, BOT_SKILLS, type BotSkill } from "../src/bot";
+import { botInput, BOT_SKILLS, BOT_STYLES, type BotSkill } from "../src/bot";
 import { advanceProgress, buildTrack, fellOff, gridSlots, isOnRoad, nearestOnTrack, type Track } from "../src/track";
 import { PRESET_TRACKS } from "../src/tracks";
 import { stepWorldCar } from "../src/world";
@@ -24,7 +24,7 @@ function race(skill: BotSkill, trackIndex: number | Track, seconds: number, seed
   const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const steps = seconds * 60;
   for (let i = 0; i < steps && !fell; i++) {
-    car = stepWorldCar(car, botInput(car, track, skill, rng, 0, progress.s), DT, { track, hazards: [], now: i * DT, near: progress.s }).car;
+    car = stepWorldCar(car, botInput(car, track, BOT_STYLES[skill], rng, { near: progress.s }), DT, { track, hazards: [], now: i * DT, near: progress.s }).car;
     progress = advanceProgress(progress, nearestOnTrack(track, car.x, car.y, progress.s).s, track.length, 200);
     if (!isOnRoad(track, car.x, car.y)) offRoad++;
     fell = fellOff(track, car.x, car.y);
@@ -59,7 +59,7 @@ describe("botInput", () => {
     const at = (speed: number) => ({ x: slot.x, y: slot.y, angle: slot.angle, vx: speed * Math.cos(slot.angle), vy: speed * Math.sin(slot.angle) });
     const steady = () => 0.5;
     let speed = 0;
-    while (botInput(at(speed), track, "hard", steady).throttle) speed += 5;
-    expect(botInput(at(speed), track, "hard", steady, 1).throttle).toBe(true);
+    while (botInput(at(speed), track, BOT_STYLES.hard, steady).throttle) speed += 5;
+    expect(botInput(at(speed), track, BOT_STYLES.hard, steady, { draft: 1 }).throttle).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import type { Application, Ticker } from "pixi.js";
-import { botInput, bridgeAt, buildTrack, fellOffAt, gridSlots, pointAt, PRESET_TRACKS, speedOf, stepCamera, stepWorldCar, type BotSkill, type Camera, type CarState, type Track } from "@neon/sim";
+import { botInput, BOT_STYLES, bridgeAt, buildTrack, fellOffAt, gridSlots, pointAt, PRESET_TRACKS, speedOf, stepCamera, stepWorldCar, type BotSkill, type Camera, type CarState, type Track } from "@neon/sim";
 import { TrackFollower } from "../net/track-follower";
 import { onBoostPad } from "../render/boost-fx";
 import { PLAYER_COLORS } from "../render/palette";
@@ -48,7 +48,7 @@ export function startAttract(app: Application): { stop(): void } {
     cars = cars.map((car, i) => {
       const id = field[i]!.name;
       const near = follower.near(id);
-      const next = stepWorldCar(car, botInput(car, track, field[i]!.skill, Math.random, 0, near), DT, { track, hazards: [], now: elapsed, carId: id, near }).car;
+      const next = stepWorldCar(car, botInput(car, track, BOT_STYLES[field[i]!.skill], Math.random, { near }), DT, { track, hazards: [], now: elapsed, carId: id, near }).car;
       const at = follower.follow(track, id, next.x, next.y);
       if (!fellOffAt(track, at)) return next;
       const [x, y, angle] = pointAt(track, at.s - RESPAWN_BACK);
