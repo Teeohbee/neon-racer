@@ -28,7 +28,7 @@ export class Predictor {
    * Replays the inputs the server hadn't applied yet on top of its car. `ctx.now` is the server's clock in that
    * snapshot: it applies one input a tick from there, so each is replayed at the time it will meet hazards.
    */
-  reconcile(server: CarState, ack: number, dt: number, ctx: StepContext): void {
+  reconcile(server: CarState, ack: number, dt: number, ctx: StepContext): number {
     this.pending = this.pending.filter((p) => p.seq > ack);
     this.server = { now: ctx.now, ack };
     const before = this.state;
@@ -37,6 +37,7 @@ export class Predictor {
     this.errorX += before.x - state.x;
     this.errorY += before.y - state.y;
     this.state = state;
+    return Math.hypot(before.x - state.x, before.y - state.y);
   }
 
   reset(state: CarState): void {

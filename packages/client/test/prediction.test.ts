@@ -34,4 +34,11 @@ describe("Predictor", () => {
     for (let i = 0; i < 60; i++) p.step(emptyInput, DT, ctx);
     expect(p.rendered.y).toBeCloseTo(p.state.y, 0);
   });
+
+  it("says how far each reconcile moved the car", () => {
+    const p = new Predictor(origin);
+    for (let i = 0; i < 10; i++) p.step(emptyInput, DT, ctx);
+    expect(p.reconcile(origin, 4, DT, ctx)).toBeCloseTo(0, 6);
+    expect(p.reconcile({ ...origin, x: 3, y: 4 }, 4, DT, ctx)).toBeCloseTo(5, 6);
+  });
 });
