@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botInput, BOT_SKILLS, BOT_STYLES, type BotSkill } from "../src/bot";
+import { botInput, BOT_SKILLS, BOT_STYLES, newBotMind, type BotSkill, type DrivingStyle } from "../src/bot";
 import { advanceProgress, buildTrack, fellOff, gridSlots, isOnRoad, nearestOnTrack, type Track } from "../src/track";
 import { PRESET_TRACKS } from "../src/tracks";
 import { stepWorldCar } from "../src/world";
@@ -61,5 +61,37 @@ describe("botInput", () => {
     let speed = 0;
     while (botInput(at(speed), track, BOT_STYLES.hard, steady).throttle) speed += 5;
     expect(botInput(at(speed), track, BOT_STYLES.hard, steady, { draft: 1 }).throttle).toBe(true);
+  });
+});
+
+describe("Driving style risks", () => {
+  const calm: DrivingStyle = { ...BOT_STYLES.hard, dropNerve: 0, commit: 0, hunt: 0, greed: 0, lapse: 0 };
+  const tracks = PRESET_TRACKS.map((t) => buildTrack(t.points, t.features));
+
+  /** Drive one car alone for `seconds` with its own mind, the way the Room does. */
+  function drive(style: DrivingStyle, track: Track, seconds: number, seed: number) {
+    const slot = gridSlots(track, 1)[0]!;
+    let car = { x: slot.x, y: slot.y, angle: slot.angle, vx: 0, vy: 0 };
+    let progress = { s: nearestOnTrack(track, car.x, car.y).s, progress: 0 };
+    const mind = newBotMind();
+    const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    let fell = false;
+    let offRoad = 0;
+    let ticks = 0;
+    for (; ticks < seconds * 60 && !fell; ticks++) {
+      car = stepWorldCar(car, botInput(car, track, style, rng, { near: progress.s, mind }), DT, { track, hazards: [], now: ticks * DT, near: progress.s }).car;
+      progress = advanceProgress(progress, nearestOnTrack(track, car.x, car.y, progress.s).s, track.length, 200);
+      if (!isOnRoad(track, car.x, car.y)) offRoad++;
+      fell = fellOff(track, car.x, car.y);
+    }
+    return { distance: progress.progress, fell, offRoad: offRoad / ticks };
+  }
+
+  /** Every preset track, a few seeds each. */
+  const runs = (style: DrivingStyle, seconds = 40) => tracks.flatMap((track) => [1, 2, 3].map((seed) => drive(style, track, seconds, seed * 7919)));
+  const falls = (style: DrivingStyle) => runs(style).filter((r) => r.fell).length;
+
+  it("a driver with more nerve near drops falls off more often", () => {
+    expect(falls({ ...calm, dropNerve: 1 })).toBeGreaterThan(falls(calm) + 3);
   });
 });
