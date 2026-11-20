@@ -8,7 +8,6 @@ import {
   Room,
   TICK_RATE,
   VIEW,
-  type BotSkill,
   type ClientMsg,
   type Emote,
   type HazardKind,
@@ -92,8 +91,6 @@ export class LocalMatch {
   private pauser: string | null = null;
   private latestSnap: Snap | null = null;
   private cursors = new Map<string, ScreenCursor>();
-  private botSkills = new Map<string, BotSkill>();
-  private botSkill: BotSkill = "medium";
   private sim: Room;
 
   constructor(private readonly opts: LocalMatchOptions) {
@@ -182,32 +179,24 @@ export class LocalMatch {
   asHost(msg: ClientMsg): void {
     const host = this.hostSeat();
     if (!host) return;
-    const before = new Set(this.roomState?.players.map((p) => p.id));
     this.sim.handle(host.playerId, msg);
-    if (msg.t === "addBot") {
-      const added = this.roomState?.players.find((p) => p.bot && !before.has(p.id));
-      if (added) this.botSkills.set(added.id, msg.skill);
-    }
   }
 
-  /** The lobby's bots: how many, the one skill they share, and how many fit beside the Seats. */
-  bots(): { count: number; skill: BotSkill; max: number } {
+  /** The lobby's bots: how many, and how many fit beside the Seats. */
+  bots(): { count: number; max: number } {
     const count = this.roomState.players.filter((p) => p.bot).length;
-    return { count, skill: this.botSkill, max: MAX_PLAYERS - this.seatList.length };
+    return { count, max: MAX_PLAYERS - this.seatList.length };
   }
 
-  /** Add or remove bots to reach `count`, all of `skill`; a new skill swaps every bot. */
-  setBots(count: number, skill: BotSkill): void {
+  /** Add or remove Runners to reach `count`: the Room picks who joins, and the last to join leave first. */
+  setBots(count: number): void {
     if (!this.hostSeat()) return;
     const target = Math.max(0, Math.min(count, this.bots().max));
-    this.botSkill = skill;
     const current = () => this.roomState.players.filter((p) => p.bot);
-    for (const bot of current()) {
-      if (this.botSkills.get(bot.id) !== skill || current().length > target) this.asHost({ t: "removeBot", id: bot.id });
-    }
+    while (current().length > target) this.asHost({ t: "removeBot", id: current().at(-1)!.id });
     while (current().length < target) {
       const before = current().length;
-      this.asHost({ t: "addBot", skill });
+      this.asHost({ t: "addBot" });
       if (current().length === before) return;
     }
   }
@@ -237,15 +226,11 @@ export class LocalMatch {
       if (joined && seat.controllerId === null) this.bind(joined.playerId, null);
     }
     if (!previous) return;
-    const bots = previous.players.flatMap((p) => {
-      const skill = this.botSkills.get(p.id);
-      return p.bot && skill ? [skill] : [];
-    });
-    this.botSkills.clear();
+    const runners = previous.players.filter((p) => p.bot).map((p) => p.name);
     this.asHost({ t: "tracks", names: previous.tracks });
     this.asHost({ t: "winCondition", ...previous.win });
     this.asHost({ t: "cup", legs: previous.cup });
-    for (const skill of bots) this.asHost({ t: "addBot", skill });
+    for (const runner of runners) this.asHost({ t: "addBot", runner });
   }
 
   /** Handle this frame's controller presses. Call once per controller poll, before `step`. */

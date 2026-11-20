@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { awardDelay, finalStandings, nameFit, podiumOrder } from "../src/ui/podium";
-import { formatDelta, formatScore, raceName } from "../src/ui/format";
+import { formatDelta, formatScore } from "../src/ui/format";
 
 const player = (id: string, score: number) => ({ id, name: id, color: 0, ready: true, score, bot: false, wins: 0, rematch: false, cupPoints: 0 });
 
@@ -50,11 +50,6 @@ describe("format", () => {
     expect(formatDelta(2)).toBe("+2");
     expect(formatDelta(0)).toBe("0");
     expect(formatDelta(-1)).toBe("-1");
-  });
-
-  it("drops a bot's difficulty in race, but not a person's brackets", () => {
-    expect(raceName({ name: "Glitch (hard)", bot: true })).toBe("Glitch");
-    expect(raceName({ name: "Bob (hard)", bot: false })).toBe("Bob (hard)");
   });
 });
 

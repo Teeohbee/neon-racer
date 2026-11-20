@@ -10,7 +10,7 @@ type Snap = Extract<ServerMsg, { t: "snap" }>;
 function racing() {
   const r = localRig();
   r.press("pad-0", "a");
-  r.match.asHost({ t: "addBot", skill: "medium" });
+  r.match.asHost({ t: "addBot" });
   r.press("pad-0", "start");
   r.tick(4, () => r.phase() === "race");
   r.tick(0.2);
@@ -73,7 +73,7 @@ describe("the Local countdown", () => {
   it("gives 3, 2 and 1 a second each and says GO as the race starts, even when the first frame stalls", () => {
     const r = localRig();
     r.press("pad-0", "a");
-    r.match.asHost({ t: "addBot", skill: "medium" });
+    r.match.asHost({ t: "addBot" });
     r.press("pad-0", "start");
     r.tick(4, () => r.phase() === "countdown");
     const snaps = new StepSnaps();

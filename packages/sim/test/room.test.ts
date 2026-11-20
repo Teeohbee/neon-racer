@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { isOutsideView, LINE_GAP, SUDDEN_DEATH_AT } from "../src/camera";
 import { emptyInput } from "../src/car";
+import { RUNNERS } from "../src/bot";
 import { ARM_DELAY, HAZARD_SPECS, isFrozen } from "../src/hazards";
 import type { ClientMsg, GameEvent, Mode, ServerMsg, WinCondition } from "../src/protocol";
 import { COUNTDOWN_SECONDS, DEFAULT_WIN, ELIMINATION_GRACE, ROUND_END_SECONDS, Room, SKETCH_SECONDS, SNAP_EVERY, THAW_GAP, TICK_RATE } from "../src/room";
@@ -841,26 +842,51 @@ describe("bots", () => {
 
   it("can only be added by the host, and are always ready", () => {
     const g = setup(["ann", "bob"]);
-    g.send("bob", { t: "addBot", skill: "easy" });
+    g.send("bob", { t: "addBot" });
     expect(roster(g)).toHaveLength(2);
-    g.send("ann", { t: "addBot", skill: "hard" });
-    const bot = roster(g).find((p) => p.bot)!;
-    expect(bot.ready).toBe(true);
-    expect(bot.name).toContain("hard");
-    for (let n = 0; n < 4; n++) g.send("ann", { t: "addBot", skill: "medium" });
-    expect(roster(g).filter((p) => p.bot).every((p) => p.name.endsWith(")"))).toBe(true);
+    g.send("ann", { t: "addBot" });
+    expect(roster(g).find((p) => p.bot)!.ready).toBe(true);
+  });
+
+  it("are Runners, each one at most once, named without a tier", () => {
+    const g = setup(["ann"]);
+    for (let n = 0; n < 5; n++) g.send("ann", { t: "addBot" });
+    const names = roster(g).filter((p) => p.bot).map((p) => p.name);
+    expect(names).toHaveLength(5);
+    expect(new Set(names).size).toBe(5);
+    for (const name of names) expect(RUNNERS.map((r) => r.name)).toContain(name);
+  });
+
+  it("are picked at random from the Runners", () => {
+    const firsts = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((n) => {
+      const seed = n * 104729;
+      const g = setup(["ann"], seed);
+      g.send("ann", { t: "addBot" });
+      return roster(g).find((p) => p.bot)!.name;
+    }));
+    expect(firsts.size).toBeGreaterThan(2);
+  });
+
+  it("can be asked for by name, when that Runner isn't already in", () => {
+    const g = setup(["ann"]);
+    g.send("ann", { t: "addBot", runner: "Nova" });
+    g.send("ann", { t: "addBot", runner: "Nova" });
+    const names = roster(g).filter((p) => p.bot).map((p) => p.name);
+    expect(names[0]).toBe("Nova");
+    expect(names).toHaveLength(2);
+    expect(names[1]).not.toBe("Nova");
   });
 
   it("let a lone player start a match", () => {
     const g = setup(["ann"], 1, false);
-    g.send("ann", { t: "addBot", skill: "medium" });
+    g.send("ann", { t: "addBot" });
     g.send("ann", { t: "ready", ready: true });
     expect(g.room.phase).toBe("countdown");
   });
 
   it("drive themselves during the race", () => {
     const g = setup(["ann"], 1, false);
-    g.send("ann", { t: "addBot", skill: "hard" });
+    g.send("ann", { t: "addBot" });
     g.send("ann", { t: "ready", ready: true });
     g.run(COUNTDOWN_SECONDS + DT);
     const id = roster(g).find((p) => p.bot)!.id;
@@ -874,7 +900,7 @@ describe("bots", () => {
     const botSpeed = (tow: boolean) => {
       usePresets({ name: "Loop", points: loop, features: [] });
       const g = setup(["ann"], 1, false);
-      g.send("ann", { t: "addBot", skill: "hard" });
+      g.send("ann", { t: "addBot" });
       g.send("ann", { t: "ready", ready: true });
       g.run(COUNTDOWN_SECONDS + DT);
       const id = roster(g).find((p) => p.bot)!.id;
@@ -894,14 +920,14 @@ describe("bots", () => {
 
   it("can be removed by the host", () => {
     const g = setup(["ann"]);
-    g.send("ann", { t: "addBot", skill: "easy" });
+    g.send("ann", { t: "addBot" });
     g.send("ann", { t: "removeBot", id: roster(g).find((p) => p.bot)!.id });
     expect(roster(g)).toHaveLength(1);
   });
 
   it("don't keep a room alive or take host", () => {
     const g = setup(["ann", "bob"]);
-    g.send("ann", { t: "addBot", skill: "easy" });
+    g.send("ann", { t: "addBot" });
     expect(g.room.size).toBe(2);
     g.room.leave("ann");
     expect(g.last("room")!.hostId).toBe("bob");
@@ -909,7 +935,7 @@ describe("bots", () => {
 
   it("drop hazards once they're knocked out", () => {
     const g = setup(["ann"], 1, false);
-    for (let i = 0; i < 3; i++) g.send("ann", { t: "addBot", skill: "hard" });
+    for (let i = 0; i < 3; i++) g.send("ann", { t: "addBot" });
     g.send("ann", { t: "ready", ready: true });
     g.run(COUNTDOWN_SECONDS + DT);
     const track = buildTrack(g.last("track")!.raw);

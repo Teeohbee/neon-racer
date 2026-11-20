@@ -225,7 +225,7 @@ export class Lobby {
     if (msg.t === "emote" || msg.t === "sketch") return;
     const detail: Record<string, unknown> = { room: code, player: this.who(watch, id), type: msg.t, phase: watch.phase };
     if (msg.t === "hazard") detail.kind = msg.kind;
-    else if (msg.t === "addBot") detail.skill = msg.skill;
+    else if (msg.t === "addBot" && msg.runner) detail.runner = msg.runner;
     else if (msg.t === "ready") detail.ready = msg.ready;
     else if (msg.t === "mode") detail.mode = msg.mode;
     else if (msg.t === "tracks") detail.tracks = msg.names.length;

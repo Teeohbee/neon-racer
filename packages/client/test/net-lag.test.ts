@@ -1,4 +1,4 @@
-import { botInput, BOT_STYLES, buildTrack, nearestOnTrack, Room, TICK_RATE, type ClientMsg, type ServerMsg, type Track } from "@neon/sim";
+import { botInput, RUNNERS, buildTrack, nearestOnTrack, Room, TICK_RATE, type ClientMsg, type ServerMsg, type Track } from "@neon/sim";
 import { describe, expect, it } from "vitest";
 import { Predictor } from "../src/net/prediction";
 import { seededRng } from "./local-helpers";
@@ -32,7 +32,10 @@ class Link<T> {
 }
 
 /** A Contact race against a bot, played through a predicting client over a laggy link, as Online play does. */
-function raceOverLink(delay: number, stall: { chance: number; ticks: [number, number] }, seconds = 30, easyBots = 0, seed = 3) {
+// You drive in the quickest Runner's style, with no mind so it takes no risks: you need to stay in the race to be measured.
+const QUICKEST = RUNNERS.reduce((a, b) => (b.style.pace > a.style.pace ? b : a)).style;
+
+function raceOverLink(delay: number, stall: { chance: number; ticks: [number, number] }, seconds = 30, extraBots = 0, seed = 3) {
   let tick = 0;
   const down = new Link<ServerMsg>(delay, stall, seededRng(11));
   const up = new Link<ClientMsg>(delay, stall, seededRng(12));
@@ -40,9 +43,9 @@ function raceOverLink(delay: number, stall: { chance: number; ticks: [number, nu
   const room = new Room("LAG", { send: (to, msg) => to === "me" && down.send(tick, msg), broadcast: (msg) => down.send(tick, msg) }, { rng, sketching: false });
   room.join("me", "me");
   room.handle("me", { t: "mode", mode: "contact" });
-  room.handle("me", { t: "addBot", skill: "hard" });
-  // Easy bots soon fall to the line, then throw hazards at the leader.
-  for (let i = 0; i < easyBots; i++) room.handle("me", { t: "addBot", skill: "easy" });
+  room.handle("me", { t: "addBot" });
+  // Bots that fall to the line throw hazards at the leader.
+  for (let i = 0; i < extraBots; i++) room.handle("me", { t: "addBot" });
   room.handle("me", { t: "ready", ready: true });
 
   let track: Track | null = null;
@@ -85,7 +88,7 @@ function raceOverLink(delay: number, stall: { chance: number; ticks: [number, nu
       inFlight.push(predictor.lastSeq - mine.ack);
     }
     if (racing && track) {
-      const sent = predictor.step(botInput(predictor.state, track, BOT_STYLES.hard, rng), DT, ctx());
+      const sent = predictor.step(botInput(predictor.state, track, QUICKEST, rng), DT, ctx());
       up.send(tick, { t: "input", seq: sent.seq, input: sent.input });
     }
     for (const msg of up.arrived(tick)) room.handle("me", msg);
@@ -105,7 +108,7 @@ describe("driving Online over a laggy connection", () => {
     expect(worst).toBeLessThan(32);
   });
 
-  // Easy bots soon fall to the line and throw hazards about, often at the hard bot right beside you. Bumping a car
+  // Bots knocked out throw hazards about, often at the Runner right beside you. Bumping a car
   // that a freeze has just stopped dead is the server's to resolve, so only driving clear of other cars is judged.
   it.each([1, 2, 3, 4, 5, 6, 7, 8])("doesn't pull your car about when hazards switch on and off around it (seed %i)", (seed) => {
     const { corrections, worstClearOfCars } = raceOverLink(3, { chance: 0, ticks: [0, 0] }, 40, 3, seed);

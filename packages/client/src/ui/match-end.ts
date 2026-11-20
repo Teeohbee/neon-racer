@@ -1,5 +1,5 @@
 import type { PlayerInfo } from "@neon/sim";
-import { formatScore, raceName } from "./format";
+import { formatScore } from "./format";
 import { finalStandings } from "./podium";
 
 type Cup = { cup: number; leg: number };
@@ -23,5 +23,5 @@ export const matchStandings = ({ players, cup }: { players: PlayerInfo[]; cup: n
 
 export function tallyLine(players: PlayerInfo[]): string {
   const winners = players.filter((p) => p.wins > 0).sort((a, b) => b.wins - a.wins);
-  return winners.length ? `Tonight: ${winners.map((p) => `${raceName(p)} ${p.wins}`).join(" · ")}` : "";
+  return winners.length ? `Tonight: ${winners.map((p) => `${p.name} ${p.wins}`).join(" · ")}` : "";
 }

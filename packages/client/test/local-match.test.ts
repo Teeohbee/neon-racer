@@ -64,7 +64,7 @@ describe("Local play seats", () => {
     const drives = r.match.menuControllers();
     expect(["pad-0", "pad-1", "pad-5"].map(drives)).toEqual([true, false, false]);
     r.match.asHost({ t: "cup", legs: 3 });
-    r.match.asHost({ t: "addBot", skill: "easy" });
+    r.match.asHost({ t: "addBot" });
     expect(r.room()!.cup).toBe(3);
     expect(r.room()!.players.filter((p) => p.bot)).toHaveLength(1);
   });
@@ -88,7 +88,7 @@ describe("Local play match", () => {
     r.press("pad-0", "start");
     expect(r.phase()).toBe("lobby");
     expect(r.notices.at(-1)).toEqual({ kind: "needsRacers" });
-    r.match.asHost({ t: "addBot", skill: "easy" });
+    r.match.asHost({ t: "addBot" });
     r.press("pad-0", "start");
     expect(r.phase()).toBe("countdown");
   });
@@ -126,7 +126,7 @@ describe("Local play match end", () => {
     r.press("pad-0", "a");
     r.press("pad-1", "a");
     r.match.asHost({ t: "winCondition", kind: "score", target: 5 });
-    r.match.asHost({ t: "addBot", skill: "hard" });
+    r.match.asHost({ t: "addBot" });
     r.press("pad-0", "start");
     if (!r.tick(600, () => r.phase() === "matchEnd")) throw new Error("the match never ended");
     return r;
@@ -153,61 +153,47 @@ describe("Local play match end", () => {
 });
 
 describe("Local play bots", () => {
-  const bots = (r: ReturnType<typeof localRig>) => r.room()!.players.filter((p) => p.bot).map((p) => p.name.match(/\((\w+)\)/)?.[1]);
+  const bots = (r: ReturnType<typeof localRig>) => r.room()!.players.filter((p) => p.bot).map((p) => p.name);
 
-  it("start at none, Medium", () => {
+  it("start at none", () => {
     const r = localRig();
     r.press("pad-0", "a");
-    expect(r.match.bots()).toEqual({ count: 0, skill: "medium", max: 5 });
+    expect(r.match.bots()).toEqual({ count: 0, max: 5 });
   });
 
-  it("adds and removes bots to reach the count the Host picks", () => {
+  it("adds and removes Runners to reach the count the Host picks", () => {
     const r = localRig();
     r.press("pad-0", "a");
-    r.match.setBots(3, "medium");
-    expect(bots(r)).toEqual(["medium", "medium", "medium"]);
-    r.match.setBots(1, "medium");
-    expect(bots(r)).toEqual(["medium"]);
-    expect(r.match.bots()).toMatchObject({ count: 1, skill: "medium" });
-  });
-
-  it("swaps every bot for the new skill when the Host changes it", () => {
-    const r = localRig();
-    r.press("pad-0", "a");
-    r.match.setBots(2, "medium");
-    r.match.setBots(2, "hard");
-    expect(bots(r)).toEqual(["hard", "hard"]);
-    expect(r.match.bots()).toMatchObject({ count: 2, skill: "hard" });
-  });
-
-  it("remembers the skill with no bots in the lobby", () => {
-    const r = localRig();
-    r.press("pad-0", "a");
-    r.match.setBots(0, "easy");
-    expect(r.match.bots()).toMatchObject({ count: 0, skill: "easy" });
+    r.match.setBots(3);
+    const three = bots(r);
+    expect(new Set(three).size).toBe(3);
+    r.match.setBots(1);
+    expect(bots(r)).toEqual([three[0]]);
+    expect(r.match.bots()).toMatchObject({ count: 1 });
   });
 
   it("leaves room for the Seats", () => {
     const r = localRig();
     r.press("pad-0", "a");
     r.press("pad-1", "a");
-    r.match.setBots(9, "easy");
+    r.match.setBots(9);
     expect(bots(r)).toHaveLength(4);
     expect(r.match.bots()).toMatchObject({ count: 4, max: 4 });
   });
 
   it("does nothing without a Host", () => {
     const r = localRig();
-    r.match.setBots(2, "hard");
+    r.match.setBots(2);
     expect(bots(r)).toEqual([]);
   });
 
-  it("keeps the bots and their skill when going back to the lobby", () => {
+  it("keeps the same Runners when going back to the lobby", () => {
     const r = localRig();
     r.press("pad-0", "a");
-    r.match.setBots(2, "easy");
+    r.match.setBots(2);
+    const before = bots(r);
     r.match.backToLobby();
-    expect(bots(r)).toEqual(["easy", "easy"]);
-    expect(r.match.bots()).toMatchObject({ count: 2, skill: "easy" });
+    expect(bots(r)).toEqual(before);
   });
 });
+
