@@ -51,6 +51,7 @@ The launcher downloads the release without signing in, so the repo has to be pub
 ```sh
 bun run test
 bun run check
+bun run bench:bots   # bot-only Rounds on every track vs the watchability targets; by hand, not CI
 ```
 
 ## Layout
