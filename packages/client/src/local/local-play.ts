@@ -47,8 +47,8 @@ import { EMOTE_GLYPHS, floatEmote } from "../ui/emotes";
 import { formatDelta, formatScore, raceName } from "../ui/format";
 import { hazardIcon } from "../ui/hazard-icons";
 import { trackThumbs } from "../ui/lobby-settings";
-import { cupTable, isLegEnd, tallyLine } from "../ui/match-end";
-import { createPodium, finalStandings } from "../ui/podium";
+import { isLegEnd, matchStandings, tallyLine } from "../ui/match-end";
+import { createPodium } from "../ui/podium";
 import { selector } from "../ui/selector";
 import { createStreamHud } from "../ui/stream-hud";
 import { cupMessages, modeWin, RANDOM_TRACK, trackChoice, trackChoices, tracksFor } from "./lobby-choices";
@@ -217,11 +217,12 @@ export function startLocalPlay(app: Application, ui: HTMLElement, opts: LocalPla
     const rules = i.win.kind === "laps" ? `${i.win.laps} laps of ${trackName}` : `First to ${i.win.target} on ${trackName}`;
     const tally = tallyLine(i.players);
     const cards = awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") }));
+    const standings = matchStandings(i, matchWinner).map((s) => entry(s.id, s.score));
     if (i.cup) {
       const title = isLegEnd(i) ? `${shortName(matchWinner)} takes leg ${i.leg}` : `${shortName(cupWinner)} wins the cup!`;
-      podium.match(title, [`Leg ${i.leg} of ${i.cup} · ${rules}`, tally].filter(Boolean).join(" — "), cupTable(i.players).map((p) => entry(p.id, `${p.cupPoints} pts`)), isLegEnd(i) ? [] : cards);
+      podium.match(title, [`Leg ${i.leg} of ${i.cup} · ${rules}`, tally].filter(Boolean).join(" — "), standings, isLegEnd(i) ? [] : cards);
     } else {
-      podium.match(`${shortName(matchWinner)} wins!`, [rules, tally].filter(Boolean).join(" — "), finalStandings(i.players, matchWinner).map((p) => entry(p.id, formatScore(p.score))), cards);
+      podium.match(`${shortName(matchWinner)} wins!`, [rules, tally].filter(Boolean).join(" — "), standings, cards);
     }
     podium.actions(
       h("button", { class: "big", onclick: () => match.asEverySeat({ t: "rematch", in: true }) }, isLegEnd(i) ? "Next leg" : "Rematch"),

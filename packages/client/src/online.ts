@@ -36,7 +36,7 @@ import {
 } from "@neon/sim";
 import { h } from "./dom";
 import { TrackFollower } from "./net/track-follower";
-import { cupTable, isLegEnd, rematchLabel, stillWaiting, tallyLine } from "./ui/match-end";
+import { isLegEnd, matchStandings, rematchLabel, stillWaiting, tallyLine } from "./ui/match-end";
 import { createKeyboard, isTyping } from "./input";
 import { connect } from "./net/connection";
 import { createDrafting } from "./net/drafting";
@@ -58,7 +58,7 @@ import { createSketchTool } from "./sketch";
 import { audio, audioSettingsWidget, dangerLevel, screenPan, type Mood } from "./audio";
 import { countdownLabel, createCountdown } from "./ui/countdown";
 import { formatDelta, formatScore, raceName } from "./ui/format";
-import { createPodium, finalStandings } from "./ui/podium";
+import { createPodium } from "./ui/podium";
 import { createStreamHud } from "./ui/stream-hud";
 import { bindLobbyShell, copyInvite } from "./shell/lobby-shell";
 import { cupPicker, trackPicker, trackThumbs, winPicker } from "./ui/lobby-settings";
@@ -271,13 +271,12 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       renderer.glitch(GLITCH.matchEnd);
       const rules = info.win.kind === "laps" ? `${info.win.laps} laps of ${trackName}` : `First to ${info.win.target} on ${trackName}`;
       const tally = tallyLine(info.players);
+      const standings = matchStandings(info, matchWinner).map((s) => entry(s.id, s.score));
       if (info.cup) {
         const title = isLegEnd(info) ? `${shortName(matchWinner)} takes leg ${info.leg}` : `${shortName(cupWinner)} wins the cup!`;
         const subtitle = [`Leg ${info.leg} of ${info.cup} · ${rules}`, tally].filter(Boolean).join(" — ");
-        const standings = cupTable(info.players).map((p) => entry(p.id, `${p.cupPoints} pts`));
         podium.match(title, subtitle, standings, isLegEnd(info) ? [] : awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
       } else {
-        const standings = finalStandings(info.players, matchWinner).map((p) => entry(p.id, formatScore(p.score)));
         podium.match(`${shortName(matchWinner)} wins!`, [rules, tally].filter(Boolean).join(" — "), standings, awards.map(({ id, ...a }) => ({ ...a, winner: entry(id, "") })));
       }
     } else podium.hide();
