@@ -42,10 +42,11 @@ import { connect } from "./net/connection";
 import { createDrafting } from "./net/drafting";
 import { CameraLead } from "./net/camera-lead";
 import { SnapshotBuffer } from "./net/interpolation";
+import { createNetStats } from "./net/net-stats";
 import { Predictor } from "./net/prediction";
 import { css, HAZARD_COLORS, playerColor } from "./render/palette";
 import { EMOTE_GLYPHS, EMOTE_KEYS, floatEmote } from "./ui/emotes";
-import { report, setReportContext } from "./report";
+import { report, setPerfExtra, setReportContext } from "./report";
 import { hazardIcon } from "./ui/hazard-icons";
 import { IMPACT } from "./render/impact";
 import { PULSE } from "./render/envelopes";
@@ -97,6 +98,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   const keyboard = createKeyboard();
   const tool = createSketchTool(app.canvas, (x, y) => renderer.screenToWorld(x, y));
   const buffer = new SnapshotBuffer();
+  const netStats = createNetStats();
+  setPerfExtra(netStats.take);
   const cameraLead = new CameraLead();
   const follower = new TrackFollower();
   const predictor = new Predictor({ x: 0, y: 0, angle: 0, vx: 0, vy: 0 });
@@ -284,7 +287,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   }
 
   function onSnap(snap: Extract<ServerMsg, { t: "snap" }>) {
-    buffer.push(snap, performance.now());
+    netStats.snap(buffer.push(snap, performance.now()));
     hazardSounds(snap);
     const mine = snap.cars.find((c) => c.id === you);
     if (!mine) {
@@ -298,7 +301,8 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       resetFromSnap = false;
     }
     myAlive = mine.alive;
-    if (info?.mode === "contact" && mine.alive && snap.phase === "race") predictor.reconcile(carOf(mine), mine.ack, DT, { ...stepContext(), now: snap.now });
+    if (info?.mode === "contact" && mine.alive && snap.phase === "race") netStats.corrected(predictor.reconcile(carOf(mine), mine.ack, DT, { ...stepContext(), now: snap.now }));
+    if (mine.alive && snap.phase === "race") netStats.roundTrip(ticksInFlight() * DT * 1000);
   }
 
   function onEvent(event: GameEvent) {
@@ -458,6 +462,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
       return;
     }
     const sampled = phase === "lobby" ? null : buffer.sample(performance.now());
+    if (phase === "race") netStats.frame(buffer.starved(performance.now()));
     if (!sampled) {
       heard = null;
       renderer.render({ camera: worldCamera, track: phase === "matchEnd" ? track : null, trackName: phase === "matchEnd" && track ? trackName : null, cars: [], hazards: [], now });
@@ -803,6 +808,7 @@ export function startOnline(app: Application, ui: HTMLElement, opts: OnlineOptio
   return () => {
     ended = true;
     setReportContext({ room: undefined, player: undefined, phase: undefined });
+    setPerfExtra(null);
     unbindShell();
     app.ticker.remove(tick);
     window.removeEventListener("keydown", onKey);

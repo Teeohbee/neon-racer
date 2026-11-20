@@ -10,8 +10,14 @@ const context: Record<string, string | undefined> = { session: Math.random().toS
 const lastSent = new Map<string, number>();
 let sent = 0;
 
+let perfExtra: (() => Record<string, number> | null) | null = null;
+
 export function setReportContext(fields: Record<string, string | undefined>): void {
   Object.assign(context, fields);
+}
+
+export function setPerfExtra(source: typeof perfExtra): void {
+  perfExtra = source;
 }
 
 export function report(kind: string, fields: Record<string, unknown> = {}): void {
@@ -42,7 +48,7 @@ export function bindReporting(app: Application): void {
   bindPerfReports(app);
 }
 
-// Once a minute while in a room: the average frame rate, the worst half-second and the longest single frame.
+// Once a minute while in a room: the average frame rate, the worst half-second, the longest single frame, and any extra fields the room adds.
 function bindPerfReports(app: Application): void {
   const meter = createFpsMeter();
   let samples: number[] = [];
@@ -54,12 +60,14 @@ function bindPerfReports(app: Application): void {
     worstMs = Math.max(worstMs, sample.worstMs);
   });
   setInterval(() => {
+    const extra = perfExtra?.();
     if (context.room && samples.length) {
       report("perf", {
         avgFps: Math.round(samples.reduce((a, b) => a + b, 0) / samples.length),
         minFps: Math.min(...samples),
         worstFrameMs: worstMs,
         hidden: document.hidden || undefined,
+        ...extra,
       });
     }
     samples = [];
